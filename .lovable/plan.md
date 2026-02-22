@@ -1,36 +1,35 @@
-# ปรับปรุงหน้า Public Portal ให้สวยขึ้น
 
-## การเปลี่ยนแปลงหลัก
 
-### 1. Hero Section ที่สวยขึ้น
+# แยกหน้า Public Portal ให้มีระบบแชทของตัวเอง
 
-- ปรับขนาด AI logo ให้ใหญ่ขึ้น เพิ่ม glow/shadow effect
-- ปรับ typography ให้หัวข้อใหญ่ขึ้น มี gradient text
+## ปัญหาปัจจุบัน
+เมื่อประชาชนพิมพ์คำถามในหน้า Public Portal จะถูก redirect ไปยังหน้า Admin Chat (`/?q=...`) ซึ่งเป็นหน้าเจ้าหน้าที่ ทำให้ประชาชนเห็น sidebar เมนู admin ทั้งหมด
 
-### 2. Search Bar ที่โดดเด่น
+## แนวทางแก้ไข
+สร้างระบบแชทแบบ inline ภายในหน้า Public Portal เอง โดยไม่ต้อง redirect ไปหน้า admin
 
-- ปรับให้ใหญ่ขึ้น เพิ่ม shadow และ focus animation
-- เพิ่ม icon search ด้านซ้าย
-- เพิ่ม floating label/hint เหนือ search bar
+### การทำงานใหม่
+1. เมื่อประชาชนพิมพ์คำถามหรือกดคำถามแนะนำ จะสลับจากหน้า landing เป็นหน้าแชทภายใน Public Portal เอง
+2. แสดง agent steps แบบ real-time animation เหมือนหน้า admin
+3. แสดงคำตอบพร้อมแหล่งอ้างอิงและปุ่ม rating
+4. มีปุ่ม "กลับหน้าหลัก" เพื่อกลับไปหน้า landing
+5. Header และ Footer ยังคงเป็นของ Public Portal (ไม่มี sidebar admin)
 
-### 3. Agency Cards ที่สวยขึ้น
+### หน้าตา UI
+- **ก่อนถาม**: แสดง landing page เหมือนเดิม (hero, agency cards, suggested questions)
+- **หลังถาม**: สลับเป็น chat view เต็มจอ พร้อม header เรียบง่าย, พื้นที่แชท, และช่องพิมพ์ด้านล่าง
 
-- เพิ่มสีประจำหน่วยงานเป็น top border หรือ accent
-- เพิ่ม hover animation (scale up + shadow)
-- แสดง description สั้นๆ ของแต่ละหน่วยงาน
+---
 
-### 4. Suggested Questions ที่ดูดีขึ้น
+## รายละเอียดทางเทคนิค
 
-- เพิ่ม icon ของหน่วยงานที่เกี่ยวข้องในแต่ละคำถาม
-- เพิ่ม hover effect ที่สวยขึ้น (arrow icon ปรากฏเมื่อ hover)
-- ปรับ layout ให้ดูเป็น card มากขึ้น
+### ไฟล์ที่แก้ไข
+- **`src/pages/PublicPortal.tsx`** - เพิ่ม chat state, chat UI, agent step animation, rating system ภายในหน้านี้โดยตรง แทนที่การ `navigate` ไปหน้า admin
 
-### 6. Footer ที่สมบูรณ์ขึ้น
+### สิ่งที่เปลี่ยน
+- ลบ `useNavigate` และการ redirect ไป `/?q=...`
+- เพิ่ม state: `messages`, `isTyping`, `activeStepCount`, `chatMode` (boolean สำหรับสลับระหว่าง landing/chat)
+- นำ components `AgentStepDisplay` และ `MessageBubble` มาใช้ภายในไฟล์ (หรือ extract เป็น shared component)
+- เมื่อ `chatMode = true` แสดง chat UI แทน landing page โดยยังคง header/footer ของ Public Portal
+- เพิ่มปุ่ม "ถามคำถามใหม่" หรือ "กลับหน้าหลัก" ใน chat view
 
-- เพิ่มลิงก์เมนู (เกี่ยวกับระบบ, นโยบายข้อมูล, ติดต่อ)
-- เพิ่มโลโก้เล็กๆ
-
-## ไฟล์ที่แก้ไข
-
-- `src/pages/PublicPortal.tsx` - ปรับปรุง UI ทั้งหน้า
-- `src/index.css` - เพิ่ม gradient และ animation classes ที่จำเป็น
