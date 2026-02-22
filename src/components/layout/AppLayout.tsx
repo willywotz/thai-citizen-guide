@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { User } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function AppLayout() {
   return (
@@ -19,6 +20,7 @@ export function AppLayout() {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground hidden sm:block">ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ</span>
+              <ThemeToggle />
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <User className="w-4 h-4 text-primary" />
               </div>

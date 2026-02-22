@@ -26,6 +26,7 @@ export interface ChatMessage {
   timestamp: string;
   agentSteps?: AgentStep[];
   sources?: { agency: string; url: string; title: string }[];
+  rating?: 'up' | 'down' | null;
 }
 
 export interface ConversationHistory {
