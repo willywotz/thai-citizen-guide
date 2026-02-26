@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -29,51 +29,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<AuthContextType["profile"]>(null);
 
+  const fetchUserDetails = useCallback(async (userId: string, email?: string) => {
+    try {
+      const [profileRes, roleRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("display_name, avatar_url")
+          .eq("id", userId)
+          .single(),
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "admin")
+          .maybeSingle(),
+      ]);
+
+      if (profileRes.data) {
+        setProfile({
+          displayName: (profileRes.data as any).display_name || email || "",
+          avatarUrl: (profileRes.data as any).avatar_url,
+        });
+      }
+
+      setIsAdmin(!!roleRes.data);
+    } catch {
+      // Fail silently
+    }
+  }, []);
+
   useEffect(() => {
+    // Set up listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Fetch profile
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("display_name, avatar_url")
-            .eq("id", session.user.id)
-            .single();
-
-          if (profileData) {
-            setProfile({
-              displayName: (profileData as any).display_name || session.user.email || "",
-              avatarUrl: (profileData as any).avatar_url,
+          // Use setTimeout to avoid Supabase deadlock warning
+          setTimeout(() => {
+            fetchUserDetails(session.user.id, session.user.email ?? undefined).then(() => {
+              setIsLoading(false);
             });
-          }
-
-          // Check admin role
-          const { data: roleData } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", session.user.id)
-            .eq("role", "admin")
-            .maybeSingle();
-
-          setIsAdmin(!!roleData);
+          }, 0);
         } else {
           setProfile(null);
           setIsAdmin(false);
+          setIsLoading(false);
         }
-
-        setIsLoading(false);
       }
     );
 
+    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) setIsLoading(false);
+      if (!session) {
+        setIsLoading(false);
+      }
+      // If session exists, onAuthStateChange will fire and handle it
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchUserDetails]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

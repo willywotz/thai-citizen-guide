@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +11,17 @@ import { LogIn } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { user, isLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate("/", { replace: true });
+    }
+  }, [user, isLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,9 +32,12 @@ export default function LoginPage() {
       toast.error(error.message);
     } else {
       toast.success("เข้าสู่ระบบสำเร็จ");
-      navigate("/");
+      // navigate will happen via useEffect when auth state updates
     }
   };
+
+  // Don't show login form if already authenticated
+  if (!isLoading && user) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
