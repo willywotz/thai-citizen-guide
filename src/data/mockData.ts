@@ -1,50 +1,7 @@
-// ===== Types =====
-export interface Agency {
-  id: string;
-  name: string;
-  shortName: string;
-  logo: string;
-  connectionType: 'MCP' | 'API' | 'A2A';
-  status: 'active' | 'inactive';
-  description: string;
-  dataScope: string[];
-  totalCalls: number;
-  color: string;
-}
+import type { Agency, AgentStep, ChatMessage, ConversationHistory, DashboardStats } from '@/types';
 
-export interface AgentStep {
-  icon: string;
-  label: string;
-  detail?: string;
-  status: 'pending' | 'active' | 'done';
-}
-
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-  agentSteps?: AgentStep[];
-  sources?: { agency: string; url: string; title: string }[];
-  rating?: 'up' | 'down' | null;
-}
-
-export interface ConversationHistory {
-  id: string;
-  title: string;
-  preview: string;
-  date: string;
-  agencies: string[];
-  status: 'success' | 'failed';
-  messages: ChatMessage[];
-}
-
-export interface DashboardStats {
-  totalQuestions: number;
-  todayQuestions: number;
-  avgResponseTime: string;
-  satisfactionRate: number;
-}
+// Re-export types for backward compatibility
+export type { Agency, AgentStep, ChatMessage, ConversationHistory, DashboardStats };
 
 // ===== Mock Data =====
 

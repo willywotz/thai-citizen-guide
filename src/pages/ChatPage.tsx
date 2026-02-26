@@ -1,24 +1,23 @@
-import { useState, useRef, useEffect } from "react";
-import { Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { agencies, suggestedQuestions, mockAgentSteps, mockConversation, type ChatMessage } from "@/data/mockData";
-import { useSearchParams } from "react-router-dom";
-import { MessageBubble } from "@/components/chat/MessageBubble";
-import { AgentStepDisplay } from "@/components/chat/AgentStepDisplay";
+import { useEffect } from 'react';
+import { Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { agencies, suggestedQuestions } from '@/data/mockData';
+import { useSearchParams } from 'react-router-dom';
+import { MessageBubble } from '@/components/chat/MessageBubble';
+import { AgentStepDisplay } from '@/components/chat/AgentStepDisplay';
+import { useChat } from '@/hooks/useChat';
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [activeStepCount, setActiveStepCount] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const hasMessages = messages.length > 0;
+  const {
+    messages, input, setInput, isTyping, activeStepCount, currentSteps,
+    scrollRef, handleSend, handleRate, hasMessages,
+  } = useChat();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Handle query from public portal
+  // Handle query from URL
   useEffect(() => {
-    const q = searchParams.get("q");
+    const q = searchParams.get('q');
     if (q) {
       setSearchParams({});
       handleSend(q);
@@ -26,61 +25,13 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeStepCount]);
-
-  const handleRate = (id: string, rating: 'up' | 'down') => {
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, rating } : m));
-  };
-
-  const handleSend = (text?: string) => {
-    const question = text || input.trim();
-    if (!question) return;
-
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: question,
-      timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages(prev => [...prev, userMsg]);
-    setInput("");
-    setIsTyping(true);
-    setActiveStepCount(0);
-
-    // Animate steps one by one
-    const steps = mockAgentSteps;
-    steps.forEach((_, i) => {
-      setTimeout(() => setActiveStepCount(i + 1), (i + 1) * 600);
-    });
-
-    // After all steps, show answer
-    setTimeout(() => {
-      const aiMsg: ChatMessage = {
-        ...mockConversation[1],
-        id: (Date.now() + 1).toString(),
-        timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-        rating: null,
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      setIsTyping(false);
-      setActiveStepCount(0);
-    }, (steps.length + 1) * 600);
-  };
-
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
       <ScrollArea className="flex-1 p-4">
         {!hasMessages && !isTyping ? (
-          /* Welcome screen */
           <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-4">
-            <div className="w-16 h-16 rounded-2xl gov-gradient flex items-center justify-center text-white text-2xl font-bold mb-4">
-              AI
-            </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">
-              AI Chatbot Portal กลาง
-            </h2>
+            <div className="w-16 h-16 rounded-2xl gov-gradient flex items-center justify-center text-white text-2xl font-bold mb-4">AI</div>
+            <h2 className="text-xl font-semibold text-foreground mb-2">AI Chatbot Portal กลาง</h2>
             <p className="text-sm text-muted-foreground mb-6 max-w-md">
               ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ สอบถามข้อมูลจาก 4 หน่วยงานได้ในที่เดียว
             </p>
@@ -96,8 +47,7 @@ export default function ChatPage() {
               <p className="text-xs text-muted-foreground mb-2">ลองถามคำถามเหล่านี้:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {suggestedQuestions.map((q, i) => (
-                  <button key={i}
-                    onClick={() => handleSend(q)}
+                  <button key={i} onClick={() => handleSend(q)}
                     className="text-left text-sm bg-card border border-border rounded-xl p-3 hover:bg-accent hover:border-primary/30 transition-colors">
                     {q}
                   </button>
@@ -106,9 +56,8 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          /* Chat messages */
           <div className="max-w-3xl mx-auto">
-            {messages.map(msg => (
+            {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} onRate={handleRate} />
             ))}
             {isTyping && (
@@ -116,7 +65,7 @@ export default function ChatPage() {
                 <div className="w-8 h-8 rounded-full gov-gradient flex items-center justify-center text-white text-sm shrink-0">AI</div>
                 <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
                   {activeStepCount > 0 ? (
-                    <AgentStepDisplay steps={mockAgentSteps} visibleCount={activeStepCount} />
+                    <AgentStepDisplay steps={currentSteps} visibleCount={activeStepCount} />
                   ) : (
                     <div className="flex items-center gap-1">
                       <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -132,18 +81,13 @@ export default function ChatPage() {
         )}
       </ScrollArea>
 
-      {/* Input area */}
       <div className="border-t border-border bg-card p-3">
         <div className="max-w-3xl mx-auto flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+          <input value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder="พิมพ์คำถามของคุณที่นี่..."
-            className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <Button onClick={() => handleSend()} size="icon" className="rounded-xl shrink-0"
-            disabled={!input.trim() || isTyping}>
+            className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          <Button onClick={() => handleSend()} size="icon" className="rounded-xl shrink-0" disabled={!input.trim() || isTyping}>
             <Send className="h-4 w-4" />
           </Button>
         </div>
