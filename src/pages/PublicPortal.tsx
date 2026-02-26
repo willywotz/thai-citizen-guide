@@ -1,84 +1,30 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, Search, ArrowRight, ArrowUpRight, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { agencies, suggestedQuestions, mockAgentSteps, mockConversation, type ChatMessage } from "@/data/mockData";
-import { MessageBubble } from "@/components/chat/MessageBubble";
-import { AgentStepDisplay } from "@/components/chat/AgentStepDisplay";
-
-const agencyColors: Record<string, string> = {
-  fda: "border-t-[hsl(var(--gov-fda))]",
-  revenue: "border-t-[hsl(var(--gov-revenue))]",
-  land: "border-t-[hsl(var(--gov-land))]",
-  dopa: "border-t-[hsl(var(--gov-dopa))]",
-};
-
-const agencyBgColors: Record<string, string> = {
-  fda: "bg-[hsl(var(--gov-fda)/0.1)]",
-  revenue: "bg-[hsl(var(--gov-revenue)/0.1)]",
-  land: "bg-[hsl(var(--gov-land)/0.1)]",
-  dopa: "bg-[hsl(var(--gov-dopa)/0.1)]",
-};
-
-const questionAgencyMap = [0, 1, 2, 3];
+import { Send, Search, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { agencies, suggestedQuestions } from '@/data/mockData';
+import { MessageBubble } from '@/components/chat/MessageBubble';
+import { AgentStepDisplay } from '@/components/chat/AgentStepDisplay';
+import { LandingHero } from '@/components/public/LandingHero';
+import { AgencyCards } from '@/components/public/AgencyCards';
+import { SuggestedQuestions } from '@/components/public/SuggestedQuestions';
+import { useChat } from '@/hooks/useChat';
+import { useState } from 'react';
 
 export default function PublicPortal() {
-  const [input, setInput] = useState("");
+  const {
+    messages, input, setInput, isTyping, activeStepCount, currentSteps,
+    scrollRef, handleSend, handleRate, reset, hasMessages,
+  } = useChat();
   const [chatMode, setChatMode] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [activeStepCount, setActiveStepCount] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeStepCount]);
-
-  const handleRate = (id: string, rating: 'up' | 'down') => {
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, rating } : m));
+  const onSend = (text?: string) => {
+    if (!chatMode) setChatMode(true);
+    handleSend(text);
   };
 
   const handleBack = () => {
     setChatMode(false);
-    setMessages([]);
-    setIsTyping(false);
-    setActiveStepCount(0);
-    setInput("");
-  };
-
-  const handleSend = (text?: string) => {
-    const question = text || input.trim();
-    if (!question) return;
-
-    if (!chatMode) setChatMode(true);
-
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: question,
-      timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages(prev => [...prev, userMsg]);
-    setInput("");
-    setIsTyping(true);
-    setActiveStepCount(0);
-
-    const steps = mockAgentSteps;
-    steps.forEach((_, i) => {
-      setTimeout(() => setActiveStepCount(i + 1), (i + 1) * 600);
-    });
-
-    setTimeout(() => {
-      const aiMsg: ChatMessage = {
-        ...mockConversation[1],
-        id: (Date.now() + 1).toString(),
-        timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-        rating: null,
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      setIsTyping(false);
-      setActiveStepCount(0);
-    }, (steps.length + 1) * 600);
+    reset();
   };
 
   return (
@@ -100,11 +46,10 @@ export default function PublicPortal() {
       </header>
 
       {chatMode ? (
-        /* ===== Chat View ===== */
         <>
           <ScrollArea className="flex-1 p-4">
             <div className="max-w-3xl mx-auto">
-              {messages.map(msg => (
+              {messages.map((msg) => (
                 <MessageBubble key={msg.id} message={msg} onRate={handleRate} />
               ))}
               {isTyping && (
@@ -112,7 +57,7 @@ export default function PublicPortal() {
                   <div className="w-8 h-8 rounded-full gov-gradient flex items-center justify-center text-white text-sm shrink-0">AI</div>
                   <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
                     {activeStepCount > 0 ? (
-                      <AgentStepDisplay steps={mockAgentSteps} visibleCount={activeStepCount} />
+                      <AgentStepDisplay steps={currentSteps} visibleCount={activeStepCount} />
                     ) : (
                       <div className="flex items-center gap-1">
                         <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -127,41 +72,22 @@ export default function PublicPortal() {
             </div>
           </ScrollArea>
 
-          {/* Chat Input */}
           <div className="border-t border-border bg-card p-3">
             <div className="max-w-3xl mx-auto flex gap-2">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              <input value={input} onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSend()}
                 placeholder="พิมพ์คำถามของคุณที่นี่..."
-                className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <Button onClick={() => handleSend()} size="icon" className="rounded-xl shrink-0" disabled={!input.trim() || isTyping}>
+                className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <Button onClick={() => onSend()} size="icon" className="rounded-xl shrink-0" disabled={!input.trim() || isTyping}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </>
       ) : (
-        /* ===== Landing View ===== */
         <>
           <main className="flex-1 flex flex-col items-center justify-center px-4 py-16">
-            {/* Logo with glow */}
-            <div className="relative mb-8">
-              <div className="absolute inset-0 w-24 h-24 rounded-3xl gov-gradient opacity-30 blur-xl scale-125" />
-              <div className="relative w-24 h-24 rounded-3xl gov-gradient flex items-center justify-center text-white text-4xl font-bold shadow-xl">
-                AI
-              </div>
-            </div>
-
-            <h1 className="text-3xl md:text-4xl font-bold text-center mb-3 portal-gradient-text">
-              ศูนย์บริการข้อมูลภาครัฐ
-            </h1>
-            <p className="text-sm md:text-base text-muted-foreground text-center max-w-lg mb-10 leading-relaxed">
-              สอบถามข้อมูลจากหน่วยงานภาครัฐได้ครบในที่เดียว —{" "}
-              <span className="text-foreground font-medium">Single Portal</span> เพื่อประชาชน
-            </p>
+            <LandingHero />
 
             {/* Search */}
             <div className="w-full max-w-xl mb-12">
@@ -169,62 +95,21 @@ export default function PublicPortal() {
               <div className="relative flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                  <input value={input} onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && onSend()}
                     placeholder="พิมพ์คำถามของคุณ เช่น ขั้นตอนทำบัตรประชาชนใหม่..."
-                    className="w-full bg-card border border-input rounded-2xl pl-11 pr-4 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary shadow-sm transition-shadow focus:shadow-md"
-                  />
+                    className="w-full bg-card border border-input rounded-2xl pl-11 pr-4 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary shadow-sm transition-shadow focus:shadow-md" />
                 </div>
-                <Button onClick={() => handleSend()} size="icon" className="rounded-2xl h-[52px] w-[52px] shrink-0 shadow-sm" disabled={!input.trim()}>
+                <Button onClick={() => onSend()} size="icon" className="rounded-2xl h-[52px] w-[52px] shrink-0 shadow-sm" disabled={!input.trim()}>
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
             </div>
 
-            {/* Agencies */}
-            <div className="flex flex-wrap justify-center gap-4 mb-12">
-              {agencies.map((a, i) => (
-                <div
-                  key={a.id}
-                  className={`group flex flex-col items-center gap-2 bg-card border border-border rounded-2xl p-5 w-36 transition-all duration-200 hover:scale-105 hover:shadow-lg border-t-[3px] ${agencyColors[a.id] || ""}`}
-                  style={{ animationDelay: `${i * 80}ms` }}
-                >
-                  <span className={`text-3xl w-12 h-12 rounded-xl flex items-center justify-center ${agencyBgColors[a.id] || ""}`}>
-                    {a.logo}
-                  </span>
-                  <span className="text-xs font-semibold text-foreground text-center">{a.shortName}</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2">{a.description.slice(0, 40)}...</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Suggested questions */}
-            <div className="w-full max-w-xl">
-              <p className="text-xs text-muted-foreground mb-3 text-center font-medium">คำถามยอดนิยม</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {suggestedQuestions.map((q, i) => {
-                  const agency = agencies[questionAgencyMap[i] ?? 0];
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => handleSend(q)}
-                      className="group text-left text-sm bg-card border border-border rounded-2xl p-4 hover:bg-accent hover:border-primary/30 transition-all duration-200 hover:shadow-md flex items-start gap-3"
-                    >
-                      <span className={`text-lg shrink-0 mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center ${agencyBgColors[agency?.id] || ""}`}>
-                        {agency?.logo}
-                      </span>
-                      <span className="flex-1">{q}</span>
-                      <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <AgencyCards agencies={agencies} />
+            <SuggestedQuestions questions={suggestedQuestions} agencies={agencies} onSelect={onSend} />
           </main>
 
-          {/* Footer */}
           <footer className="border-t border-border py-6 px-6">
             <div className="max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">

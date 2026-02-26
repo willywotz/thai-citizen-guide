@@ -1,0 +1,109 @@
+import { useState, useRef, useEffect, useCallback } from 'react';
+import type { ChatMessage, AgentStep } from '@/types';
+import { sendChatQuery } from '@/services/chatApi';
+import { mockAgentSteps, mockConversation } from '@/data/mockData';
+
+export function useChat() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [activeStepCount, setActiveStepCount] = useState(0);
+  const [currentSteps, setCurrentSteps] = useState<AgentStep[]>(mockAgentSteps);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, activeStepCount]);
+
+  const handleRate = useCallback((id: string, rating: 'up' | 'down') => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, rating } : m)));
+  }, []);
+
+  const handleSend = useCallback(async (text?: string) => {
+    const question = text || input.trim();
+    if (!question || isTyping) return;
+
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: question,
+      timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
+    setIsTyping(true);
+    setActiveStepCount(0);
+
+    // Animate placeholder steps while waiting
+    const placeholderSteps = mockAgentSteps;
+    setCurrentSteps(placeholderSteps);
+    placeholderSteps.forEach((_, i) => {
+      setTimeout(() => setActiveStepCount(i + 1), (i + 1) * 500);
+    });
+
+    try {
+      const response = await sendChatQuery(question);
+
+      if (response.success) {
+        // Update steps with real data from API
+        setCurrentSteps(response.data.agentSteps as AgentStep[]);
+        setActiveStepCount(response.data.agentSteps.length);
+
+        const aiMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: response.data.answer,
+          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+          agentSteps: response.data.agentSteps as AgentStep[],
+          sources: response.data.references.map((ref) => ({
+            agency: ref.agency,
+            url: ref.url,
+            title: ref.title,
+          })),
+          rating: null,
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        setIsTyping(false);
+        setActiveStepCount(0);
+        return;
+      }
+    } catch {
+      console.warn('API call failed, falling back to mock data');
+    }
+
+    // Fallback to mock data
+    setTimeout(() => {
+      const aiMsg: ChatMessage = {
+        ...mockConversation[1],
+        id: (Date.now() + 1).toString(),
+        timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+        rating: null,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+      setIsTyping(false);
+      setActiveStepCount(0);
+    }, (placeholderSteps.length + 1) * 500);
+  }, [input, isTyping]);
+
+  const reset = useCallback(() => {
+    setMessages([]);
+    setIsTyping(false);
+    setActiveStepCount(0);
+    setInput('');
+    setCurrentSteps(mockAgentSteps);
+  }, []);
+
+  return {
+    messages,
+    input,
+    setInput,
+    isTyping,
+    activeStepCount,
+    currentSteps,
+    scrollRef,
+    handleSend,
+    handleRate,
+    reset,
+    hasMessages: messages.length > 0,
+  };
+}
