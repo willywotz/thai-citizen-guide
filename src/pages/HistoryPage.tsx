@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, CheckCircle, XCircle, Loader2, Trash2, Download, FileText, CalendarIcon, X } from "lucide-react";
+import { Search, CheckCircle, XCircle, Loader2, Trash2, Download, FileText, CalendarIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -19,6 +19,8 @@ import { th } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 
+const PAGE_SIZE = 10;
+
 export default function HistoryPage() {
   const [search, setSearch] = useState("");
   const [filterAgency, setFilterAgency] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export default function HistoryPage() {
   const [deleteTarget, setDeleteTarget] = useState<HistoryItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [page, setPage] = useState(1);
   const { data: conversations = [], isLoading } = useChatHistory(search, filterAgency || undefined);
   const queryClient = useQueryClient();
 
@@ -39,6 +42,14 @@ export default function HistoryPage() {
       return true;
     });
   }, [conversations, dateRange]);
+
+  // Reset page when filters change
+  const totalPages = Math.max(1, Math.ceil(filteredConversations.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedConversations = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredConversations.slice(start, start + PAGE_SIZE);
+  }, [filteredConversations, safePage]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -89,20 +100,20 @@ export default function HistoryPage() {
           <Input
             placeholder="ค้นหาการสนทนา..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-9"
           />
         </div>
         <div className="flex gap-1.5">
           <button
-            onClick={() => setFilterAgency(null)}
+            onClick={() => { setFilterAgency(null); setPage(1); }}
             className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${!filterAgency ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-accent'}`}
           >
             ทั้งหมด
           </button>
           {allAgencies.map((a) => (
             <button key={a}
-              onClick={() => setFilterAgency(filterAgency === a ? null : a)}
+              onClick={() => { setFilterAgency(filterAgency === a ? null : a); setPage(1); }}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filterAgency === a ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-accent'}`}
             >
               {a}
@@ -137,7 +148,7 @@ export default function HistoryPage() {
             <Calendar
               mode="range"
               selected={dateRange}
-              onSelect={setDateRange}
+              onSelect={(r) => { setDateRange(r); setPage(1); }}
               numberOfMonths={2}
               initialFocus
               className={cn("p-3 pointer-events-auto")}
@@ -168,7 +179,7 @@ export default function HistoryPage() {
       {/* Conversation list */}
       {!isLoading && (
         <div className="space-y-2">
-          {filteredConversations.map((conv) => (
+          {paginatedConversations.map((conv) => (
             <Card key={conv.id} className="cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => setSelectedConv(conv)}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -210,6 +221,46 @@ export default function HistoryPage() {
           ))}
           {filteredConversations.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-12">ไม่พบผลลัพธ์</p>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs text-muted-foreground">
+                แสดง {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredConversations.length)} จาก {filteredConversations.length} รายการ
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(safePage - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <Button
+                    key={p}
+                    variant={p === safePage ? "default" : "outline"}
+                    size="icon"
+                    className="h-8 w-8 text-xs"
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(safePage + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       )}
