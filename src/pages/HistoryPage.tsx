@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, CheckCircle, XCircle, Loader2, Trash2, Download, FileText } from "lucide-react";
+import { Search, CheckCircle, XCircle, Loader2, Trash2, Download, FileText, CalendarIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import { ConversationDetailDialog } from "@/components/history/ConversationDetailDialog";
@@ -12,6 +14,10 @@ import type { HistoryItem } from "@/services/historyApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { exportToCsv, exportToPdf } from "@/utils/exportHistory";
+import { format, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
+import { th } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import type { DateRange } from "react-day-picker";
 
 export default function HistoryPage() {
   const [search, setSearch] = useState("");
@@ -19,8 +25,20 @@ export default function HistoryPage() {
   const [selectedConv, setSelectedConv] = useState<HistoryItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<HistoryItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const { data: conversations = [], isLoading } = useChatHistory(search, filterAgency || undefined);
   const queryClient = useQueryClient();
+
+  // Filter by date range client-side
+  const filteredConversations = useMemo(() => {
+    if (!dateRange?.from) return conversations;
+    return conversations.filter((c) => {
+      const d = new Date(c.date);
+      if (dateRange.from && isBefore(d, startOfDay(dateRange.from))) return false;
+      if (dateRange.to && isAfter(d, endOfDay(dateRange.to))) return false;
+      return true;
+    });
+  }, [conversations, dateRange]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -42,12 +60,12 @@ export default function HistoryPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">ประวัติการสนทนา</h2>
-        {conversations.length > 0 && (
+        {filteredConversations.length > 0 && (
           <div className="flex gap-1.5">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { exportToCsv(conversations); toast.success("ส่งออก CSV เรียบร้อย"); }}
+              onClick={() => { exportToCsv(filteredConversations); toast.success("ส่งออก CSV เรียบร้อย"); }}
             >
               <Download className="h-3.5 w-3.5 mr-1" />
               CSV
@@ -55,7 +73,7 @@ export default function HistoryPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { exportToPdf(conversations); toast.success("ส่งออก PDF เรียบร้อย"); }}
+              onClick={() => { exportToPdf(filteredConversations); toast.success("ส่งออก PDF เรียบร้อย"); }}
             >
               <FileText className="h-3.5 w-3.5 mr-1" />
               PDF
@@ -91,6 +109,53 @@ export default function HistoryPage() {
             </button>
           ))}
         </div>
+
+        {/* Date range picker */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "text-xs gap-1.5",
+                !dateRange?.from && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="h-3.5 w-3.5" />
+              {dateRange?.from ? (
+                dateRange.to ? (
+                  <>{format(dateRange.from, "d MMM", { locale: th })} – {format(dateRange.to, "d MMM", { locale: th })}</>
+                ) : (
+                  format(dateRange.from, "d MMM yyyy", { locale: th })
+                )
+              ) : (
+                "เลือกช่วงวันที่"
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              selected={dateRange}
+              onSelect={setDateRange}
+              numberOfMonths={2}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+
+        {dateRange?.from && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-8 px-2 text-muted-foreground"
+            onClick={() => setDateRange(undefined)}
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            ล้างวันที่
+          </Button>
+        )}
       </div>
 
       {/* Loading */}
@@ -103,7 +168,7 @@ export default function HistoryPage() {
       {/* Conversation list */}
       {!isLoading && (
         <div className="space-y-2">
-          {conversations.map((conv) => (
+          {filteredConversations.map((conv) => (
             <Card key={conv.id} className="cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => setSelectedConv(conv)}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -143,7 +208,7 @@ export default function HistoryPage() {
               </CardContent>
             </Card>
           ))}
-          {conversations.length === 0 && (
+          {filteredConversations.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-12">ไม่พบผลลัพธ์</p>
           )}
         </div>
