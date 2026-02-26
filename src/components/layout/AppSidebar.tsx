@@ -11,7 +11,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { agencies } from "@/data/mockData";
+import { useAgencies } from "@/hooks/useAgencies";
 
 const navItems = [
   { title: "แชท", url: "/", icon: MessageSquare },
@@ -23,6 +23,7 @@ const navItems = [
 
 export function AppSidebar() {
   const { state } = useSidebar();
+  const { data: agencies = [] } = useAgencies();
   const collapsed = state === "collapsed";
 
   return (

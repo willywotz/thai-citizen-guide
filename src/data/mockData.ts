@@ -17,6 +17,7 @@ export const agencies: Agency[] = [
     dataScope: ['ทะเบียนยา', 'ทะเบียนอาหาร', 'เครื่องสำอาง', 'ผลิตภัณฑ์สุขภาพ', 'การขออนุญาต'],
     totalCalls: 12450,
     color: 'hsl(145 55% 40%)',
+    endpointUrl: 'https://api.fda.moph.go.th/mcp',
   },
   {
     id: 'revenue',
@@ -29,6 +30,7 @@ export const agencies: Agency[] = [
     dataScope: ['ภาษีเงินได้บุคคลธรรมดา', 'ภาษีนิติบุคคล', 'ภาษีมูลค่าเพิ่ม', 'การยื่นแบบ', 'สิทธิลดหย่อน'],
     totalCalls: 18320,
     color: 'hsl(213 70% 45%)',
+    endpointUrl: 'https://api.rd.go.th/v1',
   },
   {
     id: 'dopa',
@@ -41,6 +43,7 @@ export const agencies: Agency[] = [
     dataScope: ['ทะเบียนราษฎร์', 'บัตรประจำตัวประชาชน', 'ทะเบียนบ้าน', 'การเปลี่ยนชื่อ', 'สถานะบุคคล'],
     totalCalls: 9870,
     color: 'hsl(25 85% 55%)',
+    endpointUrl: 'https://api.dopa.go.th/a2a',
   },
   {
     id: 'land',
@@ -53,6 +56,7 @@ export const agencies: Agency[] = [
     dataScope: ['โฉนดที่ดิน', 'การจดทะเบียน', 'ราคาประเมิน', 'การรังวัด', 'สิทธิและนิติกรรม'],
     totalCalls: 7650,
     color: 'hsl(280 50% 50%)',
+    endpointUrl: 'https://api.dol.go.th/mcp',
   },
 ];
 

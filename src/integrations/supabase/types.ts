@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      agencies: {
+        Row: {
+          api_key_name: string | null
+          color: string
+          connection_type: string
+          created_at: string
+          data_scope: string[]
+          description: string
+          endpoint_url: string
+          id: string
+          logo: string
+          name: string
+          short_name: string
+          status: string
+          total_calls: number
+          updated_at: string
+        }
+        Insert: {
+          api_key_name?: string | null
+          color?: string
+          connection_type?: string
+          created_at?: string
+          data_scope?: string[]
+          description?: string
+          endpoint_url?: string
+          id?: string
+          logo?: string
+          name: string
+          short_name: string
+          status?: string
+          total_calls?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key_name?: string | null
+          color?: string
+          connection_type?: string
+          created_at?: string
+          data_scope?: string[]
+          description?: string
+          endpoint_url?: string
+          id?: string
+          logo?: string
+          name?: string
+          short_name?: string
+          status?: string
+          total_calls?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           agencies: string[]
