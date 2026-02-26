@@ -1,15 +1,23 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2 } from "lucide-react";
+import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, RefreshCw } from "lucide-react";
 import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "@/hooks/useDashboard";
 import { useAgencies } from "@/hooks/useAgencies";
 
 export default function DashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { data: stats, isLoading: statsLoading, dataUpdatedAt } = useDashboardStats();
   const { data: agencyUsage, isLoading: usageLoading } = useAgencyUsage();
   const { data: weeklyTrend } = useWeeklyTrend();
   const { data: categoryStats } = useCategoryData();
   const { data: agencies } = useAgencies();
+
+  const [lastUpdated, setLastUpdated] = useState("");
+  useEffect(() => {
+    if (dataUpdatedAt) {
+      setLastUpdated(new Date(dataUpdatedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    }
+  }, [dataUpdatedAt]);
 
   const statCards = stats ? [
     { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare },
@@ -28,7 +36,15 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <h2 className="text-lg font-semibold text-foreground">Dashboard สถิติการใช้งาน</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">Dashboard สถิติการใช้งาน</h2>
+        {lastUpdated && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <RefreshCw className="h-3 w-3 animate-spin" style={{ animationDuration: '3s' }} />
+            <span>อัปเดตล่าสุด: {lastUpdated}</span>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((s, i) => (
