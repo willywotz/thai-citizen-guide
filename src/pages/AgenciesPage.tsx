@@ -1,8 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { agencies } from "@/data/mockData";
+import { useAgencies } from "@/hooks/useAgencies";
 
 export default function AgenciesPage() {
+  const { data: agencies } = useAgencies();
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
