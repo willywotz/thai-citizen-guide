@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -12,6 +12,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAgencies } from "@/hooks/useAgencies";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navItems = [
   { title: "แชท", url: "/", icon: MessageSquare },
@@ -24,7 +27,15 @@ const navItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const { data: agencies = [] } = useAgencies();
+  const { profile, user, signOut } = useAuth();
   const collapsed = state === "collapsed";
+
+  const initials = (profile?.displayName || user?.email || "U")
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -88,6 +99,32 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
+        {/* User section at bottom */}
+        <div className="mt-auto border-t border-sidebar-border p-3">
+          {!collapsed ? (
+            <div className="flex items-center gap-2">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-sidebar-foreground truncate">
+                  {profile?.displayName || user?.email}
+                </p>
+                <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={signOut} title="ออกจากระบบ">
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="icon" className="h-8 w-8 mx-auto" onClick={signOut} title="ออกจากระบบ">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </SidebarContent>
     </Sidebar>
   );
