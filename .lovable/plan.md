@@ -1,83 +1,95 @@
 
 
-# Clean Code, Refactor และสร้าง Mockup APIs
+# Phase 2: บันทึกประวัติสนทนาลง Database จริง
 
 ## ภาพรวม
 
-Refactor โปรเจคให้แบ่งโครงสร้างชัดเจนระหว่าง Frontend และ Backend โดยสร้าง Supabase Edge Functions เป็น Mockup APIs สำหรับ 4 หน่วยงาน พร้อม Frontend service layer เรียกใช้งาน
+ปัจจุบันประวัติสนทนาเป็น mock data ใน Edge Function (`chat-history`) ทั้งหมด ไม่มีการบันทึกจริง ฟีเจอร์นี้จะสร้างตาราง database จริงเพื่อบันทึกทุกการสนทนาและข้อความ แล้วให้ History Page ดึงจาก database แทน
 
 ---
 
-## 1. Refactor Frontend - แยกโครงสร้างไฟล์ให้ชัดเจน
+## 1. สร้างตาราง Database (Migration)
 
-### 1.1 แยก Types ออกจาก Mock Data ✅
-- ✅ สร้าง `src/types/agency.ts` - Agency, AgentStep types
-- ✅ สร้าง `src/types/chat.ts` - ChatMessage, ConversationHistory types
-- ✅ สร้าง `src/types/dashboard.ts` - DashboardStats types
-- ✅ สร้าง `src/types/index.ts` - re-export ทั้งหมด
+### 1.1 ตาราง `conversations`
+เก็บข้อมูลหลักของแต่ละบทสนทนา
 
-### 1.2 สร้าง API Service Layer ✅
-- ✅ สร้าง `src/services/agencyApi.ts` - ฟังก์ชันเรียก Edge Functions ของแต่ละหน่วยงาน
-- ✅ สร้าง `src/services/chatApi.ts` - ฟังก์ชันส่งคำถามและรับคำตอบ
-- ✅ สร้าง `src/services/dashboardApi.ts` - ฟังก์ชันดึงสถิติ
-- ✅ สร้าง `src/services/historyApi.ts` - ฟังก์ชันดึงประวัติสนทนา
+| Column | Type | Description |
+|---|---|---|
+| id | uuid (PK) | รหัสสนทนา |
+| title | text | หัวข้อ (สร้างจากคำถามแรก) |
+| preview | text | ข้อความตัวอย่าง (คำถามแรก) |
+| agencies | text[] | หน่วยงานที่เกี่ยวข้อง |
+| status | text | 'success' หรือ 'failed' |
+| message_count | int | จำนวนข้อความ |
+| response_time | text | เวลาตอบ |
+| created_at | timestamptz | วันที่สร้าง |
 
-### 1.3 สร้าง Custom Hooks ✅
-- ✅ สร้าง `src/hooks/useChat.ts` - แยก chat logic ออกจาก ChatPage และ PublicPortal ให้ใช้ร่วมกัน
-- ✅ สร้าง `src/hooks/useAgencies.ts` - React Query hook ดึงข้อมูลหน่วยงาน
-- ✅ สร้าง `src/hooks/useDashboard.ts` - React Query hook ดึงสถิติ
-- ✅ สร้าง `src/hooks/useChatHistory.ts` - React Query hook ดึงประวัติสนทนา
+### 1.2 ตาราง `messages`
+เก็บข้อความแต่ละรายการในบทสนทนา
 
-### 1.4 Refactor Pages ✅
-- ✅ `ChatPage.tsx` - ใช้ `useChat` hook แทน logic ที่ซ้ำกัน
-- ✅ `PublicPortal.tsx` - ใช้ `useChat` hook เช่นกัน ลด code ซ้ำ
-- ✅ แยก Landing section เป็น `LandingHero.tsx`, `AgencyCards.tsx`, `SuggestedQuestions.tsx`
+| Column | Type | Description |
+|---|---|---|
+| id | uuid (PK) | รหัสข้อความ |
+| conversation_id | uuid (FK) | อ้างอิงไป conversations |
+| role | text | 'user' หรือ 'assistant' |
+| content | text | เนื้อหาข้อความ |
+| agent_steps | jsonb | ขั้นตอน agent (nullable) |
+| sources | jsonb | แหล่งอ้างอิง (nullable) |
+| rating | text | 'up', 'down', หรือ null |
+| created_at | timestamptz | เวลาสร้าง |
 
----
-
-## 2. Backend - สร้าง Mockup APIs (Supabase Edge Functions) ✅
-
-สร้าง Edge Functions deploy บน Lovable Cloud:
-
-### 2.1 `agency-fda` ✅ - API จำลองสำนักงาน อย.
-### 2.2 `agency-revenue` ✅ - API จำลองกรมสรรพากร
-### 2.3 `agency-dopa` ✅ - API จำลองกรมการปกครอง
-### 2.4 `agency-land` ✅ - API จำลองกรมที่ดิน
-### 2.5 `ai-chat` ✅ - API Orchestrator หลัก (เรียก agency functions แบบ parallel, synthesize คำตอบ)
-### 2.6 `dashboard-stats` ✅ - API ดึงสถิติ Dashboard
-### 2.7 `agencies-list` ✅ - API ดึงรายการหน่วยงาน
-### 2.8 `chat-history` ✅ - API ดึงประวัติสนทนา (รองรับ search + filter)
+### 1.3 RLS Policies
+- เนื่องจากเป็นระบบ public portal (ไม่มี auth ในตอนนี้) จะตั้ง RLS แบบ public read + insert ก่อน
+- เมื่อเพิ่ม authentication ภายหลังจะ restrict ตาม user_id
 
 ---
 
-## 3. เชื่อม Frontend กับ Backend ✅
+## 2. อัปเดต Edge Function `chat-history`
 
-### 3.1 ปรับ `useChat` hook ✅
-- ✅ เรียก `ai-chat` Edge Function แทน mock data
-- ✅ แสดง agent steps แบบ real-time ตาม response
-- ✅ Fallback กลับไปใช้ mock data ถ้า API ไม่พร้อม
-
-### 3.2 Supabase Client ✅
-- ✅ `src/integrations/supabase/client.ts` พร้อมใช้งาน (auto-generated)
+แก้ไข `supabase/functions/chat-history/index.ts` ให้:
+- ดึงข้อมูลจากตาราง `conversations` แทน mock array
+- รองรับ search (title/preview) และ filter by agency
+- เรียงลำดับตาม `created_at` ล่าสุดก่อน
 
 ---
 
-## 4. UI Enhancements ✅
+## 3. สร้าง Edge Function `save-conversation`
 
-- ✅ เพิ่ม Markdown rendering (react-markdown + prose styling) ให้ AI responses แสดงตาราง, bold, list สวยงาม
-- ✅ ทดสอบ multi-agency orchestration (เช่น คำถามที่เกี่ยวข้อง FDA + Revenue พร้อมกัน)
+สร้าง `supabase/functions/save-conversation/index.ts` ที่:
+- รับ conversation data (title, preview, agencies, status, messages)
+- Insert ลงตาราง `conversations` + `messages`
+- ส่งคืน conversation id
 
 ---
 
-## สถานะโดยรวม: ✅ เสร็จสมบูรณ์ทุกข้อ
+## 4. อัปเดต Frontend
 
-### ไฟล์ทั้งหมดที่สร้าง/แก้ไข
-| ไฟล์ | สถานะ |
+### 4.1 เพิ่ม service function
+- สร้าง `saveConversation()` ใน `src/services/historyApi.ts` เรียก `save-conversation` Edge Function
+
+### 4.2 อัปเดต `useChat` hook
+- หลังได้รับคำตอบจาก AI สำเร็จ เรียก `saveConversation()` เพื่อบันทึกลง database
+- สร้าง title อัตโนมัติจากคำถามแรก (ตัด 50 ตัวอักษร)
+
+### 4.3 อัปเดต `HistoryPage`
+- เพิ่มการแสดง `messageCount` และ `responseTime` ที่ได้จาก database
+
+---
+
+## 5. Seed ข้อมูลเริ่มต้น
+
+Insert mock data 8 รายการที่มีอยู่ใน Edge Function เดิมลงตาราง `conversations` เพื่อให้ History Page ไม่ว่างเปล่าตั้งแต่แรก
+
+---
+
+## สรุปไฟล์ที่ต้องแก้ไข/สร้าง
+
+| ไฟล์ | การเปลี่ยนแปลง |
 |---|---|
-| `src/types/agency.ts`, `chat.ts`, `dashboard.ts`, `index.ts` | ✅ |
-| `src/services/agencyApi.ts`, `chatApi.ts`, `dashboardApi.ts`, `historyApi.ts` | ✅ |
-| `src/hooks/useChat.ts`, `useAgencies.ts`, `useDashboard.ts`, `useChatHistory.ts` | ✅ |
-| `src/components/public/LandingHero.tsx`, `AgencyCards.tsx`, `SuggestedQuestions.tsx` | ✅ |
-| `src/components/chat/MessageBubble.tsx` (markdown rendering) | ✅ |
-| `supabase/functions/` (8 Edge Functions) | ✅ |
-| `src/pages/` (ChatPage, PublicPortal, Dashboard, Agencies, History) | ✅ |
+| Migration SQL | สร้างตาราง conversations + messages + RLS |
+| `supabase/functions/chat-history/index.ts` | ดึงจาก DB แทน mock |
+| `supabase/functions/save-conversation/index.ts` | ใหม่ - บันทึกสนทนา |
+| `src/services/historyApi.ts` | เพิ่ม saveConversation() |
+| `src/hooks/useChat.ts` | เรียก save หลังได้คำตอบ |
+| `.lovable/plan.md` | อัปเดต Phase 2 |
+
