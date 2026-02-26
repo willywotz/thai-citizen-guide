@@ -27,7 +27,7 @@ export function useChat() {
     if (!question || isTyping) return;
 
     const userMsg: ChatMessage = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       role: 'user',
       content: question,
       timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
@@ -52,8 +52,9 @@ export function useChat() {
         setCurrentSteps(response.data.agentSteps as AgentStep[]);
         setActiveStepCount(response.data.agentSteps.length);
 
+        const aiMsgId = crypto.randomUUID();
         const aiMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
+          id: aiMsgId,
           role: 'assistant',
           content: response.data.answer,
           timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
@@ -78,8 +79,9 @@ export function useChat() {
           status: 'success',
           responseTime: `${(response.responseTime / 1000).toFixed(1)} วินาที`,
           messages: [
-            { role: 'user', content: question },
+            { id: userMsg.id, role: 'user', content: question },
             {
+              id: aiMsgId,
               role: 'assistant',
               content: response.data.answer,
               agentSteps: response.data.agentSteps,
@@ -98,7 +100,7 @@ export function useChat() {
     setTimeout(() => {
       const aiMsg: ChatMessage = {
         ...mockConversation[1],
-        id: (Date.now() + 1).toString(),
+        id: crypto.randomUUID(),
         timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
         rating: null,
       };

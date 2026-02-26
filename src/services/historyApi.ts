@@ -44,6 +44,7 @@ export interface SaveConversationInput {
   status: 'success' | 'failed';
   responseTime?: string;
   messages: {
+    id?: string;
     role: 'user' | 'assistant';
     content: string;
     agentSteps?: any[];

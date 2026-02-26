@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -35,10 +36,10 @@ export function FeedbackDialog({ open, onClose, onSubmit }: FeedbackDialogProps)
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-base">ขอบคุณสำหรับ Feedback</DialogTitle>
+          <DialogDescription>
+            กรุณาบอกเหตุผลเพิ่มเติม เพื่อช่วยให้เราปรับปรุงระบบ (ไม่บังคับ)
+          </DialogDescription>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          กรุณาบอกเหตุผลเพิ่มเติม เพื่อช่วยให้เราปรับปรุงระบบ (ไม่บังคับ)
-        </p>
         <Textarea
           placeholder="เช่น คำตอบไม่ตรงประเด็น, ข้อมูลไม่ถูกต้อง..."
           value={text}

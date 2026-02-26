@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
     // Insert messages
     if (messages && messages.length > 0) {
       const rows = messages.map((m: any) => ({
+        id: m.id || undefined,
         conversation_id: conv.id,
         role: m.role,
         content: m.content,
