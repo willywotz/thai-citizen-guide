@@ -1,1 +1,31 @@
 project_id = "zmhfizjnmrukgapeqqyi"
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.agency-fda]
+verify_jwt = false
+
+[functions.agency-revenue]
+verify_jwt = false
+
+[functions.agency-dopa]
+verify_jwt = false
+
+[functions.agency-land]
+verify_jwt = false
+
+[functions.agencies-list]
+verify_jwt = false
+
+[functions.agency-manage]
+verify_jwt = false
+
+[functions.chat-history]
+verify_jwt = false
+
+[functions.dashboard-stats]
+verify_jwt = false
+
+[functions.save-conversation]
+verify_jwt = false

@@ -1,6 +1,6 @@
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 interface AgencyResult {
@@ -33,9 +33,7 @@ function detectAgencies(query: string): string[] {
     matched.push('land');
   }
 
-  // Default: pick fda if nothing matched
   if (matched.length === 0) matched.push('fda');
-
   return matched;
 }
 
@@ -59,6 +57,8 @@ const agencyIconMap: Record<string, string> = {
   dopa: '🏛️',
   land: '🗺️',
 };
+
+const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -116,11 +116,72 @@ Deno.serve(async (req) => {
 
     agentSteps.push(
       { icon: '✅', label: 'รวบรวมและประเมินผลลัพธ์', status: 'done' },
-      { icon: '📝', label: 'สังเคราะห์คำตอบ', status: 'done' },
     );
 
-    // Step 4: Synthesize answer
-    const combinedAnswer = results.map((r) => r.data.answer).join('\n\n---\n\n');
+    // Step 4: Synthesize answer using Lovable AI
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    let combinedAnswer: string;
+
+    if (LOVABLE_API_KEY && results.length > 0) {
+      agentSteps.push({ icon: '🤖', label: 'AI กำลังสังเคราะห์คำตอบ...', status: 'done' });
+
+      const agencyContext = results.map((r) =>
+        `### ข้อมูลจาก ${r.agencyName}\n${r.data.answer}`
+      ).join('\n\n');
+
+      const systemPrompt = `คุณคือ AI ผู้ช่วยภาครัฐไทย ทำหน้าที่สังเคราะห์ข้อมูลจากหลายหน่วยงานราชการให้เป็นคำตอบที่ชัดเจน ถูกต้อง และเข้าใจง่ายสำหรับประชาชน
+
+กฎ:
+- ตอบเป็นภาษาไทยเสมอ
+- ใช้ Markdown formatting (หัวข้อ, bullet points, ตัวหนา) ให้อ่านง่าย
+- อ้างอิงชื่อหน่วยงานที่เป็นแหล่งข้อมูลในคำตอบ
+- หากข้อมูลจากหลายหน่วยงานเกี่ยวข้องกัน ให้เชื่อมโยงและสรุปให้เป็นคำตอบเดียวที่สอดคล้องกัน
+- ห้ามเพิ่มข้อมูลที่ไม่มีในแหล่งข้อมูลที่ให้มา
+- จบคำตอบด้วยข้อแนะนำเพิ่มเติมหากเหมาะสม`;
+
+      const userPrompt = `คำถามจากประชาชน: "${query}"
+
+ข้อมูลที่สืบค้นได้จากหน่วยงานราชการ:
+
+${agencyContext}
+
+กรุณาสังเคราะห์ข้อมูลข้างต้นเป็นคำตอบที่ครบถ้วนและเข้าใจง่ายสำหรับประชาชน`;
+
+      try {
+        const aiResponse = await fetch(AI_GATEWAY_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-3-flash-preview',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+          }),
+        });
+
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          combinedAnswer = aiData.choices?.[0]?.message?.content || results.map((r) => r.data.answer).join('\n\n---\n\n');
+        } else {
+          const errText = await aiResponse.text();
+          console.error('AI gateway error:', aiResponse.status, errText);
+          // Fallback to simple concatenation
+          combinedAnswer = results.map((r) => r.data.answer).join('\n\n---\n\n');
+        }
+      } catch (aiErr) {
+        console.error('AI synthesis error:', aiErr);
+        combinedAnswer = results.map((r) => r.data.answer).join('\n\n---\n\n');
+      }
+    } else {
+      combinedAnswer = results.map((r) => r.data.answer).join('\n\n---\n\n');
+    }
+
+    agentSteps.push({ icon: '📝', label: 'สังเคราะห์คำตอบเสร็จสิ้น', status: 'done' });
+
     const allReferences = results.flatMap((r) =>
       r.data.references.map((ref) => ({
         agency: r.agencyName,
