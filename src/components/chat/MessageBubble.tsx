@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/data/mockData";
 import { AgentStepDisplay } from "./AgentStepDisplay";
+import ReactMarkdown from "react-markdown";
 
 export function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down') => void }) {
   const isUser = message.role === 'user';
@@ -22,7 +23,13 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
             : "bg-card border border-border rounded-tl-sm"
         )}>
           {!isUser && message.agentSteps && <AgentStepDisplay steps={message.agentSteps} visibleCount={message.agentSteps.length + 1} />}
-          <div className="whitespace-pre-wrap">{message.content}</div>
+          {isUser ? (
+            <div className="whitespace-pre-wrap">{message.content}</div>
+          ) : (
+            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+            </div>
+          )}
         </div>
         {!isUser && message.sources && (
           <div className="flex flex-wrap gap-1.5">
