@@ -117,13 +117,13 @@ export default function AgenciesPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEdit(agency)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEdit(agency); }}>
                         <Pencil className="h-3.5 w-3.5 mr-2" /> แก้ไข
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleTest(agency)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleTest(agency); }}>
                         <Wifi className="h-3.5 w-3.5 mr-2" /> ทดสอบการเชื่อมต่อ
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setDeleteTarget(agency)} className="text-destructive">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setDeleteTarget(agency); }} className="text-destructive">
                         <Trash2 className="h-3.5 w-3.5 mr-2" /> ลบ
                       </DropdownMenuItem>
                     </DropdownMenuContent>
