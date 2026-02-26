@@ -64,3 +64,17 @@ export async function saveConversation(input: SaveConversationInput): Promise<st
     return null;
   }
 }
+
+export async function deleteConversation(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('conversations' as any)
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Failed to delete conversation:', err);
+    return false;
+  }
+}

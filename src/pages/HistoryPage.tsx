@@ -2,16 +2,37 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Search, CheckCircle, XCircle, Loader2, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import { ConversationDetailDialog } from "@/components/history/ConversationDetailDialog";
+import { deleteConversation } from "@/services/historyApi";
 import type { HistoryItem } from "@/services/historyApi";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export default function HistoryPage() {
   const [search, setSearch] = useState("");
   const [filterAgency, setFilterAgency] = useState<string | null>(null);
   const [selectedConv, setSelectedConv] = useState<HistoryItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<HistoryItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { data: conversations = [], isLoading } = useChatHistory(search, filterAgency || undefined);
+  const queryClient = useQueryClient();
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const ok = await deleteConversation(deleteTarget.id);
+    setDeleting(false);
+    setDeleteTarget(null);
+    if (ok) {
+      toast.success("ลบสนทนาเรียบร้อย");
+      queryClient.invalidateQueries({ queryKey: ['chatHistory'] });
+    } else {
+      toast.error("ไม่สามารถลบได้ กรุณาลองใหม่");
+    }
+  };
 
   const allAgencies = ['อย.', 'กรมสรรพากร', 'กรมการปกครอง', 'กรมที่ดิน'];
 
@@ -84,7 +105,16 @@ export default function HistoryPage() {
                       )}
                     </div>
                   </div>
-                  <span className="text-[10px] text-muted-foreground shrink-0">{conv.date}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-muted-foreground">{conv.date}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(conv); }}
+                      className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      aria-label="ลบสนทนา"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -100,6 +130,28 @@ export default function HistoryPage() {
         open={!!selectedConv}
         onOpenChange={(open) => { if (!open) setSelectedConv(null); }}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ยืนยันการลบ</AlertDialogTitle>
+            <AlertDialogDescription>
+              ต้องการลบสนทนา "{deleteTarget?.title}" หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              ลบ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
