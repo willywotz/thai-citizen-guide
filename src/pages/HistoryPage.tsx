@@ -69,10 +69,16 @@ export default function HistoryPage() {
                       <h3 className="text-sm font-medium text-foreground truncate">{conv.title}</h3>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-1 ml-6">{conv.preview}</p>
-                    <div className="flex items-center gap-2 mt-2 ml-6">
+                    <div className="flex items-center gap-2 mt-2 ml-6 flex-wrap">
                       {conv.agencies.map((a, i) => (
                         <Badge key={i} variant="outline" className="text-[10px]">{a}</Badge>
                       ))}
+                      {conv.messageCount && (
+                        <span className="text-[10px] text-muted-foreground">{conv.messageCount} ข้อความ</span>
+                      )}
+                      {conv.responseTime && (
+                        <span className="text-[10px] text-muted-foreground">⏱ {conv.responseTime}</span>
+                      )}
                     </div>
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0">{conv.date}</span>

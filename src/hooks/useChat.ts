@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage, AgentStep } from '@/types';
 import { sendChatQuery } from '@/services/chatApi';
+import { saveConversation } from '@/services/historyApi';
 import { mockAgentSteps, mockConversation } from '@/data/mockData';
-
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -65,6 +65,26 @@ export function useChat() {
         setMessages((prev) => [...prev, aiMsg]);
         setIsTyping(false);
         setActiveStepCount(0);
+
+        // Save conversation to database
+        const autoTitle = question.length > 50 ? question.slice(0, 50) + '...' : question;
+        saveConversation({
+          title: autoTitle,
+          preview: question,
+          agencies: response.data.agencies?.map((a) => a.name) || [],
+          status: 'success',
+          responseTime: `${(response.responseTime / 1000).toFixed(1)} วินาที`,
+          messages: [
+            { role: 'user', content: question },
+            {
+              role: 'assistant',
+              content: response.data.answer,
+              agentSteps: response.data.agentSteps,
+              sources: response.data.references,
+            },
+          ],
+        });
+
         return;
       }
     } catch {

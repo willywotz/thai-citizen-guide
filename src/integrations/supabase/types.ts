@@ -14,7 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          agencies: string[]
+          created_at: string
+          id: string
+          message_count: number
+          preview: string
+          response_time: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          agencies?: string[]
+          created_at?: string
+          id?: string
+          message_count?: number
+          preview?: string
+          response_time?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          agencies?: string[]
+          created_at?: string
+          id?: string
+          message_count?: number
+          preview?: string
+          response_time?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          agent_steps: Json | null
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          rating: string | null
+          role: string
+          sources: Json | null
+        }
+        Insert: {
+          agent_steps?: Json | null
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          rating?: string | null
+          role: string
+          sources?: Json | null
+        }
+        Update: {
+          agent_steps?: Json | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          rating?: string | null
+          role?: string
+          sources?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
