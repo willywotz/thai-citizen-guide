@@ -2,20 +2,15 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { conversationHistory } from "@/data/mockData";
-import { Search, CheckCircle, XCircle } from "lucide-react";
+import { Search, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { useChatHistory } from "@/hooks/useChatHistory";
 
 export default function HistoryPage() {
   const [search, setSearch] = useState("");
   const [filterAgency, setFilterAgency] = useState<string | null>(null);
+  const { data: conversations = [], isLoading } = useChatHistory(search, filterAgency || undefined);
 
-  const filtered = conversationHistory.filter((c) => {
-    const matchSearch = !search || c.title.includes(search) || c.preview.includes(search);
-    const matchAgency = !filterAgency || c.agencies.includes(filterAgency);
-    return matchSearch && matchAgency;
-  });
-
-  const allAgencies = [...new Set(conversationHistory.flatMap((c) => c.agencies))];
+  const allAgencies = ['อย.', 'กรมสรรพากร', 'กรมการปกครอง', 'กรมที่ดิน'];
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -50,37 +45,46 @@ export default function HistoryPage() {
         </div>
       </div>
 
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
+
       {/* Conversation list */}
-      <div className="space-y-2">
-        {filtered.map((conv) => (
-          <Card key={conv.id} className="cursor-pointer hover:bg-accent/30 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {conv.status === 'success' ? (
-                      <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-destructive shrink-0" />
-                    )}
-                    <h3 className="text-sm font-medium text-foreground truncate">{conv.title}</h3>
+      {!isLoading && (
+        <div className="space-y-2">
+          {conversations.map((conv) => (
+            <Card key={conv.id} className="cursor-pointer hover:bg-accent/30 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {conv.status === 'success' ? (
+                        <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                      )}
+                      <h3 className="text-sm font-medium text-foreground truncate">{conv.title}</h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1 ml-6">{conv.preview}</p>
+                    <div className="flex items-center gap-2 mt-2 ml-6">
+                      {conv.agencies.map((a, i) => (
+                        <Badge key={i} variant="outline" className="text-[10px]">{a}</Badge>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-1 ml-6">{conv.preview}</p>
-                  <div className="flex items-center gap-2 mt-2 ml-6">
-                    {conv.agencies.map((a, i) => (
-                      <Badge key={i} variant="outline" className="text-[10px]">{a}</Badge>
-                    ))}
-                  </div>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{conv.date}</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground shrink-0">{conv.date}</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-        {filtered.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground py-12">ไม่พบผลลัพธ์</p>
-        )}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+          {conversations.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-12">ไม่พบผลลัพธ์</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
