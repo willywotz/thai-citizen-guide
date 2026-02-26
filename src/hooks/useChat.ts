@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage, AgentStep } from '@/types';
 import { sendChatQuery } from '@/services/chatApi';
 import { saveConversation } from '@/services/historyApi';
+import { updateMessageRating } from '@/services/feedbackApi';
 import { mockAgentSteps, mockConversation } from '@/data/mockData';
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -15,8 +16,10 @@ export function useChat() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeStepCount]);
 
-  const handleRate = useCallback((id: string, rating: 'up' | 'down') => {
+  const handleRate = useCallback((id: string, rating: 'up' | 'down', feedbackText?: string) => {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, rating } : m)));
+    // Persist to database
+    updateMessageRating(id, rating, feedbackText);
   }, []);
 
   const handleSend = useCallback(async (text?: string) => {

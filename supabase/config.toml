@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.save-conversation]
 verify_jwt = false
+
+[functions.feedback-stats]
+verify_jwt = false
