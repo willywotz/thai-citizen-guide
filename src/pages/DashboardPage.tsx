@@ -10,6 +10,7 @@ import { useAgencies } from "@/hooks/useAgencies";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { LiveActivityChart } from "@/components/dashboard/LiveActivityChart";
+import { FeedbackAnalytics } from "@/components/dashboard/FeedbackAnalytics";
 
 function AnimatedNumber({ value, suffix = "" }: { value: string; suffix?: string }) {
   return (
@@ -308,6 +309,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Feedback Analytics */}
+      <FeedbackAnalytics />
     </div>
   );
 }

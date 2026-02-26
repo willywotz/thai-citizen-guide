@@ -1,12 +1,24 @@
+import { useState } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/data/mockData";
 import { AgentStepDisplay } from "./AgentStepDisplay";
+import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
 
-export function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down') => void }) {
+export function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
+  const [showFeedback, setShowFeedback] = useState(false);
   const isUser = message.role === 'user';
+
+  const handleThumbsDown = () => {
+    setShowFeedback(true);
+  };
+
+  const handleFeedbackSubmit = (text: string) => {
+    onRate?.(message.id, 'down', text || undefined);
+  };
+
   return (
     <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
       <div className={cn(
@@ -52,7 +64,7 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
                 <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={() => onRate(message.id, 'up')}>
                   <ThumbsUp className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={() => onRate(message.id, 'down')}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={handleThumbsDown}>
                   <ThumbsDown className="h-3.5 w-3.5" />
                 </Button>
               </>
@@ -61,6 +73,12 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
         )}
         <p className="text-[10px] text-muted-foreground">{message.timestamp}</p>
       </div>
+
+      <FeedbackDialog
+        open={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        onSubmit={handleFeedbackSubmit}
+      />
     </div>
   );
 }
