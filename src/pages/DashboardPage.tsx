@@ -1,9 +1,42 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, RefreshCw } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area,
+} from "recharts";
+import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, RefreshCw, Activity } from "lucide-react";
 import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "@/hooks/useDashboard";
 import { useAgencies } from "@/hooks/useAgencies";
+import { cn } from "@/lib/utils";
+
+function AnimatedNumber({ value, suffix = "" }: { value: string; suffix?: string }) {
+  return (
+    <span className="tabular-nums">
+      {value}{suffix}
+    </span>
+  );
+}
+
+const CHART_COLORS = [
+  "hsl(145 55% 40%)",
+  "hsl(213 70% 45%)",
+  "hsl(25 85% 55%)",
+  "hsl(280 50% 50%)",
+];
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-card px-3 py-2 shadow-lg">
+      <p className="text-xs font-medium text-foreground">{label}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} className="text-xs text-muted-foreground">
+          {p.name}: <span className="font-semibold text-foreground">{p.value?.toLocaleString()}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
 
 export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading, dataUpdatedAt } = useDashboardStats();
@@ -20,11 +53,13 @@ export default function DashboardPage() {
   }, [dataUpdatedAt]);
 
   const statCards = stats ? [
-    { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare },
-    { label: "คำถามวันนี้", value: stats.todayQuestions.toLocaleString(), icon: TrendingUp },
-    { label: "เวลาตอบเฉลี่ย", value: stats.avgResponseTime, icon: Clock },
-    { label: "ความพึงพอใจ", value: `${stats.satisfactionRate}%`, icon: ThumbsUp },
+    { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare, trend: "+12%", trendUp: true, color: "text-primary" },
+    { label: "คำถามวันนี้", value: stats.todayQuestions.toLocaleString(), icon: TrendingUp, trend: "+8%", trendUp: true, color: "text-success" },
+    { label: "เวลาตอบเฉลี่ย", value: stats.avgResponseTime, icon: Clock, trend: "-0.3s", trendUp: true, color: "text-warning" },
+    { label: "ความพึงพอใจ", value: `${stats.satisfactionRate}%`, icon: ThumbsUp, trend: "+2.1%", trendUp: true, color: "text-info" },
   ] : [];
+
+  const totalUsage = agencyUsage?.reduce((sum, a) => sum + a.value, 0) || 1;
 
   if (statsLoading) {
     return (
@@ -36,111 +71,218 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Dashboard สถิติการใช้งาน</h2>
+      {/* Header */}
+      <div className="flex items-center justify-between animate-fade-in">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Dashboard สถิติการใช้งาน</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">ภาพรวมการใช้งานระบบ AI ประสานงานภาครัฐ</p>
+        </div>
         {lastUpdated && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <RefreshCw className="h-3 w-3 animate-spin" style={{ animationDuration: '3s' }} />
-            <span>อัปเดตล่าสุด: {lastUpdated}</span>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+            <Activity className="h-3 w-3 text-success animate-pulse" />
+            <span>Live</span>
+            <span className="text-muted-foreground/60">•</span>
+            <span>{lastUpdated}</span>
           </div>
         )}
       </div>
 
+      {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((s, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted-foreground">{s.label}</span>
-                <s.icon className="h-4 w-4 text-primary" />
+          <Card
+            key={i}
+            className={cn(
+              "group relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 animate-fade-in",
+            )}
+            style={{ animationDelay: `${i * 80}ms`, animationFillMode: "both" }}
+          >
+            <CardContent className="p-4 relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-muted-foreground font-medium">{s.label}</span>
+                <div className={cn("p-2 rounded-lg bg-muted/80 transition-colors group-hover:bg-primary/10", s.color)}>
+                  <s.icon className="h-4 w-4" />
+                </div>
               </div>
-              <p className="text-2xl font-bold text-foreground">{s.value}</p>
+              <p className="text-2xl font-bold text-foreground tracking-tight">
+                <AnimatedNumber value={s.value} />
+              </p>
+              <div className="flex items-center gap-1 mt-1.5">
+                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", s.trendUp ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
+                  {s.trend}
+                </span>
+                <span className="text-[10px] text-muted-foreground">vs สัปดาห์ก่อน</span>
+              </div>
             </CardContent>
+            {/* Decorative gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </Card>
         ))}
       </div>
 
+      {/* Charts Row 1 */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card>
+        {/* Weekly Trend - Area Chart */}
+        <Card className="animate-fade-in" style={{ animationDelay: "320ms", animationFillMode: "both" }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">แนวโน้มการใช้งานรายสัปดาห์</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">แนวโน้มการใช้งานรายสัปดาห์</CardTitle>
+              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-1 rounded-full">7 วันล่าสุด</span>
+            </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={weeklyTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214 25% 90%)" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Bar dataKey="questions" fill="hsl(213 70% 45%)" radius={[4, 4, 0, 0]} />
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={weeklyTrend} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradientQuestions" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(213 70% 45%)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(213 70% 45%)" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214 25% 92%)" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(215 15% 50%)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(215 15% 50%)" }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="questions"
+                  name="คำถาม"
+                  stroke="hsl(213 70% 45%)"
+                  strokeWidth={2.5}
+                  fill="url(#gradientQuestions)"
+                  dot={{ r: 4, fill: "hsl(213 70% 45%)", stroke: "white", strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: "hsl(213 70% 45%)", stroke: "white", strokeWidth: 2 }}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Agency Usage - Donut */}
+        <Card className="animate-fade-in" style={{ animationDelay: "400ms", animationFillMode: "both" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">สัดส่วนการเรียกใช้หน่วยงาน</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <ResponsiveContainer width="55%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={agencyUsage}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={85}
+                    innerRadius={55}
+                    paddingAngle={3}
+                    cornerRadius={4}
+                    animationDuration={1000}
+                    animationEasing="ease-out"
+                  >
+                    {agencyUsage?.map((entry, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex-1 space-y-2.5">
+                {agencyUsage?.map((entry, i) => (
+                  <div key={i} className="group">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                        <span className="text-foreground font-medium">{entry.name}</span>
+                      </div>
+                      <span className="text-muted-foreground">{((entry.value / totalUsage) * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden ml-[18px]">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${(entry.value / totalUsage) * 100}%`,
+                          backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row 2 */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* Category Stats */}
+        <Card className="animate-fade-in" style={{ animationDelay: "480ms", animationFillMode: "both" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">หมวดหมู่คำถามยอดนิยม</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={categoryStats} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214 25% 92%)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(215 15% 50%)" }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="category" width={110} tick={{ fontSize: 11, fill: "hsl(215 15% 50%)" }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar
+                  dataKey="count"
+                  name="จำนวน"
+                  radius={[0, 6, 6, 0]}
+                  animationDuration={1000}
+                  animationEasing="ease-out"
+                >
+                  {categoryStats?.map((_, i) => (
+                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">สัดส่วนการเรียกใช้หน่วยงาน</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={agencyUsage} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                  outerRadius={90} innerRadius={50} paddingAngle={2}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false} fontSize={10}>
-                  {agencyUsage?.map((entry, i) => (
-                    <Cell key={i} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">หมวดหมู่คำถามยอดนิยม</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {categoryStats?.map((cat, i) => (
-                <div key={i}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-foreground">{cat.category}</span>
-                    <span className="text-muted-foreground">{cat.count.toLocaleString()}</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full"
-                      style={{ width: `${(cat.count / (categoryStats[0]?.count || 1)) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
+        {/* Agency Connection Status */}
+        <Card className="animate-fade-in" style={{ animationDelay: "560ms", animationFillMode: "both" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">สถานะการเชื่อมต่อหน่วยงาน</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {agencies?.map((a) => (
-                <div key={a.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="space-y-2.5">
+              {agencies?.map((a, i) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border/50 hover:bg-muted/70 hover:border-border transition-all duration-200 animate-fade-in"
+                  style={{ animationDelay: `${600 + i * 60}ms`, animationFillMode: "both" }}
+                >
                   <div className="flex items-center gap-3">
-                    <span className="text-xl">{a.logo}</span>
+                    <div className="text-xl w-9 h-9 rounded-lg bg-card flex items-center justify-center shadow-sm border border-border/50">
+                      {a.logo}
+                    </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">{a.shortName}</p>
-                      <p className="text-[10px] text-muted-foreground">{a.connectionType}</p>
+                      <p className="text-[10px] text-muted-foreground">{a.connectionType} Protocol</p>
                     </div>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${a.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    {a.status === 'active' ? 'Online' : 'Offline'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">{a.totalCalls?.toLocaleString()} calls</span>
+                    <span className={cn(
+                      "text-[10px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1",
+                      a.status === 'active'
+                        ? 'bg-success/10 text-success'
+                        : 'bg-destructive/10 text-destructive'
+                    )}>
+                      <span className={cn(
+                        "w-1.5 h-1.5 rounded-full",
+                        a.status === 'active' ? 'bg-success animate-pulse' : 'bg-destructive'
+                      )} />
+                      {a.status === 'active' ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
