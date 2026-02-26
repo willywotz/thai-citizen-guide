@@ -9,6 +9,7 @@ import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } fr
 import { useAgencies } from "@/hooks/useAgencies";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
+import { LiveActivityChart } from "@/components/dashboard/LiveActivityChart";
 
 function AnimatedNumber({ value, suffix = "" }: { value: string; suffix?: string }) {
   return (
@@ -134,6 +135,9 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Live Activity - Realtime */}
+      <LiveActivityChart />
 
       {/* Charts Row 1 */}
       <div className="grid lg:grid-cols-2 gap-4">
