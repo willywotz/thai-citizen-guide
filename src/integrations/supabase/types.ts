@@ -65,6 +65,47 @@ export type Database = {
         }
         Relationships: []
       }
+      connection_logs: {
+        Row: {
+          action: string
+          agency_id: string
+          connection_type: string
+          created_at: string
+          detail: string
+          id: string
+          latency_ms: number
+          status: string
+        }
+        Insert: {
+          action?: string
+          agency_id: string
+          connection_type?: string
+          created_at?: string
+          detail?: string
+          id?: string
+          latency_ms?: number
+          status?: string
+        }
+        Update: {
+          action?: string
+          agency_id?: string
+          connection_type?: string
+          created_at?: string
+          detail?: string
+          id?: string
+          latency_ms?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connection_logs_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           agencies: string[]

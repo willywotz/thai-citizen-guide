@@ -10,6 +10,7 @@ import DashboardPage from "./pages/DashboardPage";
 import AgenciesPage from "./pages/AgenciesPage";
 import HistoryPage from "./pages/HistoryPage";
 import ArchitecturePage from "./pages/ArchitecturePage";
+import AgencyDetailPage from "./pages/AgencyDetailPage";
 import PublicPortal from "./pages/PublicPortal";
 import NotFound from "./pages/NotFound";
 
@@ -27,6 +28,7 @@ const App = () => (
               <Route path="/" element={<ChatPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/agencies" element={<AgenciesPage />} />
+              <Route path="/agencies/:id" element={<AgencyDetailPage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/architecture" element={<ArchitecturePage />} />
             </Route>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ const connectionTypeColors: Record<string, string> = {
 };
 
 export default function AgenciesPage() {
+  const navigate = useNavigate();
   const { data: agencies = [], isLoading } = useAgencies();
   const createMutation = useCreateAgency();
   const updateMutation = useUpdateAgency();
@@ -95,7 +97,7 @@ export default function AgenciesPage() {
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {agencies.map((agency) => (
-            <Card key={agency.id} className="overflow-hidden">
+            <Card key={agency.id} className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/agencies/${agency.id}`)}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -108,9 +110,9 @@ export default function AgenciesPage() {
                       <p className="text-xs text-muted-foreground mt-0.5">{agency.description}</p>
                     </div>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
