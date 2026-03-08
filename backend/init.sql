@@ -127,4 +127,4 @@ ON CONFLICT DO NOTHING;
 -- Create default admin user (password: admin1234)
 -- bcrypt hash of "admin1234"
 INSERT INTO users (email, hashed_password, display_name, is_admin)
-VALUES ('admin@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/oIzxlsVSq', 'Admin', TRUE) ON CONFLICT DO NOTHING;
+VALUES ('admin@example.com', '$2b$12$NCcVNchz3WFC1.A733rm7.0DECPPhIgG8fNJDAku4.KaBWJ.PmsGy', 'Admin', TRUE) ON CONFLICT DO NOTHING;
