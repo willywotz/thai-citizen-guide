@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/apiClient';
 
 export interface ConnectionLog {
   id: string;
@@ -13,28 +13,12 @@ export interface ConnectionLog {
 }
 
 async function fetchConnectionLogs(agencyId: string): Promise<ConnectionLog[]> {
-  const { data, error } = await supabase
-    .from('connection_logs' as any)
-    .select('*')
-    .eq('agency_id', agencyId)
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  if (error) {
-    console.warn('Failed to fetch connection logs', error.message);
+  try {
+    return await api.get<ConnectionLog[]>(`/api/agencies/${agencyId}/connection-logs`);
+  } catch (err) {
+    console.warn('Failed to fetch connection logs', err);
     return [];
   }
-
-  return ((data || []) as any[]).map((row: any) => ({
-    id: row.id,
-    agencyId: row.agency_id,
-    action: row.action,
-    connectionType: row.connection_type,
-    status: row.status,
-    latencyMs: row.latency_ms,
-    detail: row.detail,
-    createdAt: row.created_at,
-  }));
 }
 
 export function useConnectionLogs(agencyId: string | undefined) {

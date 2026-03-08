@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/apiClient';
 import type { AgentStep } from '@/types';
 
 export interface ChatApiResponse {
@@ -14,10 +14,5 @@ export interface ChatApiResponse {
 }
 
 export async function sendChatQuery(query: string): Promise<ChatApiResponse> {
-  const { data, error } = await supabase.functions.invoke('ai-chat', {
-    body: { query },
-  });
-
-  if (error) throw new Error(error.message);
-  return data as ChatApiResponse;
+  return api.post<ChatApiResponse>('/api/chat', { query });
 }

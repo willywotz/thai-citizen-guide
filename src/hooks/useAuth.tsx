@@ -1,10 +1,16 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { api, setToken, clearToken } from "@/lib/apiClient";
+
+interface AuthUser {
+  id: string;
+  email: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  is_admin: boolean;
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
   isAdmin: boolean;
   isLoading: boolean;
   profile: { displayName: string; avatarUrl: string | null } | null;
@@ -13,7 +19,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   isAdmin: false,
   isLoading: true,
   profile: null,
@@ -23,81 +28,48 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [profile, setProfile] = useState<AuthContextType["profile"]>(null);
 
-  const fetchUserDetails = useCallback(async (userId: string, email?: string) => {
+  const loadUser = useCallback(async () => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
     try {
-      const [profileRes, roleRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("display_name, avatar_url")
-          .eq("id", userId)
-          .single(),
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId)
-          .eq("role", "admin")
-          .maybeSingle(),
-      ]);
-
-      if (profileRes.data) {
-        setProfile({
-          displayName: (profileRes.data as any).display_name || email || "",
-          avatarUrl: (profileRes.data as any).avatar_url,
-        });
-      }
-
-      setIsAdmin(!!roleRes.data);
+      const data = await api.get<AuthUser>("/api/auth/me");
+      setUser(data);
     } catch {
-      // Fail silently
+      clearToken();
+      setUser(null);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // Set up listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          // Use setTimeout to avoid Supabase deadlock warning
-          setTimeout(() => {
-            fetchUserDetails(session.user.id, session.user.email ?? undefined).then(() => {
-              setIsLoading(false);
-            });
-          }, 0);
-        } else {
-          setProfile(null);
-          setIsAdmin(false);
-          setIsLoading(false);
-        }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        setIsLoading(false);
-      }
-      // If session exists, onAuthStateChange will fire and handle it
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchUserDetails]);
+    loadUser();
+  }, [loadUser]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    clearToken();
+    setUser(null);
   };
 
+  const profile = user
+    ? { displayName: user.display_name || user.email, avatarUrl: user.avatar_url }
+    : null;
+
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isLoading, profile, signOut }}>
+    <AuthContext.Provider value={{ user, isAdmin: user?.is_admin ?? false, isLoading, profile, signOut }}>
       {children}
     </AuthContext.Provider>
   );
+}
+
+export function handleAuthResponse(
+  data: { access_token: string; user: AuthUser }
+) {
+  setToken(data.access_token);
 }

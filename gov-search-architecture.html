@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gov Search Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --accent4: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --danger: #ef4444;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  h1 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--accent);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-bottom: 40px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .arch {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  /* ── LAYER ── */
+  .layer {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    position: relative;
+  }
+
+  .layer-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: 0.65rem;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    padding: 16px 10px;
+    border-right: 1px solid var(--border);
+    min-width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .layer-content {
+    flex: 1;
+    padding: 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── ARROW between layers ── */
+  .arrow-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    position: relative;
+  }
+
+  .arrow-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .arrow-line .line {
+    width: 2px;
+    height: 12px;
+    background: var(--border);
+  }
+
+  .arrow-line .head {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid var(--border);
+  }
+
+  .arrow-label {
+    font-size: 0.65rem;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+    margin-left: 8px;
+  }
+
+  /* ── BOXES ── */
+  .box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    position: relative;
+  }
+
+  .box.accent   { border-color: var(--accent);  box-shadow: 0 0 12px rgba(0,212,255,0.08); }
+  .box.violet   { border-color: var(--accent2); box-shadow: 0 0 12px rgba(124,58,237,0.08); }
+  .box.green    { border-color: var(--accent3); box-shadow: 0 0 12px rgba(16,185,129,0.08); }
+  .box.amber    { border-color: var(--accent4); box-shadow: 0 0 12px rgba(245,158,11,0.08); }
+
+  .box-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .accent  .box-title { color: var(--accent); }
+  .violet  .box-title { color: #a78bfa; }
+  .green   .box-title { color: var(--accent3); }
+  .amber   .box-title { color: var(--accent4); }
+
+  .box-desc {
+    font-size: 0.7rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 4px;
+    margin-top: 6px;
+  }
+
+  .tag-blue   { background: rgba(0,212,255,0.1);  color: var(--accent); }
+  .tag-violet { background: rgba(124,58,237,0.15); color: #a78bfa; }
+  .tag-green  { background: rgba(16,185,129,0.1); color: var(--accent3); }
+  .tag-amber  { background: rgba(245,158,11,0.1); color: var(--accent4); }
+  .tag-red    { background: rgba(239,68,68,0.1);  color: #f87171; }
+
+  /* ── ROW LAYOUTS ── */
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row .box { flex: 1; min-width: 160px; }
+
+  /* ── USER BOX (top) ── */
+  .user-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    width: fit-content;
+  }
+
+  .user-icon {
+    width: 36px; height: 36px;
+    background: var(--surface2);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+  }
+
+  /* ── AGENCY GRID ── */
+  .agency-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
+  .agency-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.68rem;
+  }
+
+  .agency-box .name {
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .agency-box .type {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 3px;
+  }
+  .dot-blue  { background: var(--accent); }
+  .dot-amber { background: var(--accent4); }
+
+  /* ── FLOW DETAIL ── */
+  .flow-detail {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 32px;
+  }
+
+  .flow-detail h2 {
+    font-size: 0.75rem;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+  }
+
+  .flow-steps {
+    display: flex;
+    gap: 0;
+    align-items: stretch;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .step {
+    flex: 1;
+    min-width: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+  }
+
+  .step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 20px;
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid var(--border);
+    z-index: 1;
+  }
+
+  .step-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+  }
+
+  .step-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .step-desc {
+    font-size: 0.62rem;
+    color: var(--muted);
+    line-height: 1.4;
+    padding: 0 8px;
+  }
+
+  .step:nth-child(1) .step-num { background: rgba(0,212,255,0.15); color: var(--accent); }
+  .step:nth-child(2) .step-num { background: rgba(124,58,237,0.15); color: #a78bfa; }
+  .step:nth-child(3) .step-num { background: rgba(16,185,129,0.15); color: var(--accent3); }
+  .step:nth-child(4) .step-num { background: rgba(245,158,11,0.15); color: var(--accent4); }
+  .step:nth-child(5) .step-num { background: rgba(239,68,68,0.15);  color: #f87171; }
+  .step:nth-child(6) .step-num { background: rgba(0,212,255,0.15);  color: var(--accent); }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 28px 0;
+  }
+
+  .note {
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.7rem;
+    color: #fbbf24;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+  .note strong { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>// GOV-SEARCH SYSTEM ARCHITECTURE</h1>
+<p class="subtitle">30+ หน่วยงาน · Mixed API (REST + PDF) · Cross-agency queries</p>
+
+<div class="arch">
+
+  <!-- USER -->
+  <div style="display:flex; justify-content:center; margin-bottom:0;">
+    <div class="user-box">
+      <div class="user-icon">👤</div>
+      <div>
+        <div style="font-size:0.8rem; font-weight:600;">User</div>
+        <div style="font-size:0.65rem; color:var(--muted);">"ขอเอกสารใบอนุญาตประกอบกิจการ<br>และมาตรฐาน อย. ที่เกี่ยวข้อง"</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="line"></div><div class="head"></div></div>
+  </div>
+
+  <!-- LAYER 1: LLM Orchestrator -->
+  <div class="layer">
+    <div class="layer-label" style="color:#67e8f9;">LAYER 1</div>
+    <div class="layer-content">
+      <div class="box accent">
+        <div class="box-title">🧠 LLM Orchestrator (Claude)</div>
+        <div class="box-desc">รับคำถาม → วิเคราะห์ intent → ตัดสินใจว่าต้องดึงข้อมูลจากหน่วยงานไหนบ้าง → เรียก tools → สังเคราะห์คำตอบ</div>
+        <span class="tag tag-blue">claude-sonnet</span>
+        <span class="tag tag-blue">tool_use</span>
+        <span class="tag tag-blue">parallel calls</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="line"></div><div class="head"></div></div>
+    <span class="arrow-label">tool selection</span>
+  </div>
+
+  <!-- LAYER 2: Router -->
+  <div class="layer">
+    <div class="layer-label" style="color:#a78bfa;">LAYER 2</div>
+    <div class="layer-content">
+      <div class="row">
+        <div class="box violet">
+          <div class="box-title">🗂 Agency Registry</div>
+          <div class="box-desc">catalog หน่วยงานทั้งหมด พร้อม metadata ว่าแต่ละแห่งมีข้อมูลอะไร</div>
+          <span class="tag tag-violet">30+ agencies</span>
+          <span class="tag tag-violet">semantic tags</span>
+        </div>
+        <div class="box violet">
+          <div class="box-title">🔀 Semantic Router</div>
+          <div class="box-desc">Vector search บน agency catalog → คืน top-K หน่วยงานที่เกี่ยวข้องกับคำถาม โดยไม่ต้อง list ทุก tool ใน prompt</div>
+          <span class="tag tag-violet">embedding search</span>
+          <span class="tag tag-violet">top-K=3~5</span>
+        </div>
+        <div class="box violet">
+          <div class="box-title">⚡ Tool Builder</div>
+          <div class="box-desc">สร้าง tool schema เฉพาะหน่วยงานที่ router เลือก → inject เข้า LLM context แบบ dynamic ไม่ใส่ครบ 30 ใน prompt</div>
+          <span class="tag tag-violet">dynamic schema</span>
+          <span class="tag tag-violet">lazy load</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="line"></div><div class="head"></div></div>
+    <span class="arrow-label">API call</span>
+  </div>
+
+  <!-- LAYER 3: Adapter -->
+  <div class="layer">
+    <div class="layer-label" style="color:#6ee7b7;">LAYER 3</div>
+    <div class="layer-content">
+      <div class="row">
+        <div class="box green">
+          <div class="box-title">🔌 REST Adapter</div>
+          <div class="box-desc">Normalize request/response ต่างหน่วยงานให้เป็น schema เดียวกัน</div>
+          <span class="tag tag-green">normalize</span>
+          <span class="tag tag-green">retry / timeout</span>
+        </div>
+        <div class="box green">
+          <div class="box-title">📄 PDF Adapter</div>
+          <div class="box-desc">ดึง PDF → extract text (OCR ถ้าจำเป็น) → chunk → embed → เก็บใน vector store ของหน่วยงานนั้น</div>
+          <span class="tag tag-green">pdfplumber</span>
+          <span class="tag tag-green">OCR fallback</span>
+          <span class="tag tag-amber">async pipeline</span>
+        </div>
+        <div class="box green">
+          <div class="box-title">💾 Cache Layer</div>
+          <div class="box-desc">Cache ผลลัพธ์ที่เรียกซ้ำบ่อย ลด latency และลด load ต่อ API หน่วยงาน</div>
+          <span class="tag tag-green">Redis / TTL</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- arrow -->
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="line"></div><div class="head"></div></div>
+    <span class="arrow-label">fetch</span>
+  </div>
+
+  <!-- LAYER 4: Agency APIs -->
+  <div class="layer">
+    <div class="layer-label" style="color:#fcd34d;">LAYER 4</div>
+    <div class="layer-content">
+      <div class="agency-grid">
+        <div class="agency-box">
+          <div class="name">กรมสรรพากร</div>
+          <div class="type"><span class="dot dot-blue"></span>REST API</div>
+        </div>
+        <div class="agency-box">
+          <div class="name">อย.</div>
+          <div class="type"><span class="dot dot-blue"></span>REST<span class="dot dot-amber" style="margin-left:6px"></span>PDF</div>
+        </div>
+        <div class="agency-box">
+          <div class="name">กรมที่ดิน</div>
+          <div class="type"><span class="dot dot-amber"></span>PDF only</div>
+        </div>
+        <div class="agency-box">
+          <div class="name">สำนักงานประกัน</div>
+          <div class="type"><span class="dot dot-blue"></span>REST API</div>
+        </div>
+        <div class="agency-box">
+          <div class="name">BOI</div>
+          <div class="type"><span class="dot dot-blue"></span>REST<span class="dot dot-amber" style="margin-left:6px"></span>PDF</div>
+        </div>
+        <div class="agency-box">
+          <div class="name">DBD</div>
+          <div class="type"><span class="dot dot-blue"></span>REST API</div>
+        </div>
+        <div class="agency-box">
+          <div class="name">กรมแรงงาน</div>
+          <div class="type"><span class="dot dot-amber"></span>PDF only</div>
+        </div>
+        <div class="agency-box" style="border-style:dashed; color:var(--muted);">
+          <div class="name">+ 23 แห่ง</div>
+          <div class="type" style="color:var(--muted); font-size:0.6rem;">...</div>
+        </div>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:16px; font-size:0.65rem; color:var(--muted);">
+        <span><span class="dot dot-blue"></span>REST API</span>
+        <span><span class="dot dot-amber"></span>PDF / Vector Store</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FLOW DETAIL -->
+<div class="flow-detail" style="max-width:920px; margin: 32px auto 0;">
+  <h2>// REQUEST FLOW — ทีละ step</h2>
+  <div class="flow-steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">User Query</div>
+      <div class="step-desc">ส่งคำถามเข้า Orchestrator</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Semantic Routing</div>
+      <div class="step-desc">embed query → vector search บน agency catalog → ได้ top-3~5 หน่วยงาน</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Dynamic Tool Inject</div>
+      <div class="step-desc">สร้าง tool schema เฉพาะ 3~5 หน่วยงานนั้น ใส่เข้า LLM prompt</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-title">LLM Tool Call</div>
+      <div class="step-desc">Claude เรียก tool ที่เหมาะ อาจเรียก parallel ถ้าต้องหลายหน่วยงาน</div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-title">Adapter Fetch</div>
+      <div class="step-desc">REST call หรือ PDF vector search ตาม adapter ของหน่วยงาน</div>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-title">Synthesize</div>
+      <div class="step-desc">Claude รวมผลจากทุกแหล่ง → ตอบ user พร้อม source citation</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <div class="box amber" style="flex:1; min-width:220px;">
+      <div class="box-title">🔑 Key Design Decision</div>
+      <div class="box-desc" style="margin-top:4px;">
+        ไม่ใส่ tool ครบ 30+ ใน prompt<br>
+        ใช้ <strong style="color:#fbbf24;">Semantic Router</strong> คัด top-K ก่อน<br>
+        → LLM เห็นแค่ tool ที่เกี่ยวข้องเท่านั้น
+      </div>
+    </div>
+    <div class="box green" style="flex:1; min-width:220px;">
+      <div class="box-title">📐 Scalability</div>
+      <div class="box-desc" style="margin-top:4px;">
+        เพิ่มหน่วยงานใหม่ = แค่ register ใน Agency Registry<br>
+        ไม่ต้องแก้ Orchestrator หรือ prompt
+      </div>
+    </div>
+    <div class="box violet" style="flex:1; min-width:220px;">
+      <div class="box-title">⚡ PDF Pipeline</div>
+      <div class="box-desc" style="margin-top:4px;">
+        PDF ถูก index ล่วงหน้าเป็น vector store<br>
+        ตอน query ทำ semantic search บน chunk<br>
+        ไม่ต้องแปลง PDF ตอน runtime
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>⚠ จุดที่ต้องระวัง:</strong> Agency catalog ต้องมี metadata ที่ดี (domain tags, keywords) เพราะ Semantic Router ใช้ตัวนี้ตัดสินใจ ถ้า metadata ไม่ดี routing จะผิดพลาดได้
+  </div>
+</div>
+
+</body>
+</html>

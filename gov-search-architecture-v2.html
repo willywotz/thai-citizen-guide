@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gov Search Architecture v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --c1: #00d4ff;   /* REST */
+    --c2: #f59e0b;   /* PDF */
+    --c3: #10b981;   /* Text */
+    --c4: #a78bfa;   /* A2A */
+    --c5: #f472b6;   /* MCP */
+    --c6: #fb923c;   /* LLM */
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    padding: 32px 24px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--c1);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+  .subtitle { color: var(--muted); font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; margin-bottom: 36px; }
+
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  /* ── LEGEND ── */
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 28px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.68rem; font-family: 'IBM Plex Mono', monospace; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── ARCH ROWS ── */
+  .layer { display: flex; gap: 0; }
+  .layer-label {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-size: 0.6rem; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.12em;
+    color: var(--muted); padding: 12px 8px; border-right: 1px solid var(--border);
+    min-width: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .layer-body { flex: 1; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+
+  .arrow-row {
+    display: flex; align-items: center; justify-content: center;
+    height: 32px; gap: 6px;
+  }
+  .arr { display: flex; flex-direction: column; align-items: center; }
+  .arr .ln { width: 1px; height: 10px; background: var(--border); }
+  .arr .hd { width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-top:6px solid var(--border); }
+  .arr-lbl { font-size: 0.6rem; font-family: 'IBM Plex Mono', monospace; color: var(--muted); }
+
+  /* ── BOX ── */
+  .box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .box-title { font-size: 0.78rem; font-weight: 600; margin-bottom: 4px; }
+  .box-desc  { font-size: 0.68rem; color: var(--muted); line-height: 1.5; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row .box { flex: 1; min-width: 150px; }
+
+  /* ── ADAPTER GRID ── */
+  .adapter-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+  }
+
+  .adapter-card {
+    border-radius: 8px;
+    border: 1px solid;
+    padding: 12px 10px;
+    text-align: center;
+  }
+
+  .adapter-card .icon { font-size: 1.4rem; margin-bottom: 6px; }
+  .adapter-card .name {
+    font-size: 0.72rem; font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 4px;
+  }
+  .adapter-card .desc { font-size: 0.62rem; color: var(--muted); line-height: 1.4; }
+  .adapter-card .tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+
+  .ac-rest  { border-color: var(--c1); background: rgba(0,212,255,0.04); }
+  .ac-pdf   { border-color: var(--c2); background: rgba(245,158,11,0.04); }
+  .ac-text  { border-color: var(--c3); background: rgba(16,185,129,0.04); }
+  .ac-a2a   { border-color: var(--c4); background: rgba(167,139,250,0.04); }
+  .ac-mcp   { border-color: var(--c5); background: rgba(244,114,182,0.04); }
+  .ac-llm   { border-color: var(--c6); background: rgba(251,146,60,0.04); }
+
+  .ac-rest  .name { color: var(--c1); }
+  .ac-pdf   .name { color: var(--c2); }
+  .ac-text  .name { color: var(--c3); }
+  .ac-a2a   .name { color: var(--c4); }
+  .ac-mcp   .name { color: var(--c5); }
+  .ac-llm   .name { color: var(--c6); }
+
+  /* ── TAG ── */
+  .tag {
+    font-size: 0.55rem; font-family: 'IBM Plex Mono', monospace;
+    padding: 1px 5px; border-radius: 3px;
+  }
+  .t1 { background: rgba(0,212,255,0.12);  color: var(--c1); }
+  .t2 { background: rgba(245,158,11,0.12); color: var(--c2); }
+  .t3 { background: rgba(16,185,129,0.12); color: var(--c3); }
+  .t4 { background: rgba(167,139,250,0.12);color: var(--c4); }
+  .t5 { background: rgba(244,114,182,0.12);color: var(--c5); }
+  .t6 { background: rgba(251,146,60,0.12); color: var(--c6); }
+  .tm { background: rgba(100,116,139,0.2); color: var(--muted); }
+
+  /* ── AGENCY GRID ── */
+  .agency-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+  }
+  .ag {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px;
+  }
+  .ag .ag-name { font-size: 0.68rem; font-weight: 500; margin-bottom: 5px; }
+  .ag .ag-types { display: flex; flex-wrap: wrap; gap: 3px; }
+  .ag-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ── INTERFACE TABLE ── */
+  .iface-table {
+    width: 100%; border-collapse: collapse; margin-top: 24px;
+    font-size: 0.7rem;
+  }
+  .iface-table th {
+    text-align: left; padding: 8px 12px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+    letter-spacing: 0.06em;
+  }
+  .iface-table td {
+    padding: 8px 12px; border-bottom: 1px solid rgba(30,45,69,0.5);
+    vertical-align: top; line-height: 1.5;
+  }
+  .iface-table tr:last-child td { border-bottom: none; }
+  .iface-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .note {
+    background: rgba(167,139,250,0.06); border: 1px solid rgba(167,139,250,0.2);
+    border-radius: 6px; padding: 12px 14px;
+    font-size: 0.7rem; color: #c4b5fd; line-height: 1.6; margin-top: 16px;
+  }
+
+  /* responsive */
+  @media (max-width: 700px) {
+    .adapter-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>// GOV-SEARCH ARCHITECTURE v2</h1>
+<p class="subtitle">REST · PDF · Text · A2A · MCP · LLM — unified adapter layer</p>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="dot" style="background:var(--c1)"></div>REST API</div>
+  <div class="legend-item"><div class="dot" style="background:var(--c2)"></div>PDF</div>
+  <div class="legend-item"><div class="dot" style="background:var(--c3)"></div>Plain Text / HTML</div>
+  <div class="legend-item"><div class="dot" style="background:var(--c4)"></div>A2A Protocol</div>
+  <div class="legend-item"><div class="dot" style="background:var(--c5)"></div>MCP Server</div>
+  <div class="legend-item"><div class="dot" style="background:var(--c6)"></div>LLM-backed</div>
+</div>
+
+<!-- L1: ORCHESTRATOR -->
+<div class="layer">
+  <div class="layer-label" style="color:var(--c1);">L1 · ORCHESTRATOR</div>
+  <div class="layer-body">
+    <div class="box" style="border-color:var(--c1); box-shadow:0 0 14px rgba(0,212,255,0.07);">
+      <div class="box-title" style="color:var(--c1);">🧠 LLM Orchestrator</div>
+      <div class="box-desc">รับ user query → routing → เรียก adapter tools (parallel ได้) → สังเคราะห์คำตอบ → cite แหล่งที่มา</div>
+      <div style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap;">
+        <span class="tag t1">intent analysis</span>
+        <span class="tag t1">parallel tool_use</span>
+        <span class="tag t1">source citation</span>
+        <span class="tag tm">claude-sonnet</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-row"><div class="arr"><div class="ln"></div><div class="hd"></div></div><span class="arr-lbl">semantic routing</span></div>
+
+<!-- L2: ROUTER -->
+<div class="layer">
+  <div class="layer-label" style="color:var(--c4);">L2 · ROUTER</div>
+  <div class="layer-body">
+    <div class="row">
+      <div class="box" style="border-color:var(--c4);">
+        <div class="box-title" style="color:var(--c4);">🗂 Agency Registry</div>
+        <div class="box-desc">catalog หน่วยงาน 30+ แห่ง พร้อม metadata:<br>
+          domain, keywords, adapter_type, endpoint, auth_method</div>
+        <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">
+          <span class="tag t4">YAML / DB</span><span class="tag t4">versioned</span>
+        </div>
+      </div>
+      <div class="box" style="border-color:var(--c4);">
+        <div class="box-title" style="color:var(--c4);">🔀 Semantic Router</div>
+        <div class="box-desc">embed query → vector search บน agency catalog<br>→ คืน top-3~5 หน่วยงานที่เกี่ยวข้อง<br>→ Dynamic tool schema inject</div>
+        <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">
+          <span class="tag t4">embedding</span><span class="tag t4">top-K</span><span class="tag t4">no full-list in prompt</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-row"><div class="arr"><div class="ln"></div><div class="hd"></div></div><span class="arr-lbl">dispatch by adapter_type</span></div>
+
+<!-- L3: ADAPTERS -->
+<div class="layer">
+  <div class="layer-label" style="color:#94a3b8;">L3 · ADAPTERS</div>
+  <div class="layer-body">
+    <div class="adapter-grid">
+
+      <!-- REST -->
+      <div class="adapter-card ac-rest">
+        <div class="icon">🔌</div>
+        <div class="name">REST</div>
+        <div class="desc">HTTP GET/POST normalize request + response schema</div>
+        <div class="tags">
+          <span class="tag t1">sync</span>
+          <span class="tag t1">retry</span>
+          <span class="tag tm">OAuth/key</span>
+        </div>
+      </div>
+
+      <!-- PDF -->
+      <div class="adapter-card ac-pdf">
+        <div class="icon">📄</div>
+        <div class="name">PDF</div>
+        <div class="desc">fetch → extract → chunk → embed → vector search</div>
+        <div class="tags">
+          <span class="tag t2">pre-index</span>
+          <span class="tag t2">OCR fallback</span>
+          <span class="tag tm">async</span>
+        </div>
+      </div>
+
+      <!-- TEXT -->
+      <div class="adapter-card ac-text">
+        <div class="icon">📝</div>
+        <div class="name">TEXT</div>
+        <div class="desc">plain text / HTML scrape → chunk → embed → search</div>
+        <div class="tags">
+          <span class="tag t3">html parse</span>
+          <span class="tag t3">markdown</span>
+          <span class="tag tm">crawl</span>
+        </div>
+      </div>
+
+      <!-- A2A -->
+      <div class="adapter-card ac-a2a">
+        <div class="icon">🤝</div>
+        <div class="name">A2A</div>
+        <div class="desc">Agent-to-Agent protocol ส่ง task ให้ agent ปลายทาง รอ result</div>
+        <div class="tags">
+          <span class="tag t4">async task</span>
+          <span class="tag t4">streaming</span>
+          <span class="tag tm">JSON-RPC</span>
+        </div>
+      </div>
+
+      <!-- MCP -->
+      <div class="adapter-card ac-mcp">
+        <div class="icon">⚙️</div>
+        <div class="name">MCP</div>
+        <div class="desc">เรียก MCP server ของหน่วยงาน ผ่าน tool/resource interface</div>
+        <div class="tags">
+          <span class="tag t5">stdio/SSE</span>
+          <span class="tag t5">tool call</span>
+          <span class="tag tm">resources</span>
+        </div>
+      </div>
+
+      <!-- LLM -->
+      <div class="adapter-card ac-llm">
+        <div class="icon">🤖</div>
+        <div class="name">LLM</div>
+        <div class="desc">หน่วยงานมี LLM ของตัวเอง ส่ง query → รับ answer โดยตรง</div>
+        <div class="tags">
+          <span class="tag t6">chat API</span>
+          <span class="tag t6">RAG-backed</span>
+          <span class="tag tm">trust score</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- shared infra -->
+    <div style="margin-top:12px; padding:10px 14px; background:var(--surface2); border:1px dashed var(--border); border-radius:8px;">
+      <div style="font-size:0.65rem; font-family:'IBM Plex Mono',monospace; color:var(--muted); margin-bottom:6px;">SHARED INFRASTRUCTURE</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <span class="tag tm">💾 Cache (Redis)</span>
+        <span class="tag tm">⏱ Timeout / Retry</span>
+        <span class="tag tm">📊 Observability</span>
+        <span class="tag tm">🔐 Auth Manager</span>
+        <span class="tag tm">📐 Response Normalizer</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-row"><div class="arr"><div class="ln"></div><div class="hd"></div></div><span class="arr-lbl">call</span></div>
+
+<!-- L4: AGENCIES -->
+<div class="layer">
+  <div class="layer-label" style="color:#fcd34d;">L4 · AGENCIES</div>
+  <div class="layer-body">
+    <div class="agency-grid">
+      <div class="ag"><div class="ag-name">กรมสรรพากร</div><div class="ag-types"><div class="ag-dot" style="background:var(--c1)" title="REST"></div></div></div>
+      <div class="ag"><div class="ag-name">อย.</div><div class="ag-types"><div class="ag-dot" style="background:var(--c1)"></div><div class="ag-dot" style="background:var(--c2)"></div></div></div>
+      <div class="ag"><div class="ag-name">กรมที่ดิน</div><div class="ag-types"><div class="ag-dot" style="background:var(--c2)"></div><div class="ag-dot" style="background:var(--c3)"></div></div></div>
+      <div class="ag"><div class="ag-name">BOI</div><div class="ag-types"><div class="ag-dot" style="background:var(--c1)"></div><div class="ag-dot" style="background:var(--c5)"></div></div></div>
+      <div class="ag"><div class="ag-name">DBD</div><div class="ag-types"><div class="ag-dot" style="background:var(--c1)"></div><div class="ag-dot" style="background:var(--c4)"></div></div></div>
+      <div class="ag"><div class="ag-name">กรมแรงงาน</div><div class="ag-types"><div class="ag-dot" style="background:var(--c2)"></div></div></div>
+      <div class="ag"><div class="ag-name">สำนักงบประมาณ</div><div class="ag-types"><div class="ag-dot" style="background:var(--c3)"></div><div class="ag-dot" style="background:var(--c2)"></div></div></div>
+      <div class="ag"><div class="ag-name">สธ.</div><div class="ag-types"><div class="ag-dot" style="background:var(--c6)"></div></div></div>
+      <div class="ag"><div class="ag-name">ก.พ.</div><div class="ag-types"><div class="ag-dot" style="background:var(--c4)"></div></div></div>
+      <div class="ag"><div class="ag-name">ETDA</div><div class="ag-types"><div class="ag-dot" style="background:var(--c5)"></div><div class="ag-dot" style="background:var(--c1)"></div></div></div>
+      <div class="ag"><div class="ag-name">กรมศุลกากร</div><div class="ag-types"><div class="ag-dot" style="background:var(--c1)"></div></div></div>
+      <div class="ag" style="border-style:dashed; opacity:0.5;"><div class="ag-name">+ 19 แห่ง</div></div>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:14px; flex-wrap:wrap; font-size:0.62rem; color:var(--muted);">
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c1);margin-right:3px;"></span>REST</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c2);margin-right:3px;"></span>PDF</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c3);margin-right:3px;"></span>Text</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c4);margin-right:3px;"></span>A2A</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c5);margin-right:3px;"></span>MCP</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c6);margin-right:3px;"></span>LLM</span>
+    </div>
+  </div>
+</div>
+
+<!-- ADAPTER COMPARISON TABLE -->
+<div style="margin-top:32px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px;">
+  <div style="font-size:0.72rem; font-family:'IBM Plex Mono',monospace; color:var(--muted); margin-bottom:4px; letter-spacing:0.08em;">// ADAPTER COMPARISON</div>
+  <table class="iface-table">
+    <thead>
+      <tr>
+        <th>TYPE</th>
+        <th>รับข้อมูล</th>
+        <th>วิธี query</th>
+        <th>latency</th>
+        <th>ข้อควรระวัง</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="tag t1">REST</span></td>
+        <td>structured JSON</td>
+        <td>HTTP params → parse response</td>
+        <td style="color:var(--c3);">เร็ว</td>
+        <td>schema ต่างกันแต่ละหน่วยงาน ต้อง normalize</td>
+      </tr>
+      <tr>
+        <td><span class="tag t2">PDF</span></td>
+        <td>PDF binary</td>
+        <td>pre-index → vector search ตอน query</td>
+        <td style="color:var(--c2);">index ช้า, query เร็ว</td>
+        <td>PDF scan ต้อง OCR, layout ซับซ้อนอาจ extract ผิด</td>
+      </tr>
+      <tr>
+        <td><span class="tag t3">TEXT</span></td>
+        <td>plain text / HTML</td>
+        <td>scrape → chunk → vector search</td>
+        <td style="color:var(--c3);">เร็ว</td>
+        <td>เว็บเปลี่ยน structure บ่อย ต้องมี recrawl schedule</td>
+      </tr>
+      <tr>
+        <td><span class="tag t4">A2A</span></td>
+        <td>task/message</td>
+        <td>ส่ง task → poll หรือ webhook รับ result</td>
+        <td style="color:var(--c2);">ช้า (async)</td>
+        <td>ต้องจัดการ task lifecycle, timeout, error state</td>
+      </tr>
+      <tr>
+        <td><span class="tag t5">MCP</span></td>
+        <td>tool / resource</td>
+        <td>call MCP tool โดยตรง</td>
+        <td style="color:var(--c3);">เร็ว</td>
+        <td>ต้องเชื่อมต่อ MCP server ให้ได้ก่อน (stdio หรือ SSE)</td>
+      </tr>
+      <tr>
+        <td><span class="tag t6">LLM</span></td>
+        <td>natural language</td>
+        <td>ส่ง query → รับ answer text</td>
+        <td style="color:var(--c2);">ขึ้นอยู่กับ model</td>
+        <td>ต้องมี trust score, อาจ hallucinate, ยาก verify</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="note">
+  <strong>🔑 Key insight:</strong> ทุก adapter ต้องคืนข้อมูลในรูปแบบเดียวกัน (<code>{ source, content, score, metadata }</code>) ให้ Orchestrator ก่อนที่จะสังเคราะห์คำตอบ — ความต่างของแต่ละ type ซ่อนอยู่ใน adapter ไม่รั่วออกมาถึง LLM<br><br>
+  <strong>⚠ LLM adapter</strong> ต้องระวังพิเศษ เพราะคำตอบที่ได้มาเป็น generated text แล้ว ไม่ใช่ raw data → ยาก verify → ควรมี trust score ต่ำกว่า adapter อื่นเวลา rank ผลลัพธ์
+</div>
+
+</div>
+</body>
+</html>

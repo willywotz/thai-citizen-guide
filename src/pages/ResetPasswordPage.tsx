@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,25 +9,22 @@ import { toast } from "sonner";
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [ready, setReady] = useState(false);
+  const token = searchParams.get("token") || "";
 
-  useEffect(() => {
-    // Check for recovery type in URL hash
-    const hash = window.location.hash;
-    if (hash.includes("type=recovery")) {
-      setReady(true);
-    } else {
-      // Also listen for auth state change for recovery
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "PASSWORD_RECOVERY") {
-          setReady(true);
-        }
-      });
-      return () => subscription.unsubscribe();
-    }
-  }, []);
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center text-muted-foreground">
+            ลิงก์รีเซ็ตไม่ถูกต้องหรือหมดอายุ
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,27 +33,16 @@ export default function ResetPasswordPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await api.post("/api/auth/reset-password", { token, password });
       toast.success("เปลี่ยนรหัสผ่านสำเร็จ");
-      navigate("/");
+      navigate("/login");
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setLoading(false);
     }
   };
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center text-muted-foreground">
-            กำลังตรวจสอบลิงก์รีเซ็ต...
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

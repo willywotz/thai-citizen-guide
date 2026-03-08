@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/apiClient';
 
 export interface AgencyApiResponse {
   success: boolean;
@@ -14,19 +14,6 @@ export interface AgencyApiResponse {
 
 type AgencyId = 'fda' | 'revenue' | 'dopa' | 'land';
 
-const functionNameMap: Record<AgencyId, string> = {
-  fda: 'agency-fda',
-  revenue: 'agency-revenue',
-  dopa: 'agency-dopa',
-  land: 'agency-land',
-};
-
 export async function queryAgency(agencyId: AgencyId, query: string): Promise<AgencyApiResponse> {
-  const fnName = functionNameMap[agencyId];
-  const { data, error } = await supabase.functions.invoke(fnName, {
-    body: { query },
-  });
-
-  if (error) throw new Error(error.message);
-  return data as AgencyApiResponse;
+  return api.post<AgencyApiResponse>(`/api/chat/agency/${agencyId}`, { query });
 }

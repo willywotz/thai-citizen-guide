@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/apiClient";
+import { handleAuthResponse } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,20 +23,19 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { display_name: displayName },
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("สมัครสมาชิกสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี");
-      navigate("/login");
+    try {
+      const data = await api.post<{ access_token: string; user: any }>("/api/auth/signup", {
+        email,
+        password,
+        display_name: displayName,
+      });
+      handleAuthResponse(data);
+      toast.success("สมัครสมาชิกสำเร็จ!");
+      navigate("/");
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setLoading(false);
     }
   };
 

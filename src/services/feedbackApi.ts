@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/apiClient';
 
 export async function updateMessageRating(
   messageId: string,
@@ -6,17 +6,11 @@ export async function updateMessageRating(
   feedbackText?: string
 ): Promise<boolean> {
   try {
-    const updateData: Record<string, any> = { rating };
+    const body: Record<string, any> = { rating };
     if (feedbackText !== undefined) {
-      updateData.feedback_text = feedbackText;
+      body.feedback_text = feedbackText;
     }
-
-    const { error } = await supabase
-      .from('messages')
-      .update(updateData as any)
-      .eq('id', messageId);
-
-    if (error) throw error;
+    await api.patch(`/api/conversations/messages/${messageId}/rating`, body);
     return true;
   } catch (err) {
     console.warn('Failed to update rating:', err);
@@ -36,9 +30,7 @@ export interface FeedbackStats {
 
 export async function fetchFeedbackStats(): Promise<FeedbackStats> {
   try {
-    const { data, error } = await supabase.functions.invoke('feedback-stats');
-    if (error) throw error;
-    return data as FeedbackStats;
+    return await api.get<FeedbackStats>('/api/feedback/stats');
   } catch {
     console.warn('Feedback stats API failed, using empty data');
     return {

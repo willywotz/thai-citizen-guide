@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/apiClient";
+import { handleAuthResponse, useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +11,11 @@ import { LogIn } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const {user, isLoading} = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (!isLoading && user) {
       navigate("/", { replace: true });
@@ -26,17 +25,18 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      const data = await api.post<{ access_token: string; user: any }>("/api/auth/login", { email, password });
+      handleAuthResponse(data);
       toast.success("เข้าสู่ระบบสำเร็จ");
-      // navigate will happen via useEffect when auth state updates
+      navigate("/", { replace: true });
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Don't show login form if already authenticated
   if (!isLoading && user) return null;
 
   return (
