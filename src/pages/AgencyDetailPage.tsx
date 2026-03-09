@@ -100,6 +100,9 @@ export default function AgencyDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {agency.connectionType === "API" && agency.endpointUrl && (
+            <TestConnectionButton agency={agency} />
+          )}
           <Badge className={connectionTypeColors[agency.connectionType] || ""}>
             {agency.connectionType}
           </Badge>
@@ -114,6 +117,11 @@ export default function AgencyDetailPage() {
           </Badge>
         </div>
       </div>
+
+      {/* Test Result */}
+      {(testLoading || testResult) && (
+        <ConnectionTestResult result={testResult} loading={testLoading} />
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
