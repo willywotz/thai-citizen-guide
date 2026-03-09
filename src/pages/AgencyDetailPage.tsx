@@ -25,11 +25,41 @@ const statusColors: Record<string, string> = {
   error: "text-destructive",
 };
 
+function TestConnectionButton({ agency }: { agency: { connectionType: string; endpointUrl: string } }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('agency-manage', {
+        method: 'POST',
+        body: { action: 'test', connection_type: agency.connectionType, endpoint_url: agency.endpointUrl },
+      });
+      if (error) throw error;
+      setTestResult(data as TestResult);
+    } catch {
+      setTestResult({ success: false, protocol: 'REST API', version: '-', steps: [], latency: '0ms', error: 'Request failed' });
+    } finally {
+      setLoading(false);
+      setTestLoading(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setTestLoading(true); setTestResult(null); handleClick(); }} disabled={loading}>
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
+      ทดสอบการเชื่อมต่อ
+    </Button>
+  );
+}
+
 export default function AgencyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: agencies = [], isLoading: agenciesLoading } = useAgencies();
   const { data: logs = [], isLoading: logsLoading } = useConnectionLogs(id);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [testLoading, setTestLoading] = useState(false);
 
   const agency = agencies.find((a) => a.id === id);
 
