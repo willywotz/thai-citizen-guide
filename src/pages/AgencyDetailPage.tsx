@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Activity, Clock, CheckCircle2, XCircle, Wifi, BarChart3 } from "lucide-react";
+import { ArrowLeft, Activity, Clock, CheckCircle2, XCircle, Wifi, BarChart3, Loader2 } from "lucide-react";
 import { useAgencies } from "@/hooks/useAgencies";
 import { useConnectionLogs } from "@/hooks/useConnectionLogs";
+import { ConnectionTestResult, type TestResult } from "@/components/agencies/ConnectionTestResult";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
 
 const connectionTypeColors: Record<string, string> = {
   MCP: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
