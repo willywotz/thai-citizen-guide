@@ -1,3 +1,9 @@
+export interface ApiEndpoint {
+  method: string;
+  path: string;
+  description: string;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -11,6 +17,13 @@ export interface Agency {
   color: string;
   endpointUrl: string;
   apiKeyName?: string | null;
+  authMethod?: string;
+  authHeader?: string;
+  basePath?: string;
+  rateLimitRpm?: number | null;
+  requestFormat?: string;
+  apiEndpoints?: ApiEndpoint[];
+  apiSpecRaw?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -29,6 +42,13 @@ export interface AgencyRow {
   color: string;
   endpoint_url: string;
   api_key_name: string | null;
+  auth_method: string;
+  auth_header: string;
+  base_path: string;
+  rate_limit_rpm: number | null;
+  request_format: string;
+  api_endpoints: ApiEndpoint[];
+  api_spec_raw: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +67,13 @@ export function mapRowToAgency(row: AgencyRow): Agency {
     color: row.color,
     endpointUrl: row.endpoint_url,
     apiKeyName: row.api_key_name,
+    authMethod: row.auth_method,
+    authHeader: row.auth_header,
+    basePath: row.base_path,
+    rateLimitRpm: row.rate_limit_rpm,
+    requestFormat: row.request_format,
+    apiEndpoints: row.api_endpoints,
+    apiSpecRaw: row.api_spec_raw,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

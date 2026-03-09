@@ -36,6 +36,13 @@ Deno.serve(async (req) => {
         color: body.color || 'hsl(213 70% 45%)',
         endpoint_url: body.endpoint_url || '',
         api_key_name: body.api_key_name || null,
+        auth_method: body.auth_method || 'api_key',
+        auth_header: body.auth_header || '',
+        base_path: body.base_path || '',
+        rate_limit_rpm: body.rate_limit_rpm || null,
+        request_format: body.request_format || 'json',
+        api_endpoints: body.api_endpoints || [],
+        api_spec_raw: body.api_spec_raw || null,
       }).select().single();
 
       if (error) throw error;
