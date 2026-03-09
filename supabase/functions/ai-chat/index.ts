@@ -1,3 +1,5 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -13,6 +15,23 @@ interface AgencyResult {
     confidence: number;
   };
   responseTime: number;
+}
+
+interface ResponseField {
+  field: string;
+  type: string;
+  description: string;
+  example?: string;
+}
+
+interface AgencyConfig {
+  id: string;
+  short_name: string;
+  name: string;
+  logo: string;
+  response_schema: ResponseField[] | null;
+  api_endpoints: any[] | null;
+  connection_type: string;
 }
 
 // Keyword-based agency routing
@@ -58,7 +77,53 @@ const agencyIconMap: Record<string, string> = {
   land: '🗺️',
 };
 
+// Short name → agency key mapping for DB lookup
+const shortNameToKey: Record<string, string> = {
+  'อย.': 'fda',
+  'สรรพากร': 'revenue',
+  'ปกครอง': 'dopa',
+  'ที่ดิน': 'land',
+};
+
 const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+
+/**
+ * Build a schema guide string for the LLM prompt from agency response_schema
+ */
+function buildSchemaGuide(agencyConfigs: Map<string, AgencyConfig>, targetAgencies: string[]): string {
+  const sections: string[] = [];
+
+  for (const agencyId of targetAgencies) {
+    // Find matching config by short_name pattern
+    let config: AgencyConfig | undefined;
+    for (const [, c] of agencyConfigs) {
+      const sn = c.short_name.replace('.', '').toLowerCase();
+      if (
+        (agencyId === 'fda' && (sn.includes('อย') || c.name.includes('อาหาร'))) ||
+        (agencyId === 'revenue' && (sn.includes('สรรพากร') || c.name.includes('สรรพากร'))) ||
+        (agencyId === 'dopa' && (sn.includes('ปกครอง') || c.name.includes('ปกครอง'))) ||
+        (agencyId === 'land' && (sn.includes('ที่ดิน') || c.name.includes('ที่ดิน')))
+      ) {
+        config = c;
+        break;
+      }
+    }
+
+    if (!config?.response_schema?.length) continue;
+
+    const fields = config.response_schema.map((f: ResponseField) => {
+      let line = `  - **${f.field}** (${f.type}): ${f.description}`;
+      if (f.example) line += ` — ตัวอย่าง: ${f.example}`;
+      return line;
+    }).join('\n');
+
+    sections.push(`#### ${config.name} (${config.short_name})\nResponse fields ที่สำคัญ:\n${fields}`);
+  }
+
+  return sections.length > 0
+    ? `\n\n## Schema Reference สำหรับ Parse ข้อมูล\nใช้ข้อมูล schema ด้านล่างเพื่อระบุและจัดรูปแบบข้อมูลในคำตอบให้ถูกต้อง:\n\n${sections.join('\n\n')}`
+    : '';
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -79,6 +144,29 @@ Deno.serve(async (req) => {
     // Step 1: Detect relevant agencies
     const targetAgencies = detectAgencies(query);
 
+    // Step 1.5: Fetch agency configs (response_schema) from DB
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    const agencyConfigs = new Map<string, AgencyConfig>();
+    try {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: agencies } = await supabase
+        .from('agencies')
+        .select('id, short_name, name, logo, response_schema, api_endpoints, connection_type')
+        .eq('status', 'active');
+
+      if (agencies) {
+        for (const a of agencies) {
+          agencyConfigs.set(a.id, a as AgencyConfig);
+        }
+      }
+    } catch (dbErr) {
+      console.error('Failed to fetch agency configs:', dbErr);
+      // Continue without schema — graceful degradation
+    }
+
     // Step 2: Build agent steps
     const agentSteps = [
       { icon: '🔍', label: 'กำลังวิเคราะห์คำถาม...', status: 'done' },
@@ -86,9 +174,6 @@ Deno.serve(async (req) => {
     ];
 
     // Step 3: Call agency functions in parallel
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-
     const agencyPromises = targetAgencies.map(async (agencyId) => {
       const fnName = agencyFunctionMap[agencyId];
       agentSteps.push({
@@ -123,11 +208,14 @@ Deno.serve(async (req) => {
     let combinedAnswer: string;
 
     if (LOVABLE_API_KEY && results.length > 0) {
-      agentSteps.push({ icon: '🤖', label: 'AI กำลังสังเคราะห์คำตอบ...', status: 'done' });
+      agentSteps.push({ icon: '🤖', label: 'AI กำลังสังเคราะห์คำตอบ (พร้อม Schema Guide)...', status: 'done' });
 
       const agencyContext = results.map((r) =>
         `### ข้อมูลจาก ${r.agencyName}\n${r.data.answer}`
       ).join('\n\n');
+
+      // Build schema guide from DB configs
+      const schemaGuide = buildSchemaGuide(agencyConfigs, targetAgencies);
 
       const systemPrompt = `คุณคือ AI ผู้ช่วยภาครัฐไทย ทำหน้าที่สังเคราะห์ข้อมูลจากหลายหน่วยงานราชการให้เป็นคำตอบที่ชัดเจน ถูกต้อง และเข้าใจง่ายสำหรับประชาชน
 
@@ -137,7 +225,9 @@ Deno.serve(async (req) => {
 - อ้างอิงชื่อหน่วยงานที่เป็นแหล่งข้อมูลในคำตอบ
 - หากข้อมูลจากหลายหน่วยงานเกี่ยวข้องกัน ให้เชื่อมโยงและสรุปให้เป็นคำตอบเดียวที่สอดคล้องกัน
 - ห้ามเพิ่มข้อมูลที่ไม่มีในแหล่งข้อมูลที่ให้มา
-- จบคำตอบด้วยข้อแนะนำเพิ่มเติมหากเหมาะสม`;
+- จบคำตอบด้วยข้อแนะนำเพิ่มเติมหากเหมาะสม
+- เมื่อมี Schema Reference ให้ใช้เป็นแนวทางในการระบุและจัดรูปแบบข้อมูลสำคัญ เช่น ตัวเลข วันที่ สถานะ ให้ถูกต้องตาม field type ที่กำหนด
+- หาก response มี field ตรงกับ schema ให้แสดงข้อมูลครบถ้วนตาม field ที่ระบุ${schemaGuide}`;
 
       const userPrompt = `คำถามจากประชาชน: "${query}"
 
@@ -169,7 +259,6 @@ ${agencyContext}
         } else {
           const errText = await aiResponse.text();
           console.error('AI gateway error:', aiResponse.status, errText);
-          // Fallback to simple concatenation
           combinedAnswer = results.map((r) => r.data.answer).join('\n\n---\n\n');
         }
       } catch (aiErr) {
