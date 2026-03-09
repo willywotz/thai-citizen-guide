@@ -64,12 +64,14 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setRateLimitRpm(agency.rateLimitRpm ? String(agency.rateLimitRpm) : "");
       setRequestFormat(agency.requestFormat || "json");
       setApiEndpoints(agency.apiEndpoints || []);
+      setResponseSchema(agency.responseSchema || []);
     } else {
       setName(""); setShortName(""); setLogo("🏢"); setDescription("");
       setConnectionType("API"); setEndpointUrl(""); setColor("hsl(213 70% 45%)");
       setDataScope([]); setStatus("active");
       setAuthMethod("api_key"); setAuthHeader(""); setBasePath("");
       setRateLimitRpm(""); setRequestFormat("json"); setApiEndpoints([]);
+      setResponseSchema([]);
     }
   }, [agency, open]);
 
