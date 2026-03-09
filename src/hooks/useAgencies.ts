@@ -60,6 +60,13 @@ export function useCreateAgency() {
           color: agency.color,
           endpoint_url: agency.endpointUrl,
           api_key_name: agency.apiKeyName,
+          auth_method: agency.authMethod,
+          auth_header: agency.authHeader,
+          base_path: agency.basePath,
+          rate_limit_rpm: agency.rateLimitRpm,
+          request_format: agency.requestFormat,
+          api_endpoints: agency.apiEndpoints,
+          api_spec_raw: agency.apiSpecRaw,
         },
       });
       if (error) throw new Error(error.message);
