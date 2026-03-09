@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus, Upload, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { Agency, ApiEndpoint } from "@/types/agency";
+import type { Agency, ApiEndpoint, ResponseField } from "@/types/agency";
 
 const protocolInfo: Record<string, string> = {
   MCP: "Model Context Protocol — มาตรฐานการเชื่อมต่อ AI กับเครื่องมือภายนอก รองรับ tools/list, tools/call, resources/read",
