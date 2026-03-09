@@ -25,6 +25,8 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
+const AUTH_CHANGE_EVENT = "auth_change";
+
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,10 +35,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUser = useCallback(async () => {
     const token = localStorage.getItem("access_token");
+    
     if (!token) {
+      setUser(null);
       setIsLoading(false);
       return;
     }
+
     try {
       const data = await api.get<AuthUser>("/api/auth/me");
       setUser(data);
@@ -50,11 +55,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadUser();
+
+    window.addEventListener("storage", loadUser);
+    window.addEventListener(AUTH_CHANGE_EVENT, loadUser);
+
+    return () => {
+      window.removeEventListener("storage", loadUser);
+      window.removeEventListener(AUTH_CHANGE_EVENT, loadUser);
+    };
   }, [loadUser]);
 
   const signOut = async () => {
     clearToken();
     setUser(null);
+    window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
   };
 
   const profile = user
@@ -72,4 +86,5 @@ export function handleAuthResponse(
   data: { access_token: string; user: AuthUser }
 ) {
   setToken(data.access_token);
+  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
 }
