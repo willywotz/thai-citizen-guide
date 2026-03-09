@@ -1,0 +1,1 @@
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS response_schema jsonb DEFAULT '[]'::jsonb;

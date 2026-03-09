@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus, Upload, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { Agency, ApiEndpoint } from "@/types/agency";
+import type { Agency, ApiEndpoint, ResponseField } from "@/types/agency";
 
 const protocolInfo: Record<string, string> = {
   MCP: "Model Context Protocol — มาตรฐานการเชื่อมต่อ AI กับเครื่องมือภายนอก รองรับ tools/list, tools/call, resources/read",
@@ -44,6 +44,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
   const [rateLimitRpm, setRateLimitRpm] = useState<string>("");
   const [requestFormat, setRequestFormat] = useState("json");
   const [apiEndpoints, setApiEndpoints] = useState<ApiEndpoint[]>([]);
+  const [responseSchema, setResponseSchema] = useState<ResponseField[]>([]);
   const [parsing, setParsing] = useState(false);
 
   useEffect(() => {
@@ -63,12 +64,14 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setRateLimitRpm(agency.rateLimitRpm ? String(agency.rateLimitRpm) : "");
       setRequestFormat(agency.requestFormat || "json");
       setApiEndpoints(agency.apiEndpoints || []);
+      setResponseSchema(agency.responseSchema || []);
     } else {
       setName(""); setShortName(""); setLogo("🏢"); setDescription("");
       setConnectionType("API"); setEndpointUrl(""); setColor("hsl(213 70% 45%)");
       setDataScope([]); setStatus("active");
       setAuthMethod("api_key"); setAuthHeader(""); setBasePath("");
       setRateLimitRpm(""); setRequestFormat("json"); setApiEndpoints([]);
+      setResponseSchema([]);
     }
   }, [agency, open]);
 
@@ -114,8 +117,9 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       if (parsed.rate_limit_rpm) setRateLimitRpm(String(parsed.rate_limit_rpm));
       if (parsed.request_format) setRequestFormat(parsed.request_format);
       if (parsed.endpoints?.length) setApiEndpoints(parsed.endpoints);
+      if (parsed.response_schema?.length) setResponseSchema(parsed.response_schema);
 
-      toast.success(`สำเร็จ! พบ ${parsed.endpoints?.length || 0} endpoints`);
+      toast.success(`สำเร็จ! พบ ${parsed.endpoints?.length || 0} endpoints, ${parsed.response_schema?.length || 0} response fields`);
     } catch (err: any) {
       toast.error("ไม่สามารถ parse spec ได้: " + (err.message || "Unknown error"));
     } finally {
@@ -136,6 +140,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
         rateLimitRpm: rateLimitRpm ? parseInt(rateLimitRpm) : null,
         requestFormat,
         apiEndpoints: apiEndpoints.filter(ep => ep.path),
+        responseSchema: responseSchema.filter(f => f.field),
       } : {}),
     });
   };
@@ -282,6 +287,36 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
                 ))}
                 {apiEndpoints.length === 0 && (
                   <p className="text-[11px] text-muted-foreground text-center py-2">ยังไม่มี endpoint — กดเพิ่ม หรือ Upload API Spec</p>
+                )}
+              </div>
+
+              {/* Response Schema */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Response Schema (LLM Parse Guide)</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setResponseSchema([...responseSchema, { field: '', type: 'string', description: '' }])}>
+                    <Plus className="h-3 w-3" /> เพิ่ม
+                  </Button>
+                </div>
+                {responseSchema.map((f, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <Input value={f.field} onChange={(e) => setResponseSchema(responseSchema.map((r, j) => j === i ? { ...r, field: e.target.value } : r))} placeholder="field.path" className="h-8 text-xs flex-1" />
+                    <Select value={f.type} onValueChange={(v) => setResponseSchema(responseSchema.map((r, j) => j === i ? { ...r, type: v } : r))}>
+                      <SelectTrigger className="h-8 w-[90px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["string", "number", "boolean", "array", "object", "date"].map((t) => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input value={f.description} onChange={(e) => setResponseSchema(responseSchema.map((r, j) => j === i ? { ...r, description: e.target.value } : r))} placeholder="คำอธิบาย" className="h-8 text-xs flex-1" />
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setResponseSchema(responseSchema.filter((_, j) => j !== i))}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                {responseSchema.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground text-center py-2">ยังไม่มี schema — กดเพิ่ม หรือ Upload API Spec เพื่อสร้างอัตโนมัติ</p>
                 )}
               </div>
             </div>

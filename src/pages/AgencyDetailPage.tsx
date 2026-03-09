@@ -378,6 +378,35 @@ export default function AgencyDetailPage() {
                         </div>
                       </div>
                     )}
+                    {agency.responseSchema && agency.responseSchema.length > 0 && (
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-muted-foreground mb-2">Response Schema ({agency.responseSchema.length} fields)</p>
+                        <div className="border border-border rounded-md overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-xs">Field</TableHead>
+                                <TableHead className="w-[80px] text-xs">Type</TableHead>
+                                <TableHead className="text-xs">คำอธิบาย</TableHead>
+                                <TableHead className="text-xs">ตัวอย่าง</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {agency.responseSchema.map((f, i) => (
+                                <TableRow key={i}>
+                                  <TableCell className="text-xs font-mono text-foreground">{f.field}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="text-[10px] font-mono">{f.type}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{f.description}</TableCell>
+                                  <TableCell className="text-xs font-mono text-muted-foreground">{f.example || "-"}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 

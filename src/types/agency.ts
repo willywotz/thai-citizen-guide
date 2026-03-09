@@ -4,6 +4,13 @@ export interface ApiEndpoint {
   description: string;
 }
 
+export interface ResponseField {
+  field: string;
+  type: string;
+  description: string;
+  example?: string;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -23,6 +30,7 @@ export interface Agency {
   rateLimitRpm?: number | null;
   requestFormat?: string;
   apiEndpoints?: ApiEndpoint[];
+  responseSchema?: ResponseField[];
   apiSpecRaw?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -48,6 +56,7 @@ export interface AgencyRow {
   rate_limit_rpm: number | null;
   request_format: string;
   api_endpoints: ApiEndpoint[];
+  response_schema: ResponseField[];
   api_spec_raw: string | null;
   created_at: string;
   updated_at: string;
@@ -73,6 +82,7 @@ export function mapRowToAgency(row: AgencyRow): Agency {
     rateLimitRpm: row.rate_limit_rpm,
     requestFormat: row.request_format,
     apiEndpoints: row.api_endpoints,
+    responseSchema: row.response_schema,
     apiSpecRaw: row.api_spec_raw,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
