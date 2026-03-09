@@ -100,8 +100,9 @@ export function useUpdateAgency() {
           base_path: agency.basePath,
           rate_limit_rpm: agency.rateLimitRpm,
           request_format: agency.requestFormat,
-          api_endpoints: agency.apiEndpoints,
-          api_spec_raw: agency.apiSpecRaw,
+           api_endpoints: agency.apiEndpoints,
+           response_schema: agency.responseSchema,
+           api_spec_raw: agency.apiSpecRaw,
         },
       });
       if (error) throw new Error(error.message);
