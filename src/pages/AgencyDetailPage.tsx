@@ -295,6 +295,60 @@ export default function AgencyDetailPage() {
                   <p className="text-xs text-muted-foreground mb-1">Endpoint URL</p>
                   <p className="text-sm font-mono text-foreground break-all">{agency.endpointUrl || "-"}</p>
                 </div>
+
+                {/* API Configuration Details */}
+                {agency.connectionType === "API" && (
+                  <>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Auth Method</p>
+                      <p className="text-sm font-medium text-foreground">{agency.authMethod || "api_key"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Auth Header</p>
+                      <p className="text-sm font-mono text-foreground">{agency.authHeader || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Base Path</p>
+                      <p className="text-sm font-mono text-foreground">{agency.basePath || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Rate Limit</p>
+                      <p className="text-sm font-medium text-foreground">{agency.rateLimitRpm ? `${agency.rateLimitRpm} RPM` : "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Request Format</p>
+                      <p className="text-sm font-medium text-foreground uppercase">{agency.requestFormat || "json"}</p>
+                    </div>
+                    {agency.apiEndpoints && agency.apiEndpoints.length > 0 && (
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-muted-foreground mb-2">API Endpoints ({agency.apiEndpoints.length})</p>
+                        <div className="border border-border rounded-md overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-[80px] text-xs">Method</TableHead>
+                                <TableHead className="text-xs">Path</TableHead>
+                                <TableHead className="text-xs">คำอธิบาย</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {agency.apiEndpoints.map((ep, i) => (
+                                <TableRow key={i}>
+                                  <TableCell>
+                                    <Badge variant="outline" className="text-[10px] font-mono">{ep.method}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs font-mono">{ep.path}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{ep.description}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 <div className="md:col-span-2">
                   <p className="text-xs text-muted-foreground mb-1.5">ขอบเขตข้อมูล</p>
                   <div className="flex flex-wrap gap-1.5">
