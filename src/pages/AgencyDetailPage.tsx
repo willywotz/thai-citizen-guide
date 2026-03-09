@@ -25,34 +25,6 @@ const statusColors: Record<string, string> = {
   error: "text-destructive",
 };
 
-function TestConnectionButton({ agency }: { agency: { connectionType: string; endpointUrl: string } }) {
-  const [loading, setLoading] = useState(false);
-
-  const handleClick = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('agency-manage', {
-        method: 'POST',
-        body: { action: 'test', connection_type: agency.connectionType, endpoint_url: agency.endpointUrl },
-      });
-      if (error) throw error;
-      setTestResult(data as TestResult);
-    } catch {
-      setTestResult({ success: false, protocol: 'REST API', version: '-', steps: [], latency: '0ms', error: 'Request failed' });
-    } finally {
-      setLoading(false);
-      setTestLoading(false);
-    }
-  };
-
-  return (
-    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setTestLoading(true); setTestResult(null); handleClick(); }} disabled={loading}>
-      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
-      ทดสอบการเชื่อมต่อ
-    </Button>
-  );
-}
-
 export default function AgencyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -63,6 +35,23 @@ export default function AgencyDetailPage() {
 
   const agency = agencies.find((a) => a.id === id);
 
+  const handleTestConnection = async () => {
+    if (!agency?.endpointUrl) return;
+    setTestLoading(true);
+    setTestResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('agency-manage', {
+        method: 'POST',
+        body: { action: 'test', connection_type: agency.connectionType, endpoint_url: agency.endpointUrl },
+      });
+      if (error) throw error;
+      setTestResult(data as TestResult);
+    } catch {
+      setTestResult({ success: false, protocol: 'REST API', version: '-', steps: [], latency: '0ms', error: 'Request failed' });
+    } finally {
+      setTestLoading(false);
+    }
+  };
   const stats = useMemo(() => {
     if (!logs.length) return { total: 0, success: 0, error: 0, avgLatency: 0, successRate: 0 };
     const success = logs.filter((l) => l.status === "success").length;
