@@ -33,6 +33,7 @@ export type Database = {
           name: string
           rate_limit_rpm: number | null
           request_format: string | null
+          response_schema: Json | null
           short_name: string
           status: string
           total_calls: number
@@ -56,6 +57,7 @@ export type Database = {
           name: string
           rate_limit_rpm?: number | null
           request_format?: string | null
+          response_schema?: Json | null
           short_name: string
           status?: string
           total_calls?: number
@@ -79,6 +81,7 @@ export type Database = {
           name?: string
           rate_limit_rpm?: number | null
           request_format?: string | null
+          response_schema?: Json | null
           short_name?: string
           status?: string
           total_calls?: number
