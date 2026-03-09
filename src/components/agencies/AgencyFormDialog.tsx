@@ -44,6 +44,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
   const [rateLimitRpm, setRateLimitRpm] = useState<string>("");
   const [requestFormat, setRequestFormat] = useState("json");
   const [apiEndpoints, setApiEndpoints] = useState<ApiEndpoint[]>([]);
+  const [responseSchema, setResponseSchema] = useState<ResponseField[]>([]);
   const [parsing, setParsing] = useState(false);
 
   useEffect(() => {
