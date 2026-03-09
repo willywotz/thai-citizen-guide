@@ -30,11 +30,11 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are an API specification parser. Extract structured information from OpenAPI/Swagger specs.',
+            content: 'You are an API specification parser. Extract structured information from OpenAPI/Swagger specs including response schemas.',
           },
           {
             role: 'user',
-            content: `Parse this API specification and extract the details:\n\n${specText.substring(0, 30000)}`,
+            content: `Parse this API specification and extract the details including response field schemas:\n\n${specText.substring(0, 30000)}`,
           },
         ],
         tools: [
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
             type: 'function',
             function: {
               name: 'extract_api_spec',
-              description: 'Extract structured API specification details',
+              description: 'Extract structured API specification details including response schemas',
               parameters: {
                 type: 'object',
                 properties: {
@@ -81,8 +81,23 @@ Deno.serve(async (req) => {
                       additionalProperties: false,
                     },
                   },
+                  response_schema: {
+                    type: 'array',
+                    description: 'Common response fields found across endpoint responses',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        field: { type: 'string', description: 'Field name or dot-notation path e.g. data.items[].name' },
+                        type: { type: 'string', description: 'Data type: string, number, boolean, array, object, date' },
+                        description: { type: 'string', description: 'What this field contains' },
+                        example: { type: 'string', description: 'Example value' },
+                      },
+                      required: ['field', 'type', 'description'],
+                      additionalProperties: false,
+                    },
+                  },
                 },
-                required: ['auth_method', 'auth_header', 'base_path', 'request_format', 'endpoints'],
+                required: ['auth_method', 'auth_header', 'base_path', 'request_format', 'endpoints', 'response_schema'],
                 additionalProperties: false,
               },
             },

@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
         rate_limit_rpm: body.rate_limit_rpm || null,
         request_format: body.request_format || 'json',
         api_endpoints: body.api_endpoints || [],
+        response_schema: body.response_schema || [],
         api_spec_raw: body.api_spec_raw || null,
       }).select().single();
 
