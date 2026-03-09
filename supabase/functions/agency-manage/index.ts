@@ -80,7 +80,102 @@ Deno.serve(async (req) => {
   }
 });
 
-function handleTest(body: { connection_type: string; endpoint_url: string }) {
+async function handleTest(body: { connection_type: string; endpoint_url: string }) {
+  const steps: { step: number; label: string; status: string; time: number }[] = [];
+  const totalStart = Date.now();
+
+  // For MCP / A2A, keep simulated test (no real HTTP endpoint to ping)
+  if (body.connection_type === 'MCP' || body.connection_type === 'A2A') {
+    return handleSimulatedTest(body);
+  }
+
+  // --- Real API connection test ---
+  const url = body.endpoint_url?.trim();
+  if (!url) {
+    return json({ success: false, error: 'Endpoint URL is required', protocol: 'REST API', version: '-', steps: [], latency: '0ms' });
+  }
+
+  // Step 1: DNS / TCP
+  const s1 = Date.now();
+  let response: Response | null = null;
+  let fetchError: string | null = null;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    response = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'AI-Chatbot-Portal/1.0 ConnectionTest' },
+    });
+    clearTimeout(timeout);
+  } catch (err: any) {
+    // HEAD may not be supported, try GET
+    try {
+      const controller2 = new AbortController();
+      const timeout2 = setTimeout(() => controller2.abort(), 10000);
+      response = await fetch(url, {
+        method: 'GET',
+        signal: controller2.signal,
+        headers: { 'User-Agent': 'AI-Chatbot-Portal/1.0 ConnectionTest' },
+      });
+      clearTimeout(timeout2);
+    } catch (err2: any) {
+      fetchError = err2.name === 'AbortError' ? 'Connection timeout (10s)' : err2.message;
+    }
+  }
+  const s1End = Date.now();
+
+  steps.push({ step: 1, label: 'TCP Connection', status: fetchError ? 'error' : 'done', time: s1End - s1 });
+
+  if (fetchError) {
+    const latency = Date.now() - totalStart;
+    steps.push({ step: 2, label: 'HTTP Response', status: 'error', time: 0 });
+    return json({
+      success: false,
+      protocol: 'REST API',
+      version: '-',
+      steps,
+      latency: `${latency}ms`,
+      statusCode: null,
+      error: fetchError,
+    });
+  }
+
+  // Step 2: HTTP Response
+  const statusCode = response!.status;
+  const statusText = response!.statusText;
+  steps.push({ step: 2, label: `HTTP ${statusCode} ${statusText}`, status: statusCode < 500 ? 'done' : 'error', time: s1End - s1 });
+
+  // Step 3: Response headers check
+  const s3 = Date.now();
+  const contentType = response!.headers.get('content-type') || 'unknown';
+  const server = response!.headers.get('server') || 'unknown';
+  steps.push({ step: 3, label: `Content-Type: ${contentType.split(';')[0]}`, status: 'done', time: Date.now() - s3 });
+
+  // Consume body
+  try { await response!.text(); } catch {}
+
+  const totalLatency = Date.now() - totalStart;
+  const isSuccess = statusCode >= 200 && statusCode < 500;
+
+  steps.push({ step: 4, label: isSuccess ? 'API Reachable' : 'API Error', status: isSuccess ? 'done' : 'error', time: 0 });
+
+  return json({
+    success: isSuccess,
+    protocol: 'REST API',
+    version: 'v1',
+    steps,
+    latency: `${totalLatency}ms`,
+    statusCode,
+    statusText,
+    server,
+    contentType: contentType.split(';')[0],
+  });
+}
+
+function handleSimulatedTest(body: { connection_type: string; endpoint_url: string }) {
   const start = Date.now();
   const delay = 100 + Math.random() * 300;
 
@@ -89,53 +184,35 @@ function handleTest(body: { connection_type: string; endpoint_url: string }) {
       const latency = Date.now() - start;
       let result: Record<string, unknown>;
 
-      switch (body.connection_type) {
-        case 'MCP':
-          result = {
-            success: true,
-            protocol: 'MCP',
-            version: '1.0',
-            steps: [
-              { step: 1, label: 'TCP Connection', status: 'done', time: Math.round(latency * 0.2) },
-              { step: 2, label: 'MCP Handshake', status: 'done', time: Math.round(latency * 0.4) },
-              { step: 3, label: 'Capability Exchange', status: 'done', time: Math.round(latency * 0.3) },
-              { step: 4, label: 'Session Established', status: 'done', time: Math.round(latency * 0.1) },
-            ],
-            capabilities: ['tools/list', 'tools/call', 'resources/read'],
-            latency: `${latency}ms`,
-          };
-          break;
-        case 'A2A':
-          result = {
-            success: true,
-            protocol: 'A2A',
-            version: '0.2',
-            steps: [
-              { step: 1, label: 'DNS Resolution', status: 'done', time: Math.round(latency * 0.15) },
-              { step: 2, label: 'Agent Card Request', status: 'done', time: Math.round(latency * 0.35) },
-              { step: 3, label: 'Capability Negotiation', status: 'done', time: Math.round(latency * 0.3) },
-              { step: 4, label: 'Agent Link Ready', status: 'done', time: Math.round(latency * 0.2) },
-            ],
-            agentCard: { name: 'Remote Agent', skills: ['query', 'verify'] },
-            latency: `${latency}ms`,
-          };
-          break;
-        default: // API
-          result = {
-            success: true,
-            protocol: 'REST API',
-            version: 'v1',
-            steps: [
-              { step: 1, label: 'HTTP Connection', status: 'done', time: Math.round(latency * 0.2) },
-              { step: 2, label: 'Authentication', status: 'done', time: Math.round(latency * 0.3) },
-              { step: 3, label: 'Health Check', status: 'done', time: Math.round(latency * 0.3) },
-              { step: 4, label: 'API Ready', status: 'done', time: Math.round(latency * 0.2) },
-            ],
-            endpoints: ['/health', '/query', '/status'],
-            latency: `${latency}ms`,
-          };
+      if (body.connection_type === 'MCP') {
+        result = {
+          success: true,
+          protocol: 'MCP',
+          version: '1.0',
+          steps: [
+            { step: 1, label: 'TCP Connection', status: 'done', time: Math.round(latency * 0.2) },
+            { step: 2, label: 'MCP Handshake', status: 'done', time: Math.round(latency * 0.4) },
+            { step: 3, label: 'Capability Exchange', status: 'done', time: Math.round(latency * 0.3) },
+            { step: 4, label: 'Session Established', status: 'done', time: Math.round(latency * 0.1) },
+          ],
+          capabilities: ['tools/list', 'tools/call', 'resources/read'],
+          latency: `${latency}ms`,
+        };
+      } else {
+        result = {
+          success: true,
+          protocol: 'A2A',
+          version: '0.2',
+          steps: [
+            { step: 1, label: 'DNS Resolution', status: 'done', time: Math.round(latency * 0.15) },
+            { step: 2, label: 'Agent Card Request', status: 'done', time: Math.round(latency * 0.35) },
+            { step: 3, label: 'Capability Negotiation', status: 'done', time: Math.round(latency * 0.3) },
+            { step: 4, label: 'Agent Link Ready', status: 'done', time: Math.round(latency * 0.2) },
+          ],
+          agentCard: { name: 'Remote Agent', skills: ['query', 'verify'] },
+          latency: `${latency}ms`,
+        };
       }
-
       resolve(json(result));
     }, delay);
   });
