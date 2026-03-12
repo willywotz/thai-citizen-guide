@@ -1,0 +1,265 @@
+openapi: "3.0.3"
+info:
+  title: AI Chat Orchestrator API
+  description: |
+    API สำหรับระบบ AI Portal กลางภาครัฐ — รับคำถามจากประชาชน วิเคราะห์และ route ไปยังหน่วยงานที่เกี่ยวข้อง
+    แล้วสังเคราะห์คำตอบผ่าน LLM พร้อมอ้างอิงแหล่งที่มา
+
+    ## Flow การทำงาน
+    1. รับ `query` จาก client
+    2. วิเคราะห์ keyword เพื่อเลือกหน่วยงาน (หรือใช้ `target_agencies` ที่ระบุมา)
+    3. เรียก agency Edge Functions แบบขนาน
+    4. ดึง `response_schema` จาก DB เพื่อสร้าง Schema Guide
+    5. ส่งข้อมูลทั้งหมดให้ LLM สังเคราะห์คำตอบ Markdown
+    6. ส่งผลลัพธ์กลับพร้อม references, agent steps, confidence score
+  version: "1.0.0"
+  contact:
+    name: AI Portal Team
+
+servers:
+  - url: "{supabase_url}/functions/v1"
+    description: Supabase Edge Functions
+    variables:
+      supabase_url:
+        default: https://zmhfizjnmrukgapeqqyi.supabase.co
+
+paths:
+  /ai-chat:
+    post:
+      operationId: aiChat
+      summary: ส่งคำถามและรับคำตอบสังเคราะห์จากหลายหน่วยงาน
+      description: |
+        Endpoint หลักของ orchestrator — รองรับทั้ง single-turn และ multi-turn conversation
+      security:
+        - AnonKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+            examples:
+              simple:
+                summary: คำถามง่ายๆ
+                value:
+                  query: "ยาพาราเซตามอลต้องขึ้นทะเบียนอย่างไร"
+              withTargetAgencies:
+                summary: ระบุหน่วยงานเอง
+                value:
+                  query: "โอนที่ดินต้องเสียภาษีอะไรบ้าง"
+                  target_agencies: ["land", "revenue"]
+              multiTurn:
+                summary: ถามต่อเนื่อง
+                value:
+                  query: "แล้วถ้าเป็นที่ดินมรดกล่ะ"
+                  conversation_id: "550e8400-e29b-41d4-a716-446655440000"
+                  conversation_history:
+                    - role: user
+                      content: "โอนที่ดินต้องเสียภาษีอะไรบ้าง"
+                    - role: assistant
+                      content: "การโอนที่ดินต้องเสียค่าธรรมเนียม..."
+      responses:
+        "200":
+          description: สังเคราะห์คำตอบสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "400":
+          description: Request ไม่ถูกต้อง (ขาด query)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: "Missing query parameter"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    AnonKey:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "Bearer {SUPABASE_ANON_KEY}"
+
+  schemas:
+    # ──────────────── Request ────────────────
+    ChatRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: คำถามจากผู้ใช้
+          example: "ยาพาราเซตามอลต้องขึ้นทะเบียนอย่างไร"
+
+        conversation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID ของ conversation เดิม — ส่งเพื่อต่อบทสนทนา
+
+        conversation_history:
+          type: array
+          nullable: true
+          description: ประวัติแชทก่อนหน้าเพื่อให้ LLM มี context (multi-turn)
+          items:
+            $ref: "#/components/schemas/HistoryMessage"
+
+        target_agencies:
+          type: array
+          nullable: true
+          description: |
+            ระบุ agency IDs ที่ต้องการ query โดยตรง — ข้าม keyword detection
+            ค่าที่รองรับ: fda, revenue, dopa, land
+          items:
+            type: string
+            enum: [fda, revenue, dopa, land]
+          example: ["fda", "revenue"]
+
+        options:
+          $ref: "#/components/schemas/ChatOptions"
+
+    ChatOptions:
+      type: object
+      description: ตัวเลือกควบคุมพฤติกรรม orchestrator
+      properties:
+        language:
+          type: string
+          enum: [th, en]
+          default: th
+          description: ภาษาของคำตอบ
+        model:
+          type: string
+          nullable: true
+          description: Override LLM model (default = google/gemini-3-flash-preview)
+          example: "google/gemini-2.5-flash"
+        include_agent_steps:
+          type: boolean
+          default: true
+          description: รวม agent steps ใน response หรือไม่
+        max_agencies:
+          type: integer
+          default: 4
+          minimum: 1
+          maximum: 10
+          description: จำกัดจำนวนหน่วยงานที่ query พร้อมกัน
+        timeout_ms:
+          type: integer
+          default: 10000
+          minimum: 1000
+          maximum: 30000
+          description: Timeout ต่อ agency call (ms)
+
+    HistoryMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+
+    # ──────────────── Response ────────────────
+    ChatResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/ChatData"
+        conversation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID ของ conversation (ใช้ส่งกลับมาใน request ถัดไป)
+        responseTime:
+          type: integer
+          description: เวลาประมวลผลรวม (ms)
+          example: 7800
+
+    ChatData:
+      type: object
+      properties:
+        answer:
+          type: string
+          description: คำตอบ Markdown ที่สังเคราะห์แล้ว
+        references:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reference"
+        agentSteps:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentStep"
+        agencies:
+          type: array
+          description: หน่วยงานที่ถูก query
+          items:
+            $ref: "#/components/schemas/AgencySummary"
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: คะแนนความมั่นใจรวม (เฉลี่ยจากทุกหน่วยงาน)
+          example: 0.93
+
+    Reference:
+      type: object
+      properties:
+        agency:
+          type: string
+          example: "สำนักงาน อย."
+        title:
+          type: string
+          example: "ระเบียบการขึ้นทะเบียนยา พ.ศ. 2566"
+        url:
+          type: string
+          format: uri
+          example: "https://www.fda.moph.go.th/drug-registration"
+
+    AgentStep:
+      type: object
+      properties:
+        icon:
+          type: string
+          example: "🔍"
+        label:
+          type: string
+          example: "กำลังวิเคราะห์คำถาม..."
+        status:
+          type: string
+          enum: [done, pending, error]
+
+    AgencySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          enum: [fda, revenue, dopa, land]
+        name:
+          type: string
+          example: "สำนักงาน อย."
+        icon:
+          type: string
+          example: "🏥"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Missing query parameter"
