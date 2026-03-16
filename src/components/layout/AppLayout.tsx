@@ -3,13 +3,17 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { User } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { EmailVerificationBanner } from "@/components/auth/EmailVerificationBanner";
+import { useAuth } from "@/hooks/useAuth";
 
 export function AppLayout() {
+  const { profile } = useAuth();
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
+          <EmailVerificationBanner />
           {/* Header */}
           <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-2">

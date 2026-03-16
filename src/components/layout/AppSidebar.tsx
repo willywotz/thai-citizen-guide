@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Key, User, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -14,7 +14,8 @@ import {
 import { useAgencies } from "@/hooks/useAgencies";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ROLE_LABELS, ROLE_COLORS } from "@/types/auth";
 
 const navItems = [
   { title: "แชท", url: "/", icon: MessageSquare },
@@ -27,7 +28,7 @@ const navItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const { data: agencies = [] } = useAgencies();
-  const { profile, user, signOut } = useAuth();
+  const { profile, user, roles, isAdmin, hasPermission, signOut } = useAuth();
   const collapsed = state === "collapsed";
 
   const initials = (profile?.displayName || user?.email || "U")
@@ -36,6 +37,16 @@ export function AppSidebar() {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  const primaryRole = roles.includes("super_admin")
+    ? "super_admin"
+    : roles.includes("admin")
+    ? "admin"
+    : roles.includes("moderator")
+    ? "moderator"
+    : roles.includes("user")
+    ? "user"
+    : roles[0] ?? null;
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -83,6 +94,53 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Account section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>บัญชี</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="บัญชีของฉัน">
+                  <NavLink
+                    to="/account"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+                    activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  >
+                    <User className="h-4 w-4 shrink-0" />
+                    <span>บัญชีของฉัน</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="API Keys">
+                  <NavLink
+                    to="/api-keys"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+                    activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  >
+                    <Key className="h-4 w-4 shrink-0" />
+                    <span>API Keys</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {hasPermission("users.read") && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="จัดการผู้ใช้">
+                    <NavLink
+                      to="/admin/users"
+                      className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <Users className="h-4 w-4 shrink-0" />
+                      <span>จัดการผู้ใช้</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Connected agencies */}
         {!collapsed && (
           <SidebarGroup>
@@ -104,15 +162,25 @@ export function AppSidebar() {
         <div className="mt-auto border-t border-sidebar-border p-3">
           {!collapsed ? (
             <div className="flex items-center gap-2">
-              <Avatar className="h-8 w-8">
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarImage src={profile?.avatarUrl ?? undefined} />
                 <AvatarFallback className="text-xs bg-primary text-primary-foreground">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-sidebar-foreground truncate">
-                  {profile?.displayName || user?.email}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-medium text-sidebar-foreground truncate">
+                    {profile?.displayName || user?.email}
+                  </p>
+                  {primaryRole && (
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium shrink-0 ${ROLE_COLORS[primaryRole]}`}
+                    >
+                      {ROLE_LABELS[primaryRole]}
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
               </div>
               <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={signOut} title="ออกจากระบบ">

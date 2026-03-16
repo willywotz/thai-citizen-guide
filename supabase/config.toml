@@ -1,5 +1,7 @@
 project_id = "zmhfizjnmrukgapeqqyi"
 
+# Public-facing chat functions: accept JWT or API key, fallback to anon allowed
+# verify_jwt=false so they handle their own auth (supports anon public portal too)
 [functions.ai-chat]
 verify_jwt = false
 
@@ -15,23 +17,31 @@ verify_jwt = false
 [functions.agency-land]
 verify_jwt = false
 
+# Admin/data functions: require valid JWT (or API key checked inside function)
 [functions.agencies-list]
 verify_jwt = false
 
 [functions.agency-manage]
-verify_jwt = false
+verify_jwt = true
 
 [functions.chat-history]
 verify_jwt = false
 
 [functions.dashboard-stats]
-verify_jwt = false
+verify_jwt = true
 
 [functions.save-conversation]
 verify_jwt = false
 
 [functions.feedback-stats]
-verify_jwt = false
+verify_jwt = true
 
 [functions.parse-api-spec]
+verify_jwt = true
+
+# New auth management functions
+[functions.manage-api-keys]
+verify_jwt = false
+
+[functions.manage-users]
 verify_jwt = false

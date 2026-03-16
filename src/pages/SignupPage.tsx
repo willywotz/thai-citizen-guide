@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
+import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -90,6 +91,9 @@ export default function SignupPage() {
               {loading ? "กำลังสมัคร..." : "สมัครสมาชิก"}
             </Button>
           </form>
+          <div className="mt-4">
+            <OAuthButtons mode="signup" />
+          </div>
           <div className="mt-4 text-center text-sm text-muted-foreground">
             มีบัญชีอยู่แล้ว?{" "}
             <Link to="/login" className="text-primary hover:underline">

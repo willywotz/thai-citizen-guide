@@ -18,6 +18,10 @@ import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import VerifyEmailPage from "./pages/VerifyEmailPage";
+import AccountPage from "./pages/AccountPage";
+import ApiKeysPage from "./pages/ApiKeysPage";
+import UsersPage from "./pages/admin/UsersPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,8 +41,9 @@ const App = () => (
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-              {/* Protected admin routes */}
+              {/* Protected routes */}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/" element={<ChatPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
@@ -46,6 +51,16 @@ const App = () => (
                 <Route path="/agencies/:id" element={<AgencyDetailPage />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
+                <Route path="/account" element={<AccountPage />} />
+                <Route path="/api-keys" element={<ApiKeysPage />} />
+                <Route
+                  path="/admin/users"
+                  element={
+                    <ProtectedRoute requirePermission="users.read">
+                      <UsersPage />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
 
               <Route path="*" element={<NotFound />} />

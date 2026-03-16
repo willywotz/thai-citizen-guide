@@ -39,6 +39,23 @@ services:
     depends_on:
       - db
 
+  mcp:
+    build: ./backend
+    command: python mcp_server.py
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      MCP_TRANSPORT: sse
+      MCP_PORT: 8090
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-thai_citizen}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-thai_citizen}
+      DB_NAME: ${POSTGRES_DB:-thai_citizen}
+    depends_on:
+      - db
+
   db:
     image: postgres:18-alpine
     restart: unless-stopped

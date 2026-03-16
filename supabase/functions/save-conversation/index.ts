@@ -1,24 +1,23 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders, corsResponse } from '../_shared/cors.ts';
+import { authenticateRequest } from '../_shared/auth.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return corsResponse();
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Auth is optional — authenticated users own their conversations,
+  // unauthenticated (public portal) conversations become public
+  const auth = await authenticateRequest(req);
 
   try {
     const body = await req.json();
     const { title, preview, agencies, status, responseTime, messages } = body;
 
-    // Insert conversation
     const { data: conv, error: convError } = await supabase
       .from('conversations')
       .insert({
@@ -28,13 +27,14 @@ Deno.serve(async (req) => {
         status: status || 'success',
         message_count: messages?.length || 0,
         response_time: responseTime || null,
+        user_id: auth?.userId ?? null,
+        is_public: !auth,          // public portal conversations are public
       })
       .select('id')
       .single();
 
     if (convError) throw convError;
 
-    // Insert messages
     if (messages && messages.length > 0) {
       const rows = messages.map((m: any) => ({
         id: m.id || undefined,

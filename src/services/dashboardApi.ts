@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { apiGet } from './apiClient';
 import type { DashboardStats } from '@/types';
 import { dashboardStats as fallbackStats, agencyUsageData, weeklyTrendData, categoryData } from '@/data/mockData';
 
@@ -10,13 +10,10 @@ interface DashboardApiResponse {
     weeklyTrend: typeof weeklyTrendData;
     categoryData: typeof categoryData;
   };
-  responseTime: number;
 }
 
 async function fetchFromApi(): Promise<DashboardApiResponse> {
-  const { data, error } = await supabase.functions.invoke('dashboard-stats');
-  if (error) throw new Error(error.message);
-  return data as DashboardApiResponse;
+  return apiGet<DashboardApiResponse>('/dashboard/stats');
 }
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
+import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -83,6 +84,9 @@ export default function LoginPage() {
               {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
             </Button>
           </form>
+          <div className="mt-4">
+            <OAuthButtons mode="login" />
+          </div>
           <div className="mt-4 text-center text-sm text-muted-foreground">
             ยังไม่มีบัญชี?{" "}
             <Link to="/signup" className="text-primary hover:underline">

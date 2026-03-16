@@ -1,7 +1,20 @@
-FROM nginx:alpine
+FROM python:3.12-slim
 
-RUN printf 'server {\n\
-    listen 8080;\n\
-    root /usr/share/nginx/html;\n\
-    index index.html index.htm;\n\
-}\n' > /etc/nginx/conf.d/default.conf
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Build DATABASE_URL from individual parts injected by docker-compose
+ENV DATABASE_URL=""
+ENV PYTHONUNBUFFERED=1
+
+# Entrypoint script assembles DATABASE_URL if not already set
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8080
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

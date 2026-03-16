@@ -1,19 +1,22 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders, corsResponse } from '../_shared/cors.ts';
+import { authenticateRequest, checkPermission } from '../_shared/auth.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return corsResponse();
+
+  const auth = await authenticateRequest(req);
+  if (!auth) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   const start = Date.now();
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   let search = '';
@@ -26,20 +29,26 @@ Deno.serve(async (req) => {
     // no body
   }
 
+  const canReadAll = await checkPermission(auth, 'conversations.read.all');
+
   let query = supabase
     .from('conversations')
     .select('*')
     .order('created_at', { ascending: false });
 
+  // Non-admins only see their own conversations
+  if (!canReadAll) {
+    query = query.eq('user_id', auth.userId);
+  }
+
   if (search) {
     query = query.or(`title.ilike.%${search}%,preview.ilike.%${search}%`);
   }
-
   if (filterAgency) {
     query = query.contains('agencies', [filterAgency]);
   }
 
-  const { data, error, count } = await query;
+  const { data, error } = await query;
 
   if (error) {
     return new Response(
