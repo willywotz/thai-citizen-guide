@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://thai_user:thai_pass@postgres:5432/thai_guide"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@/postgres"
     secret_key: str = "change-me-in-production-use-long-random-string"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
