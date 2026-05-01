@@ -203,7 +203,7 @@ export default function HeatmapPage() {
       </Card>
 
       {/* Recommendation */}
-      <Card className="border-primary/30 bg-primary/5">
+      {/* <Card className="border-primary/30 bg-primary/5">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-amber-500" />
@@ -213,7 +213,7 @@ export default function HeatmapPage() {
         <CardContent>
           <p className="text-sm leading-relaxed">{data.insights.recommendation}</p>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }

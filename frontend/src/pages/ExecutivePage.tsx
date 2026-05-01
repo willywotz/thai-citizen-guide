@@ -154,7 +154,7 @@ export default function ExecutivePage() {
           trend={kpis.momGrowth}
           accent="primary"
         />
-        <StatCard
+        {/* <StatCard
           icon={Clock}
           label="เวลาราชการที่ประหยัดได้"
           value={`${kpis.totalHoursSaved.toLocaleString()} ชม.`}
@@ -167,7 +167,7 @@ export default function ExecutivePage() {
           value={`฿${(kpis.costSaved / 1000000).toFixed(2)}M`}
           sublabel={`${kpis.costSaved.toLocaleString()} บาท`}
           accent="warning"
-        />
+        /> */}
         <StatCard
           icon={Activity}
           label="คะแนนสุขภาพระบบ"
@@ -257,7 +257,7 @@ export default function ExecutivePage() {
       </Card>
 
       {/* Two-column: Agency Scorecard + Top Issues */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">บัตรคะแนนหน่วยงาน</CardTitle>
@@ -315,7 +315,7 @@ export default function ExecutivePage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
 
       {/* AI Weekly Brief */}
       <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
