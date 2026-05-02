@@ -122,16 +122,17 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
         .filter(role="user", created_at__gte=target_date) \
         .group_by("hour") \
         .order_by("-cnt") \
-        .values("hour")
+        .values("hour", "cnt")
+    
+    peakValue = 0
     
     try:
         peakDay = int(peakDay[0]["day"])
         peakDay = days_labels[peakDay]
         peakHour = f"{int(peakHour[0]['hour']):02d}:00"
+        peakValue = int(peakHour[0]["cnt"])
     except:
         pass
-
-    
 
     agencyPeak = {"agency": "", "total": 0, "peakHour": 0}
 
@@ -142,6 +143,8 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
             "peakHour": max(enumerate(entry["data"]), key=lambda x: x[1])[0] \
                 if sum(entry["data"]) > 0 else 0
         } for entry in hourlyByAgency]
+
+        print(listdata)
 
         listdata = sorted(listdata, key=lambda x: x["total"], reverse=True)
         agencyPeak = listdata[0] if len(listdata) > 0 else {"agency": "", "total": 0, "peakHour": 0}
@@ -164,7 +167,7 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
         insights=HeatmapInsights(
             peakDay=peakDay or "",
             peakHour=peakHour or "",
-            peakValue=0,
+            peakValue=peakValue,
             totalRequests=0,
             businessHoursPercent=businessHoursPercent,
             busiest=BusiestInsight(
