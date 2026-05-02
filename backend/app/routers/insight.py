@@ -104,31 +104,34 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
 
     dayHourMatrix = list(dayHourMatrix.values())
 
-    peakDay = await Message \
-        .annotate(
-            day=RawSQL("extract(dow from created_at)"),
-            cnt=Count("id")
-        ) \
-        .filter(role="user", created_at__gte=target_date) \
-        .group_by("day") \
-        .order_by("-cnt") \
-        .values("day")
-    
-    peakHour = await Message \
-        .annotate(
-            hour=RawSQL("extract(hour from created_at)"),
-            cnt=Count("id")
-        ) \
-        .filter(role="user", created_at__gte=target_date) \
-        .group_by("hour") \
-        .order_by("-cnt") \
-        .values("hour", "cnt")
+    peakDay = ""
+    peakHour = ""
+    peakValue = 0
     
     try:
-        peakDay = int(peakDay[0]["day"])
-        peakDay = days_labels[peakDay]
-        peakHour = f"{int(peakHour[0]['hour']):02d}:00"
-        peakValue = int(peakHour[0]["cnt"])
+        rawPeakDay = await Message \
+            .annotate(
+                day=RawSQL("extract(dow from created_at)"),
+                cnt=Count("id")
+            ) \
+            .filter(role="user", created_at__gte=target_date) \
+            .group_by("day") \
+            .order_by("-cnt") \
+            .values("day")
+        
+        rawPeakHour = await Message \
+            .annotate(
+                hour=RawSQL("extract(hour from created_at)"),
+                cnt=Count("id")
+            ) \
+            .filter(role="user", created_at__gte=target_date) \
+            .group_by("hour") \
+            .order_by("-cnt") \
+            .values("hour", "cnt")
+        
+        peakDay = days_labels[int(rawPeakDay[0]["day"])] if len(rawPeakDay) > 0 and rawPeakDay[0]["day"] is not None else ""
+        peakHour = f"{int(rawPeakHour[0]['hour']):02d}:00" if len(rawPeakHour) > 0 and rawPeakHour[0]["hour"] is not None else ""
+        peakValue = int(rawPeakHour[0]["cnt"]) if len(rawPeakHour) > 0 and rawPeakHour[0]["cnt"] is not None else 0
     except:
         pass
 
