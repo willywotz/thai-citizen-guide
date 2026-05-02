@@ -498,7 +498,6 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             created_at=now(),
             request_body=json.dumps(payload),
             response_body=json.dumps(raw_data),
-            created_at=now(),
         )
 
         data = raw_data.get("data", {})
