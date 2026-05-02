@@ -32,7 +32,7 @@ from app.models.connection_log import ConnectionLog
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
-from app.utils import generate_uuid, now
+from app.utils import generate_uuid
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 tracer = trace.get_tracer(__name__)
@@ -495,7 +495,6 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             status="success" if resp.status_code == 200 else "error",
             latency_ms=response_time,
             detail=f"Query: {query}\n\nAnswer: {raw_data}",
-            created_at=now(),
             request_body=json.dumps(payload),
             response_body=json.dumps(raw_data),
         )
@@ -524,20 +523,15 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
                 response_time=response_time,
                 user_id=user.id if user else None,
                 external_session_id=data.get("session_id", None),
-                created_at=now(),
-                updated_at=now(),
             )
         else:
             conv.message_count += len(answer)
-            conv.updated_at = now()
             await conv.save()
 
         await Message.create(
             conversation_id=conversation_id,
             role='user',
             content=query,
-            created_at=now(),
-            updated_at=now(),
         )
         
         response_msg = await Message.create(
@@ -547,8 +541,6 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             response_time=response_time,
             errors=errors,
             agency_ids=agency_ids,
-            created_at=now(),
-            updated_at=now(),
         )
 
         return {

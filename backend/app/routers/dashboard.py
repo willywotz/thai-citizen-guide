@@ -18,6 +18,8 @@ from app.models.agency import Agency
 from tortoise import Tortoise
 from tortoise.functions import Count
 
+from app.utils import now
+
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -40,8 +42,8 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
 
     stats["totalQuestions"] = await Message.all().count()
 
-    today_start = datetime.combine(datetime.now().date(), dt_time.min)
-    today_end = datetime.combine(datetime.now().date(), dt_time.max)
+    today_start = datetime.combine(now().date(), dt_time.min)
+    today_end = datetime.combine(now().date(), dt_time.max)
     stats["todayQuestions"] = await Message.filter(created_at__range=(today_start, today_end)).count()
 
     raw_data = await conn.execute_query_dict("SELECT AVG(response_time) AS avg_response_time FROM messages")

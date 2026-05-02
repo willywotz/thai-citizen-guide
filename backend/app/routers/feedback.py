@@ -8,7 +8,7 @@ Endpoint
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from app.auth.dependencies import require_admin, get_current_user
 from app.models.user import User
 from tortoise.functions import Count
@@ -16,6 +16,7 @@ from tortoise.functions import Count
 from app.models.conversation import Conversation, Message
 from app.schemas.conversation import FeedbackStats
 from app.models.agency import Agency
+from app.utils import now
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
@@ -40,10 +41,9 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
     # -------------------------------------------------------------------
     # Daily trend — last 14 days
     # -------------------------------------------------------------------
-    now = datetime.utcnow()
     daily_map: dict[str, dict] = {}
     for i in range(13, -1, -1):
-        key = (now - timedelta(days=i)).strftime("%m-%d")
+        key = (now() - timedelta(days=i)).strftime("%m-%d")
         daily_map[key] = {"up": 0, "down": 0}
 
     for m in rated_messages:
