@@ -45,12 +45,12 @@ func main() {
 
 	tracer := otel.Tracer("agent-proxy")
 
-	addConnectionLog := func(ctx context.Context, agencyID string, status string, latency int64, detail string) {
+	addConnectionLog := func(ctx context.Context, agencyID string, status string, latency int64, detail string, request_body string, response_body string) {
 		ctx, span := tracer.Start(ctx, "Add Connection Log")
 		defer span.End()
 
-		q := "insert into connection_logs (id, action, connection_type, status, latency_ms, detail, created_at, agency_id) values ($1, $2, $3, $4, $5, $6, $7, $8)"
-		_, err := pool.Exec(ctx, q, uuidV7(), "proxy", "API", status, latency, detail, now(), agencyID)
+		q := "insert into connection_logs (id, action, connection_type, status, latency_ms, detail, created_at, agency_id, request_body, response_body) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
+		_, err := pool.Exec(ctx, q, uuidV7(), "proxy", "API", status, latency, detail, now(), agencyID, request_body, response_body)
 		if err != nil {
 			span.SetStatus(codes.Error, "error inserting connection log: "+err.Error())
 			slog.Error("Error inserting connection log", slog.Any("error", err))
@@ -90,13 +90,10 @@ func main() {
 			return
 		}
 
+		defer func() { _ = r.Body.Close() }()
 		var body bytes.Buffer
-
-		if r.Body != nil {
-			defer func() { _ = r.Body.Close() }()
-			_, _ = io.Copy(&body, r.Body)
-			r.Body = io.NopCloser(&body)
-		}
+		_, _ = io.Copy(&body, r.Body)
+		r.Body = io.NopCloser(bytes.NewBuffer(body.Bytes()))
 
 		req, _ := http.NewRequestWithContext(ctx, r.Method, endpointURL, r.Body)
 		req.Header = r.Header.Clone()
@@ -120,7 +117,7 @@ func main() {
 		resp, err := http.DefaultClient.Do(req)
 		latency := now().Sub(startTime).Milliseconds()
 		if err != nil {
-			addConnectionLog(ctx, agentID[1], "error", latency, "error forwarding request: "+err.Error())
+			addConnectionLog(ctx, agentID[1], "error", latency, "error forwarding request: "+err.Error(), body.String(), "")
 			span.SetStatus(codes.Error, "error forwarding request to backend: "+err.Error())
 			slog.Error("Error forwarding request to backend", slog.Any("error", err))
 			http.Error(w, "Bad Gateway", http.StatusBadGateway)
@@ -153,9 +150,9 @@ func main() {
 		}
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			addConnectionLog(ctx, agentID[1], "success", latency, responseBody.String())
+			addConnectionLog(ctx, agentID[1], "success", latency, responseBody.String(), body.String(), responseBody.String())
 		} else {
-			addConnectionLog(ctx, agentID[1], "error", latency, responseBody.String())
+			addConnectionLog(ctx, agentID[1], "error", latency, responseBody.String(), body.String(), responseBody.String())
 		}
 
 		span.SetStatus(codes.Ok, "request handled successfully")

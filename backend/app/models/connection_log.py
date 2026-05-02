@@ -23,6 +23,9 @@ class ConnectionLog(models.Model):
     detail = fields.TextField(default="")
     created_at = fields.DatetimeField(auto_now_add=True)
 
+    request_body = fields.TextField(default="", null=True)
+    response_body = fields.TextField(default="", null=True)
+
     class Meta:
         table = "connection_logs"
         ordering = ["-created_at"]
