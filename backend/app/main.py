@@ -164,4 +164,4 @@ tracerProvider.add_span_processor(processor)
 trace.set_tracer_provider(tracerProvider)
 
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-FastAPIInstrumentor.instrument_app(app)
+FastAPIInstrumentor.instrument_app(app, excluded_urls="^/health$")
