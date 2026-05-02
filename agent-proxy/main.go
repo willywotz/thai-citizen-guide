@@ -49,7 +49,7 @@ func main() {
 		ctx, span := tracer.Start(ctx, "Add Connection Log")
 		defer span.End()
 
-		q := "insert into connection_logs (id, action, connect_type, status, latency_ms, detail, created_at, agency_id) values ($1, $2, $3, $4, $5, $6, $7, $8)"
+		q := "insert into connection_logs (id, action, connection_type, status, latency_ms, detail, created_at, agency_id) values ($1, $2, $3, $4, $5, $6, $7, $8)"
 		_, err := pool.Exec(ctx, q, uuidV7(), "proxy", "API", status, latency, detail, now(), agencyID)
 		if err != nil {
 			span.SetStatus(codes.Error, "error inserting connection log: "+err.Error())
