@@ -1,5 +1,5 @@
 npx @modelcontextprotocol/inspector
-
+ollama launch claude --model glm-5.1:cloud
 
 
 

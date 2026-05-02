@@ -136,18 +136,20 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
     agencyPeak = {"agency": "", "total": 0, "peakHour": 0}
 
     try:
-        agencyPeak = [{
+        listdata = [{
             "agency": entry["agency"],
             "total": sum(entry["data"]),
             "peakHour": max(enumerate(entry["data"]), key=lambda x: x[1])[0] \
                 if sum(entry["data"]) > 0 else 0
         } for entry in hourlyByAgency]
 
-        agencyPeak = sorted(agencyPeak, key=lambda x: x["total"], reverse=True)
+        listdata = sorted(listdata, key=lambda x: x["total"], reverse=True)
+        agencyPeak = listdata[0] if len(listdata) > 0 else {"agency": "", "total": 0, "peakHour": 0}
     except:
         pass
 
-    print(agencyPeak)
+    businessHoursPercent = business_hours_count / total_messages * 100 if total_messages > 0 else 0
+    businessHoursPercent = round(businessHoursPercent, 2)
 
     return UsageHeatmapData(
         range=range,
@@ -164,11 +166,11 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
             peakHour=peakHour or "",
             peakValue=0,
             totalRequests=0,
-            businessHoursPercent=business_hours_count / total_messages * 100 if total_messages > 0 else 0,
+            businessHoursPercent=businessHoursPercent,
             busiest=BusiestInsight(
-                agency="",
-                total=0,
-                peakHour=0
+                agency=agencyPeak["agency"] if agencyPeak else "",
+                total=agencyPeak["total"] if agencyPeak else 0,
+                peakHour=f"{agencyPeak['peakHour']:02d}:00" if agencyPeak else ""
             ),
             recommendation=""
         ),
