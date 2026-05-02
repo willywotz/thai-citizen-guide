@@ -45,6 +45,18 @@ func main() {
 
 	tracer := otel.Tracer("agent-proxy")
 
+	addConnectionLog := func(ctx context.Context, agencyID string, status string, latency int64, detail string) {
+		ctx, span := tracer.Start(ctx, "Add Connection Log")
+		defer span.End()
+
+		q := "insert into connection_logs (id, action, connect_type, status, latency_ms, detail, created_at, agency_id) values ($1, $2, $3, $4, $5, $6, $7, $8)"
+		_, err := pool.Exec(ctx, q, uuidV7(), "proxy", "API", status, latency, detail, now(), agencyID)
+		if err != nil {
+			span.SetStatus(codes.Error, "error inserting connection log: "+err.Error())
+			slog.Error("Error inserting connection log", slog.Any("error", err))
+		}
+	}
+
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracer.Start(r.Context(), "Handle HTTP Request")
 		defer span.End()
@@ -108,6 +120,7 @@ func main() {
 		resp, err := http.DefaultClient.Do(req)
 		latency := now().Sub(startTime).Milliseconds()
 		if err != nil {
+			addConnectionLog(ctx, agentID[1], "error", latency, "error forwarding request: "+err.Error())
 			span.SetStatus(codes.Error, "error forwarding request to backend: "+err.Error())
 			slog.Error("Error forwarding request to backend", slog.Any("error", err))
 			http.Error(w, "Bad Gateway", http.StatusBadGateway)
@@ -144,11 +157,10 @@ func main() {
 			slog.Error("Error updating total_calls", slog.Any("error", err))
 		}
 
-		q = "insert into connection_logs (id, action, connect_type, status, latency_ms, detail, created_at, agency_id) values ($1, $2, $3, $4, $5, $6, $7, $8)"
-		_, err = pool.Exec(ctx, q, uuidV7(), "proxy", "API", resp.StatusCode, latency, responseBody.String(), now(), agentID[1])
-		if err != nil {
-			span.SetStatus(codes.Error, "error inserting connection log: "+err.Error())
-			slog.Error("Error inserting connection log", slog.Any("error", err))
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			addConnectionLog(ctx, agentID[1], "success", latency, responseBody.String())
+		} else {
+			addConnectionLog(ctx, agentID[1], "error", latency, responseBody.String())
 		}
 
 		span.SetStatus(codes.Ok, "request handled successfully")
