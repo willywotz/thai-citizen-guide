@@ -498,6 +498,7 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             created_at=now(),
             request_body=json.dumps(payload),
             response_body=json.dumps(raw_data),
+            created_at=now(),
         )
 
         data = raw_data.get("data", {})
@@ -524,15 +525,20 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
                 response_time=response_time,
                 user_id=user.id if user else None,
                 external_session_id=data.get("session_id", None),
+                created_at=now(),
+                updated_at=now(),
             )
         else:
             conv.message_count += len(answer)
+            conv.updated_at = now()
             await conv.save()
 
         await Message.create(
             conversation_id=conversation_id,
             role='user',
             content=query,
+            created_at=now(),
+            updated_at=now(),
         )
         
         response_msg = await Message.create(
@@ -541,7 +547,9 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             content=answer,
             response_time=response_time,
             errors=errors,
-            agency_ids=agency_ids
+            agency_ids=agency_ids,
+            created_at=now(),
+            updated_at=now(),
         )
 
         return {
