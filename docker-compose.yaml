@@ -122,6 +122,8 @@ services:
       - net_admin
       - net_raw
     restart: unless-stopped
+    networks:
+      - chatbot-network
 
 volumes:
   postgres_data:
