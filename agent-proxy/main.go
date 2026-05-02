@@ -104,7 +104,9 @@ func main() {
 			span.SetAttributes(attribute.String("proxy.request_header."+k, strings.Join(v, ",")))
 		}
 
+		startTime := now()
 		resp, err := http.DefaultClient.Do(req)
+		latency := now().Sub(startTime).Milliseconds()
 		if err != nil {
 			span.SetStatus(codes.Error, "error forwarding request to backend: "+err.Error())
 			slog.Error("Error forwarding request to backend", slog.Any("error", err))
@@ -127,8 +129,8 @@ func main() {
 
 		if resp.Body != nil {
 			defer func() { _ = resp.Body.Close() }()
-			_, _ = io.Copy(&body, resp.Body)
-			resp.Body = io.NopCloser(&body)
+			_, _ = io.Copy(&responseBody, resp.Body)
+			resp.Body = io.NopCloser(&responseBody)
 		}
 
 		_, _ = io.Copy(w, resp.Body)
@@ -140,6 +142,13 @@ func main() {
 		if err != nil {
 			span.SetStatus(codes.Error, "error updating total_calls: "+err.Error())
 			slog.Error("Error updating total_calls", slog.Any("error", err))
+		}
+
+		q = "insert into connection_logs (id, action, connect_type, status, latency_ms, detail, created_at, agency_id) values ($1, $2, $3, $4, $5, $6, $7, $8)"
+		_, err = pool.Exec(ctx, q, uuidV7(), "proxy", "API", resp.StatusCode, latency, responseBody.String(), now(), agentID[1])
+		if err != nil {
+			span.SetStatus(codes.Error, "error inserting connection log: "+err.Error())
+			slog.Error("Error inserting connection log", slog.Any("error", err))
 		}
 
 		span.SetStatus(codes.Ok, "request handled successfully")
