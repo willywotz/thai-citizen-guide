@@ -22,6 +22,8 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from opentelemetry import trace
+from opentelemetry.trace import Status
 
 from app.config import settings
 from app.models.agency import Agency
@@ -33,6 +35,7 @@ from app.auth.dependencies import get_current_user_optional
 from app.utils import generate_uuid
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+tracer = trace.get_tracer(__name__)
 
 """
 Multi-Agent Router with LangGraph
@@ -455,82 +458,88 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 
 @router.post("/external", summary="Send a query and get a synthesised AI response")
 async def chat_external(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-
-    start = time.time()
-    
-    query = body.query.strip()
-    conversation_id = body.conversation_id or str(generate_uuid())
-    
-    if body.conversation_id:
-        conv = await Conversation.get(id=conversation_id)
-
-    if not query:
-        return {"success": False, "error": "missing query"}
-
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        resp = await client.post(
-            "http://185.84.160.55:8000/v3/chat",
-            json={"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id},
-            headers={"Content-Type": "application/json"},
-        )
-
-    if resp.status_code != 200:
-        return {"success": False, "error": resp.text}
+    with tracer.start_as_current_span("chat_external_endpoint") as span:
+        start = time.time()
         
-    response_time = int((time.time() - start) * 1000)
+        query = body.query.strip()
+        conversation_id = body.conversation_id or str(generate_uuid())
+        
+        if body.conversation_id:
+            conv = await Conversation.get(id=conversation_id)
 
-    raw_data = resp.json()
-    print(f"External chat response: {raw_data}")
+        if not query:
+            span.set_status(Status.ERROR, "Missing query")
+            span.set_attributes({"error": "missing query"})
+            return {"success": False, "error": "missing query"}
 
-    data = raw_data.get("data", {})
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            resp = await client.post(
+                "http://185.84.160.55:8000/v3/chat",
+                json={"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id},
+                headers={"Content-Type": "application/json"},
+            )
 
-    answer = data.get("answer", "").strip()
-    errors = data.get("errors", [])
+        if resp.status_code != 200:
+            span.set_status(Status.ERROR, f"External chat request failed with status {resp.status_code}")
+            span.set_attributes({"error": resp.text})
+            return {"success": False, "error": resp.text}
+            
+        response_time = int((time.time() - start) * 1000)
 
-    if not body.conversation_id:
-        conv = await Conversation.create(
-            id=conversation_id,
-            title=query[:50],
-            preview=query[:100],
-            agencies=[],
-            status='success',
-            message_count=len(answer),
-            response_time=response_time,
-            user_id=user.id if user else None,
-            external_session_id=data.get("session_id", None),
+        raw_data = resp.json()
+        span.set_attributes({"external_response": raw_data})
+        # print(f"External chat response: {raw_data}")
+
+        data = raw_data.get("data", {})
+
+        answer = data.get("answer", "").strip()
+        errors = data.get("errors", [])
+
+        if not body.conversation_id:
+            conv = await Conversation.create(
+                id=conversation_id,
+                title=query[:50],
+                preview=query[:100],
+                agencies=[],
+                status='success',
+                message_count=len(answer),
+                response_time=response_time,
+                user_id=user.id if user else None,
+                external_session_id=data.get("session_id", None),
+            )
+        else:
+            conv.message_count += len(answer)
+            await conv.save()
+
+        await Message.create(
+            conversation_id=conversation_id,
+            role='user',
+            content=query,
         )
-    else:
-        conv.message_count += len(answer)
-        await conv.save()
+        
+        response_msg = await Message.create(
+            conversation_id=conversation_id,
+            role='assistant',
+            content=answer,
+            response_time=response_time,
+            errors=errors,
+        )
 
-    await Message.create(
-        conversation_id=conversation_id,
-        role='user',
-        content=query,
-    )
-    
-    response_msg = await Message.create(
-        conversation_id=conversation_id,
-        role='assistant',
-        content=answer,
-        response_time=response_time,
-        errors=errors,
-    )
-
-    return {
-        "success": True,
-        "data": {
-            "message_id": response_msg.id,
-            "answer": answer,
-            "references": data.get("references", []),
-            "agentSteps": data.get("agentSteps", []),
-            "agencies": data.get("agencies", []),
-            "confidence": data.get("confidence", 0.0),
-        },
-        "conversation_id": conversation_id,
-        "responseTime": response_time,
-    }
+        return {
+            "success": True,
+            "data": {
+                "message_id": response_msg.id,
+                "answer": answer,
+                "references": data.get("references", []),
+                "agentSteps": data.get("agentSteps", []),
+                "agencies": data.get("agencies", []),
+                "confidence": data.get("confidence", 0.0),
+            },
+            "conversation_id": conversation_id,
+            "responseTime": response_time,
+        }
 
 @router.post("", summary="Send a query and get a synthesised AI response")
 async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-    return await chat_external(body, user)
+    with tracer.start_as_current_span("chat_endpoint"):
+        return await chat_external(body, user)
