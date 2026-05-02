@@ -1,0 +1,8 @@
+{
+  "TCP": {
+    "5432": {
+      "HTTPS": false,
+      "TCPForward": "postgres:5432"
+    }
+  }
+}
