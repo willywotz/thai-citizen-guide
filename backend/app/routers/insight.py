@@ -124,8 +124,6 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
         .order_by("-cnt") \
         .values("hour", "cnt")
     
-    peakValue = 0
-    
     try:
         peakDay = int(peakDay[0]["day"])
         peakDay = days_labels[peakDay]
@@ -167,7 +165,7 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
         insights=HeatmapInsights(
             peakDay=peakDay or "",
             peakHour=peakHour or "",
-            peakValue=peakValue,
+            peakValue=peakValue or 0,
             totalRequests=0,
             businessHoursPercent=businessHoursPercent,
             busiest=BusiestInsight(
