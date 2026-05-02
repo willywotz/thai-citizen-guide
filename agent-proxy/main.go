@@ -139,13 +139,8 @@ func main() {
 		w.WriteHeader(resp.StatusCode)
 
 		var responseBody bytes.Buffer
-
-		if resp.Body != nil {
-			defer func() { _ = resp.Body.Close() }()
-			_, _ = io.Copy(&responseBody, resp.Body)
-			resp.Body = io.NopCloser(&responseBody)
-		}
-
+		_, _ = io.Copy(&responseBody, resp.Body)
+		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody.Bytes()))
 		_, _ = io.Copy(w, resp.Body)
 
 		span.SetAttributes(attribute.String("proxy.response_body", responseBody.String()))
