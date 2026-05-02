@@ -16,7 +16,7 @@ run --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/agent-proxy .
 
 from alpine as production
-run apk --no-cache add ca-certificates curl
+run apk --no-cache add ca-certificates curl tzdata
 copy --from=builder /app/agent-proxy /usr/local/bin/agent-proxy
 expose 8080
 healthcheck --interval=30s --timeout=10s --start-period=5s --retries=3 \
