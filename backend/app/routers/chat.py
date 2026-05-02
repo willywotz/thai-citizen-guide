@@ -494,7 +494,7 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             connection_type="external_chat",
             status="success" if resp.status_code == 200 else "error",
             latency_ms=response_time,
-            detail=f"Query: {query}\n\n, Answer: {raw_data}",
+            detail=f"Query: {query}\n\nAnswer: {raw_data}",
             created_at=now(),
             request_body=json.dumps(payload),
             response_body=json.dumps(raw_data),
@@ -504,6 +504,14 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
 
         answer = data.get("answer", "").strip()
         errors = data.get("errors", [])
+
+        agency_ids = []
+
+        if "data" in raw_data:
+            if "sections" in raw_data["data"]:
+                for sec in raw_data["data"]["sections"]:
+                    if "agencies" in sec:
+                        agency_ids.extend([ag["id"] for ag in sec["agencies"]])
 
         if not body.conversation_id:
             conv = await Conversation.create(
@@ -533,6 +541,7 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             content=answer,
             response_time=response_time,
             errors=errors,
+            agency_ids=agency_ids
         )
 
         return {
