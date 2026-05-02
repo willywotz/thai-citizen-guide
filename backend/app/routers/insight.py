@@ -166,15 +166,15 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
         hourlyByAgency=hourlyByAgency,
         dayHourMatrix=dayHourMatrix,
         insights=HeatmapInsights(
-            peakDay=peakDay or "",
-            peakHour=peakHour or "",
-            peakValue=peakValue or 0,
+            peakDay=peakDay,
+            peakHour=peakHour,
+            peakValue=peakValue,
             totalRequests=0,
             businessHoursPercent=businessHoursPercent,
             busiest=BusiestInsight(
-                agency=agencyPeak["agency"] if agencyPeak else "",
-                total=agencyPeak["total"] if agencyPeak else 0,
-                peakHour=agencyPeak['peakHour'] if agencyPeak else 0,
+                agency=agencyPeak["agency"] if agencyPeak and "agency" in agencyPeak else "",
+                total=agencyPeak["total"] if agencyPeak and "total" in agencyPeak else 0,
+                peakHour=agencyPeak['peakHour'] if agencyPeak and "peakHour" in agencyPeak else 0,
             ),
             recommendation=""
         ),
