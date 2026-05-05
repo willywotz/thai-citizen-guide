@@ -14,6 +14,7 @@ MCP server:
 REST API is served under /api/v1
 """
 
+import asyncio
 import json
 import logging
 import random
@@ -187,15 +188,18 @@ async def agency_chat_test():
 
     for agency in agencies:
         if agency.connection_type == "API":
-            async with httpx.AsyncClient() as client:
+            scope = agency.data_scope or ["ทั่วไป"]
+            scope = scope[random.randint(0, len(scope)-1)] if len(scope) > 0 else "ทั่วไป"
+
+            async with httpx.AsyncClient(timeout=180) as client:
                 try:
                     headers = {"content-type": "application/json"}
-                    for index, v in enumerate(agency.api_headers or []):
+                    for v in (agency.api_headers or []):
                         headers[v["name"].lower()] = v["value"]
                     payload = {}
                     for k, v in agency.expected_payload.items():
                         payload[k] = v
-                        if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + agency.data_scope[random.randint(0, len(agency.data_scope)-1)]
+                        if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + scope
                         if v == "__user_id__": payload[k] = str(generate_uuid())
                         if v == "__session_id__": payload[k] = str(generate_uuid())
                         if v == "__conversation_id__": payload[k] = str(generate_uuid())
@@ -214,10 +218,10 @@ async def agency_chat_test():
                         response_body=resp.text,
                     )
                 except Exception as e:
-                    print(f"Error testing agency {agency.name}: {str(e)}")
+                    print(f"Error testing agency {agency.name}: ", e)
 
 async def start_scheduler():
-    await agency_chat_test()  # run once at startup
+    asyncio.create_task(agency_chat_test())
     scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=15))
     scheduler.start()
 
