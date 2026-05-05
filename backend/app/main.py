@@ -39,7 +39,7 @@ from app.database import init_db, close_db
 from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
-from app.models import Agency, ConnectionLogs
+from app.models import Agency, ConnectionLog
 from app.utils import generate_uuid, now
 
 mcp_app = mcp.http_app(path="/")
@@ -203,7 +203,7 @@ async def agency_chat_test():
                     resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
                     latency = (now() - start_time).microseconds
                     print(f"Sent test message to agency {agency.name} with latency {latency} microseconds")
-                    await ConnectionLogs.create(
+                    await ConnectionLog.create(
                         id=str(generate_uuid()),
                         action="test",
                         connection_type="API",
