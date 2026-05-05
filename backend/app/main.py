@@ -182,43 +182,43 @@ FastAPIInstrumentor.instrument_app(app, excluded_urls="^/health$")
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 scheduler = AsyncIOScheduler()
+sem = asyncio.Semaphore(5)
 
-async def agency_chat_test():
-    agencies = await Agency.all()
-
-    for agency in agencies:
+async def agency_chat_item(agency: Agency):
+    async with sem:
         if agency.connection_type == "API":
             scope = agency.data_scope or ["ทั่วไป"]
             scope = scope[random.randint(0, len(scope)-1)] if len(scope) > 0 else "ทั่วไป"
 
             async with httpx.AsyncClient(timeout=180) as client:
-                try:
-                    headers = {"content-type": "application/json"}
-                    for v in (agency.api_headers or []):
-                        headers[v["name"].lower()] = v["value"]
-                    payload = {}
-                    for k, v in agency.expected_payload.items():
-                        payload[k] = v
-                        if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + scope
-                        if v == "__user_id__": payload[k] = str(generate_uuid())
-                        if v == "__session_id__": payload[k] = str(generate_uuid())
-                        if v == "__conversation_id__": payload[k] = str(generate_uuid())
-                    start_time = now()
-                    resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
-                    latency = (now() - start_time).microseconds
-                    print(f"Sent test message to agency {agency.name} with latency {latency} microseconds")
-                    await ConnectionLog.create(
-                        id=str(generate_uuid()),
-                        action="test",
-                        connection_type="API",
-                        status="success" if resp.status_code == 200 else "error",
-                        latency_ms=latency,
-                        detail=f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}",
-                        request_body=json.dumps(payload),
-                        response_body=resp.text,
-                    )
-                except Exception as e:
-                    print(f"Error testing agency {agency.name}: ", e)
+                headers = {"content-type": "application/json"}
+                for v in (agency.api_headers or []):
+                    headers[v["name"].lower()] = v["value"]
+                payload = {}
+                for k, v in agency.expected_payload.items():
+                    payload[k] = v
+                    if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + scope
+                    if v == "__user_id__": payload[k] = str(generate_uuid())
+                    if v == "__session_id__": payload[k] = str(generate_uuid())
+                    if v == "__conversation_id__": payload[k] = str(generate_uuid())
+                start_time = now()
+                resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
+                latency = (now() - start_time).microseconds
+                print(f"Sent test message to agency {agency.name} with latency {latency} microseconds")
+                await ConnectionLog.create(
+                    id=str(generate_uuid()),
+                    action="test",
+                    connection_type="API",
+                    status="success" if resp.status_code == 200 else "error",
+                    latency_ms=latency,
+                    detail=f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}",
+                    request_body=json.dumps(payload),
+                    response_body=resp.text,
+                )
+
+async def agency_chat_test():
+    agencies = await Agency.all()
+    await asyncio.gather(*[agency_chat_item(ag) for ag in agencies])
 
 async def start_scheduler():
     asyncio.create_task(agency_chat_test())
