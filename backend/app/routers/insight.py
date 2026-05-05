@@ -59,7 +59,7 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
     rawHourlyByAgency = await Message \
         .annotate(
             agency=RawSQL("ANY(agency_ids)"),
-            hour=RawSQL("extract(hour from created_at)"),
+            hour=RawSQL("extract(hour from created_at) at time zone 'Asia/Bangkok'"),
             cnt=Count("id")
         ) \
         .filter(created_at__gte=target_date) \
@@ -78,8 +78,8 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
 
     rawDayHourMatrix = await Message \
         .annotate(
-            day=RawSQL("extract(dow from created_at)"),
-            hour=RawSQL("extract(hour from created_at)"),
+            day=RawSQL("extract(dow from created_at) at time zone 'Asia/Bangkok'"),
+            hour=RawSQL("extract(hour from created_at) at time zone 'Asia/Bangkok'"),
             cnt=Count("id")
         ) \
         .filter(role="user", created_at__gte=target_date) \
@@ -111,7 +111,7 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
     try:
         rawPeakDay = await Message \
             .annotate(
-                day=RawSQL("extract(dow from created_at)"),
+                day=RawSQL("extract(dow from created_at) at time zone 'Asia/Bangkok'"),
                 cnt=Count("id")
             ) \
             .filter(role="user", created_at__gte=target_date) \
@@ -121,7 +121,7 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
         
         rawPeakHour = await Message \
             .annotate(
-                hour=RawSQL("extract(hour from created_at)"),
+                hour=RawSQL("extract(hour from created_at) at time zone 'Asia/Bangkok'"),
                 cnt=Count("id")
             ) \
             .filter(role="user", created_at__gte=target_date) \
