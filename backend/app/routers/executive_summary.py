@@ -14,8 +14,8 @@ async def get_executive_summary() -> ExecutiveData:
     thisYearQuestions = await Message.filter(role="user", created_at__year=now().year).count()
     lastYearQuestions = await Message.filter(role="user", created_at__year=now().year-1).count()
 
-    momGrowth = ((thisMonthQuestions - lastMonthQuestions) / lastMonthQuestions * 100) if lastMonthQuestions > 0 else float('inf')
-    yoyGrowth = ((thisYearQuestions - lastYearQuestions) / lastYearQuestions * 100) if lastYearQuestions > 0 else float('inf')
+    momGrowth = ((thisMonthQuestions - lastMonthQuestions) / lastMonthQuestions * 100) if lastMonthQuestions > 0 else thisMonthQuestions * 100.0
+    yoyGrowth = ((thisYearQuestions - lastYearQuestions) / lastYearQuestions * 100) if lastYearQuestions > 0 else thisYearQuestions * 100.0
 
     return ExecutiveData(
         kpis=ExecutiveKPIs(
