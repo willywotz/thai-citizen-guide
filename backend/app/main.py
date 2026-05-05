@@ -214,7 +214,7 @@ async def agency_chat_test():
                         response_body=resp.text,
                     )
                 except Exception as e:
-                    pass
+                    print(f"Error testing agency {agency.name}: {str(e)}")
 
 async def start_scheduler():
     await agency_chat_test()  # run once at startup
