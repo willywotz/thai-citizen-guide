@@ -188,17 +188,17 @@ async def agency_chat_test():
     for agency in agencies:
         if agency.connection_type == "API":
             async with httpx.AsyncClient() as client:
-                headers = {"content-type": "application/json"}
-                for index, v in enumerate(agency.api_headers or []):
-                    headers[v["name"].lower()] = v["value"]
-                payload = {}
-                for k, v in agency.expected_payload.items():
-                    payload[k] = v
-                    if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + agency.data_scope[random.randint(0, len(agency.data_scope)-1)]
-                    if v == "__user_id__": payload[k] = str(generate_uuid())
-                    if v == "__session_id__": payload[k] = str(generate_uuid())
-                    if v == "__conversation_id__": payload[k] = str(generate_uuid())
                 try:
+                    headers = {"content-type": "application/json"}
+                    for index, v in enumerate(agency.api_headers or []):
+                        headers[v["name"].lower()] = v["value"]
+                    payload = {}
+                    for k, v in agency.expected_payload.items():
+                        payload[k] = v
+                        if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + agency.data_scope[random.randint(0, len(agency.data_scope)-1)]
+                        if v == "__user_id__": payload[k] = str(generate_uuid())
+                        if v == "__session_id__": payload[k] = str(generate_uuid())
+                        if v == "__conversation_id__": payload[k] = str(generate_uuid())
                     start_time = now()
                     resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
                     latency = (now() - start_time).microseconds
