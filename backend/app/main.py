@@ -189,8 +189,8 @@ async def agency_chat_test():
         if agency.connection_type == "API":
             async with httpx.AsyncClient() as client:
                 headers = {"content-type": "application/json"}
-                for k, v in agency.api_headers.items():
-                    headers[k.lower()] = v
+                for index, v in enumerate(agency.api_headers or []):
+                    headers[v["name"].lower()] = v["value"]
                 payload = {}
                 for k, v in agency.expected_payload.items():
                     payload[k] = v
