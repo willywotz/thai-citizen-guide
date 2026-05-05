@@ -193,6 +193,7 @@ async def agency_chat_test():
                     if v == "__query__": payload[k] = "ปรึกษากฎหมาย"
                     if v == "__user_id__": payload[k] = str(generate_uuid())
                     if v == "__session_id__": payload[k] = str(generate_uuid())
+                    if v == "__conversation_id__": payload[k] = str(generate_uuid())
                 try:
                     await client.post(url, json=payload)
                     print(f"Sent test message to agency {agency.name}")
