@@ -15,6 +15,7 @@ REST API is served under /api/v1
 """
 
 import logging
+import random
 
 import httpx
 
@@ -190,7 +191,7 @@ async def agency_chat_test():
                 payload = {}
                 for k, v in agency.expected_payload.items():
                     payload[k] = v
-                    if v == "__query__": payload[k] = "ปรึกษากฎหมาย"
+                    if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + agency.data_scope[random.randint(0, len(agency.data_scope)-1)]
                     if v == "__user_id__": payload[k] = str(generate_uuid())
                     if v == "__session_id__": payload[k] = str(generate_uuid())
                     if v == "__conversation_id__": payload[k] = str(generate_uuid())
