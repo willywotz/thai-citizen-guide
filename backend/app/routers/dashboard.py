@@ -40,11 +40,11 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         # "satisfactionRate": round(93.5 + random.random() * 2, 1),
     }
 
-    stats["totalQuestions"] = await Message.all().count()
+    stats["totalQuestions"] = await Message.filter(role="user").count()
 
     today_start = datetime.combine(now().date(), dt_time.min)
     today_end = datetime.combine(now().date(), dt_time.max)
-    stats["todayQuestions"] = await Message.filter(created_at__range=(today_start, today_end)).count()
+    stats["todayQuestions"] = await Message.filter(role="user", created_at__range=(today_start, today_end)).count()
 
     raw_data = await conn.execute_query_dict("SELECT AVG(response_time) AS avg_response_time FROM messages")
     avg_response_time = (raw_data[0]["avg_response_time"] if raw_data else 0) / 1000

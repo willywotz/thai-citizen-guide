@@ -28,7 +28,7 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
         
     # All rated messages, newest first
     rated_messages = await (
-        Message.filter(rating__not_isnull=True)
+        Message.filter(role="user", rating__not_isnull=True)
         .order_by("-created_at")
         .values("id", "rating", "feedback_text", "content", "created_at", "conversation_id")
     )
