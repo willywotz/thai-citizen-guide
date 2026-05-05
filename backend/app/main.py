@@ -14,6 +14,7 @@ MCP server:
 REST API is served under /api/v1
 """
 
+import json
 import logging
 import random
 
@@ -38,8 +39,8 @@ from app.database import init_db, close_db
 from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
-from app.models import Agency
-from app.utils import generate_uuid
+from app.models import Agency, ConnectionLogs
+from app.utils import generate_uuid, now
 
 mcp_app = mcp.http_app(path="/")
 
@@ -187,7 +188,9 @@ async def agency_chat_test():
     for agency in agencies:
         if agency.connection_type == "API":
             async with httpx.AsyncClient() as client:
-                url = f"http://185.84.161.145/agent-proxy/{agency.id}"
+                headers = {"content-type": "application/json"}
+                for k, v in agency.auth_headers.items():
+                    headers[k.lower()] = v
                 payload = {}
                 for k, v in agency.expected_payload.items():
                     payload[k] = v
@@ -196,8 +199,20 @@ async def agency_chat_test():
                     if v == "__session_id__": payload[k] = str(generate_uuid())
                     if v == "__conversation_id__": payload[k] = str(generate_uuid())
                 try:
-                    await client.post(url, json=payload)
-                    print(f"Sent test message to agency {agency.name}")
+                    start_time = now()
+                    resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
+                    latency = (now() - start_time).microseconds
+                    print(f"Sent test message to agency {agency.name} with latency {latency} microseconds")
+                    await ConnectionLogs.create(
+                        id=str(generate_uuid()),
+                        action="test",
+                        connection_type="API",
+                        status="success" if resp.status_code == 200 else "error",
+                        latency_ms=latency,
+                        detail=f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}",
+                        request_body=json.dumps(payload),
+                        response_body=resp.text,
+                    )
                 except Exception as e:
                     pass
 
