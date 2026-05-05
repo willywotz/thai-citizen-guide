@@ -187,8 +187,14 @@ async def agency_chat_test():
         if agency.connection_type == "API":
             async with httpx.AsyncClient() as client:
                 url = f"http://185.84.161.145/agent-proxy/{agency.id}"
+                payload = {}
+                for k, v in agency.expected_payload.items():
+                    payload[k] = v
+                    if v == "__query__": payload[k] = "ปรึกษากฎหมาย"
+                    if v == "__user_id__": payload[k] = str(generate_uuid())
+                    if v == "__session_id__": payload[k] = str(generate_uuid())
                 try:
-                    await client.post(url, json={"query": "สวัสดี", "session_id": str(generate_uuid())})
+                    await client.post(url, json=payload)
                     print(f"Sent test message to agency {agency.name}")
                 except Exception as e:
                     pass
