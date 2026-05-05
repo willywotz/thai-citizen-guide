@@ -10,7 +10,7 @@ import random
 import time
 from datetime import datetime, time as dt_time
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from app.auth.dependencies import require_admin, get_current_user
 from app.models.user import User
 from app.models.conversation import Message

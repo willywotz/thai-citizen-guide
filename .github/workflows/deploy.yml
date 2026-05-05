@@ -43,6 +43,7 @@ jobs:
           echo "🔧 Writing .env file..."
           cat > .env <<EOL
           TS_AUTHKEY=${{ secrets.TS_AUTHKEY }}
+          OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
           EOL
           echo "✅ .env file created (update with actual values)"
 

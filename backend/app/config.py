@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     PARSE_SPEC_TIMEOUT: int = 60
     PARSE_SPEC_LLM_MODEL: str = "/model"
 
+    OPENROUTER_API_KEY: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

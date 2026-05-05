@@ -14,6 +14,20 @@ class ExecutiveKPIs(BaseModel):
     satisfaction: float
     avgResponseTime: float
 
+    thisMonthQuestions: int
+    lastMonthQuestions: int
+    thisYearQuestions: int
+    lastYearQuestions: int
+    momGrowthQuestions: float
+    yoyGrowthQuestions: float
+
+    thisMonthCitizens: int
+    lastMonthCitizens: int
+    thisYearCitizens: int
+    lastYearCitizens: int
+    momGrowthCitizens: float
+    yoyGrowthCitizens: float
+
 class AgencyScore(BaseModel):
     name: str
     shortName: str

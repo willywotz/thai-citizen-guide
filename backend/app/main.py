@@ -16,6 +16,8 @@ REST API is served under /api/v1
 
 import logging
 
+import httpx
+
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         return record.getMessage().find("/health") == -1
@@ -35,6 +37,8 @@ from app.database import init_db, close_db
 from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
+from app.models import Agency
+from app.utils import generate_uuid
 
 mcp_app = mcp.http_app(path="/")
 
@@ -67,10 +71,12 @@ async def lifespan(app: FastAPI):
     await init_db()
     await _run_seed_admin()
     await _run_seed_agencies()
+    await start_scheduler()
 
     async with mcp_app.lifespan(app):
         yield
 
+    await stop_scheduler()
     await close_db()
 
 
@@ -165,3 +171,32 @@ trace.set_tracer_provider(tracerProvider)
 
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 FastAPIInstrumentor.instrument_app(app, excluded_urls="^/health$")
+
+# ---------------------------------------------------------------------------
+# Background scheduler
+# ---------------------------------------------------------------------------
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+scheduler = AsyncIOScheduler()
+
+async def agency_chat_test():
+    agencies = await Agency.all()
+
+    for agency in agencies:
+        if agency.connection_type == "API":
+            async with httpx.AsyncClient() as client:
+                url = f"http://185.84.161.145/agent-proxy/{agency.id}"
+                try:
+                    await client.post(url, json={"query": "สวัสดี", "session_id": str(generate_uuid())})
+                    print(f"Sent test message to agency {agency.name}")
+                except Exception as e:
+                    pass
+
+async def start_scheduler():
+    await agency_chat_test()  # run once at startup
+    scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=1))
+    scheduler.start()
+
+async def stop_scheduler():
+    scheduler.shutdown()

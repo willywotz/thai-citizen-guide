@@ -11,6 +11,20 @@ export interface ExecutiveKPIs {
   uptime: number;
   satisfaction: number;
   avgResponseTime: number;
+
+  thisMonthQuestions: number;
+  lastMonthQuestions: number;
+  thisYearQuestions: number;
+  lastYearQuestions: number;
+  momGrowthQuestions: number;
+  yoyGrowthQuestions: number;
+
+  thisMonthCitizens: number;
+  lastMonthCitizens: number;
+  thisYearCitizens: number;
+  lastYearCitizens: number;
+  momGrowthCitizens: number;
+  yoyGrowthCitizens: number;
 }
 
 export interface AgencyScore {
