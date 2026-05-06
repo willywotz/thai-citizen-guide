@@ -459,7 +459,6 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 @router.post("/external", summary="Send a query and get a synthesised AI response")
 async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     with tracer.start_as_current_span("chat_external_endpoint") as span:
-        start = time.time()
         
         query = body.query.strip()
         conversation_id = body.conversation_id or str(generate_uuid())
@@ -475,14 +474,16 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         payload = {"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id}
 
         async with httpx.AsyncClient(timeout=180.0) as client:
+            start_time_ns = time.perf_counter_ns()
             resp = await client.post("http://185.84.160.55:8000/v3/chat", headers={"Content-Type": "application/json"}, json=payload)
+            end_time_ns = time.perf_counter_ns()
 
         if resp.status_code != 200:
             span.set_status(Status.ERROR, f"External chat request failed with status {resp.status_code}")
             span.set_attributes({"error": resp.text})
             return {"success": False, "error": resp.text}
             
-        response_time = int((time.time() - start) * 1000)
+        response_time = int((end_time_ns - start_time_ns) // 1_000_000)  # ms
 
         raw_data = resp.json()
         span.set_attributes({"external_response": raw_data})

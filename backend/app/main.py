@@ -18,6 +18,7 @@ import asyncio
 import json
 import logging
 import random
+import time
 
 import httpx
 
@@ -201,10 +202,11 @@ async def agency_chat_item(agency: Agency):
                     if v == "__user_id__": payload[k] = str(generate_uuid())
                     if v == "__session_id__": payload[k] = str(generate_uuid())
                     if v == "__conversation_id__": payload[k] = str(generate_uuid())
-                start_time = now()
+                start_ns = time.perf_counter_ns()
                 resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
-                latency = (now() - start_time).microseconds
-                print(f"Sent test message to agency {agency.name} with latency {latency} microseconds")
+                end_ns = time.perf_counter_ns()
+                latency = int((end_ns - start_ns) // 1_000_000)  # ms
+                print(f"Sent test message to agency {agency.name} with latency {latency} ms")
                 await ConnectionLog.create(
                     id=str(generate_uuid()),
                     action="test",
