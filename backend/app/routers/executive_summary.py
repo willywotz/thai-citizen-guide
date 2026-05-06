@@ -93,13 +93,14 @@ async def get_weeklyBrief(content: str) -> str:
         try:
             url = "https://openrouter.ai/api/v1/chat/completions"
             header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
-            payload = {"model": "google/gemma-4-26b-a4b-it", "messages": [{"role": "user", "content": content}]}
+            payload = {"model": "qwen/qwen3.6-flash", "messages": [{"role": "user", "content": content}]}
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(url, headers=header, json=payload)
 
-            weeklyBrief = resp.json()["choices"][0]["message"]["content"]
+            weeklyBrief = resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
+            print(f"Error generating weekly brief: {e}")
             weeklyBrief = "ไม่สามารถสร้างสรุปประจำสัปดาห์ได้ในขณะนี้"
 
         weeklyBriefResultCache = weeklyBrief

@@ -20,10 +20,10 @@ import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from opentelemetry import trace
-from opentelemetry.trace import Status
+from opentelemetry.trace import Status, StatusCode
 
 from app.config import settings
 from app.models.agency import Agency
@@ -467,9 +467,9 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             conv = await Conversation.get(id=conversation_id)
 
         if not query:
-            span.set_status(Status.ERROR, "Missing query")
+            span.set_status(StatusCode.ERROR, "Missing query")
             span.set_attributes({"error": "missing query"})
-            return {"success": False, "error": "missing query"}
+            raise HTTPException(status_code=400, detail="Missing query")
 
         payload = {"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id}
 
@@ -479,14 +479,14 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             end_time_ns = time.perf_counter_ns()
 
         if resp.status_code != 200:
-            span.set_status(Status.ERROR, f"External chat request failed with status {resp.status_code}")
-            span.set_attributes({"error": resp.text})
-            return {"success": False, "error": resp.text}
+            span.set_status(StatusCode.ERROR, f"External chat request failed with status {resp.status_code}")
+            span.set_attributes({"error": "external chat request failed", "status_code": resp.status_code, "response_text": resp.text})
+            raise HTTPException(status_code=502, detail="Failed to get response from external chat service")
             
         response_time = int((end_time_ns - start_time_ns) // 1_000_000)  # ms
 
         raw_data = resp.json()
-        span.set_attributes({"external_response": raw_data})
+        span.set_attributes({"external_response": resp.text})
         # print(f"External chat response: {raw_data}")
 
         await ConnectionLog.create(
@@ -576,7 +576,7 @@ async def classify_message_category(message_id: str, query: str, answer: str):
 
     url = "https://openrouter.ai/api/v1/chat/completions"
     header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
-    payload = {"model": "google/gemma-4-26b-a4b-it", "messages": [{"role": "user", "content": content}]}
+    payload = {"model": "qwen/qwen3.6-flash", "messages": [{"role": "user", "content": content}]}
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(url, headers=header, json=payload)
@@ -585,7 +585,7 @@ async def classify_message_category(message_id: str, query: str, answer: str):
         category = resp.json()["choices"][0]["message"]["content"].strip()
         await Message.filter(id=message_id).update(category=category)
     except Exception as e:
-        pass
+        print(f"Error classifying message category: {e}")
 
 
 @router.post("", summary="Send a query and get a synthesised AI response")
