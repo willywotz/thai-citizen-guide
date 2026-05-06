@@ -28,29 +28,29 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
   }
 }
 
-export async function fetchAgencyUsage() {
+export async function fetchAgencyUsage(): Promise<{ name: string; value: number; fill: string }[]> {
   try {
     const res = await fetchFromApi();
     return res.data.agencyUsage;
   } catch {
-    return agencyUsageData;
+    return [];
   }
 }
 
-export async function fetchWeeklyTrend() {
+export async function fetchWeeklyTrend(): Promise<{ day: string; questions: number }[]> {
   try {
     const res = await fetchFromApi();
     return res.data.weeklyTrend;
   } catch {
-    return weeklyTrendData;
+    return [];
   }
 }
 
-export async function fetchCategoryData() {
+export async function fetchCategoryData(): Promise<{ category: string; count: number }[]> {
   try {
     const res = await fetchFromApi();
     return res.data.categoryData;
   } catch {
-    return categoryData;
+    return [];
   }
 }
