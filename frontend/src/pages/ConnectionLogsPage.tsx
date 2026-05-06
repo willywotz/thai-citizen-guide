@@ -298,7 +298,7 @@ export default function ConnectionLogsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">วันที่/เวลา</p>
-                  <p className="font-medium text-xs">{format(new Date(selectedLog.created_at), "dd/MM/yyyy HH:mm:ss")}</p>
+                  <p className="font-medium text-xs">{format(selectedLog.created_at, "dd/MM/yyyy HH:mm:ss")}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">หน่วยงาน</p>
@@ -328,7 +328,7 @@ export default function ConnectionLogsPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Latency</p>
-                  <p className={cn("font-medium text-xs", selectedLog.latency_ms > 1000 ? "text-amber-600" : "")}>
+                  <p className={cn("font-medium text-xs", selectedLog.latency_ms > 15_000 ? "text-amber-600" : "")}>
                     {selectedLog.latency_ms} ms
                   </p>
                 </div>

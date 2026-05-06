@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -149,10 +151,16 @@ func main() {
 			slog.Error("Error updating total_calls", slog.Any("error", err))
 		}
 
+		var rawDetail struct {
+			Query string `json:"query"`
+		}
+		_ = json.Unmarshal(body.Bytes(), &rawDetail)
+		detail := fmt.Sprintf("Query: %s\n\nAnswer: %s", rawDetail.Query, responseBody.String())
+
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			addConnectionLog(ctx, agentID[1], "success", latency, responseBody.String(), body.String(), responseBody.String())
+			addConnectionLog(ctx, agentID[1], "success", latency, detail, body.String(), responseBody.String())
 		} else {
-			addConnectionLog(ctx, agentID[1], "error", latency, responseBody.String(), body.String(), responseBody.String())
+			addConnectionLog(ctx, agentID[1], "error", latency, detail, body.String(), responseBody.String())
 		}
 
 		span.SetStatus(codes.Ok, "request handled successfully")
