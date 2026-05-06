@@ -20,7 +20,7 @@ import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from pydantic import BaseModel
 from opentelemetry import trace
 from opentelemetry.trace import Status
@@ -457,7 +457,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     }
 
 @router.post("/external", summary="Send a query and get a synthesised AI response")
-async def chat_external(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     with tracer.start_as_current_span("chat_external_endpoint") as span:
         start = time.time()
         
@@ -543,6 +543,8 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             agency_ids=agency_ids,
         )
 
+        background_tasks.add_task(classify_message_category, response_msg.id, query, answer)
+
         return {
             "success": True,
             "data": {
@@ -556,8 +558,31 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             "conversation_id": conversation_id,
             "responseTime": response_time,
         }
+    
+async def classify_message_category(message_id: str, query: str, answer: str):
+    content = f"""\
+คุณเป็นโมเดลภาษา LLM ที่เชี่ยวชาญด้านการวิเคราะห์ข้อความและการจัดหมวดหมู่คำถามในบริบทของการให้บริการข้อมูลภาครัฐไทย
+โปรดวิเคราะห์คำถามของผู้ใช้และระบุหมวดหมู่ที่ตรงที่สุด 1 หมวด จากนี้: สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
+ตอบเป็นข้อความที่มีเพียงหมวดหมู่ที่วิเคราะห์ได้เท่านั้น เช่น:
+ขั้นตอนดำเนินการ
+
+ถ้าคำถามไม่ชัดเจนหรือไม่สามารถจัดหมวดหมู่ได้ ให้ตอบว่า "ไม่สามารถจัดหมวดหมู่ได้"
+
+คำถาม: {query}
+
+คำตอบ: {answer}
+"""
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
+    payload = {"model": "google/gemma-4-26b-a4b-it", "messages": [{"role": "user", "content": content}]}
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(url, headers=header, json=payload)
+
+    category = resp.json()["choices"][0]["message"]["content"].strip()
 
 @router.post("", summary="Send a query and get a synthesised AI response")
-async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+async def chat(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     with tracer.start_as_current_span("chat_endpoint"):
-        return await chat_external(body, user)
+        return await chat_external(body, background_tasks, user)
