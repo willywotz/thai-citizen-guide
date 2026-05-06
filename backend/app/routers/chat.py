@@ -32,7 +32,7 @@ from app.models.connection_log import ConnectionLog
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
-from app.utils import generate_uuid
+from app.utils import generate_uuid, now
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 tracer = trace.get_tracer(__name__)
@@ -527,6 +527,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             )
         else:
             conv.message_count += len(answer)
+            conv.updated_at = now()
             await conv.save()
 
         query_msg = await Message.create(

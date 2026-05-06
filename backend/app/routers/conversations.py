@@ -24,6 +24,7 @@ from app.schemas.conversation import (
     HistoryResponse,
     SaveConversationRequest,
 )
+from app.utils import now
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 

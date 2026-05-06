@@ -26,6 +26,7 @@ class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         return record.getMessage().find("/health") == -1
 
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 from contextlib import asynccontextmanager
