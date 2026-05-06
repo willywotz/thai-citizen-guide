@@ -134,7 +134,7 @@ export default function HeatmapPage() {
               ))}
             </div>
             {data.dayHourMatrix.map(row => (
-              <div key={row.day} className="flex items-center mt-1">
+              <div key={row.day} className="flex items-center mt-4">
                 <div className="w-20 shrink-0 text-xs font-medium text-right pr-3">{row.day}</div>
                 {row.data.map((v, h) => (
                   <div
@@ -182,7 +182,7 @@ export default function HeatmapPage() {
               ))}
             </div>
             {data.hourlyByAgency.map(row => (
-              <div key={row.agencyId} className="flex items-center mt-1">
+              <div key={row.agencyId} className="flex items-center mt-4">
                 <div className="w-32 shrink-0 text-xs font-medium text-right pr-3">{row.agency}</div>
                 {row.data.map((v, h) => (
                   <div
