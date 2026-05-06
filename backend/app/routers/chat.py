@@ -529,7 +529,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             conv.message_count += len(answer)
             await conv.save()
 
-        await Message.create(
+        query_msg = await Message.create(
             conversation_id=conversation_id,
             role='user',
             content=query,
@@ -544,7 +544,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             agency_ids=agency_ids,
         )
 
-        background_tasks.add_task(classify_message_category, response_msg.id, query, answer)
+        background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
 
         return {
             "success": True,
@@ -581,7 +581,12 @@ async def classify_message_category(message_id: str, query: str, answer: str):
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(url, headers=header, json=payload)
 
-    category = resp.json()["choices"][0]["message"]["content"].strip()
+    try:
+        category = resp.json()["choices"][0]["message"]["content"].strip()
+        await Message.filter(id=message_id).update(category=category)
+    except Exception as e:
+        pass
+
 
 @router.post("", summary="Send a query and get a synthesised AI response")
 async def chat(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
