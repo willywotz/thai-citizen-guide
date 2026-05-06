@@ -33,6 +33,12 @@ func main() {
 
 	slog.Info("Connecting to PostgreSQL database")
 	pool := mustPanic(pgxpool.New(ctx, dsn))
+	defer pool.Close()
+
+	pool.Config().AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, "SET TIMEZONE TO 'Asia/Bangkok'")
+		return err
+	}
 
 	tp, err := InitTracer(ctx)
 	if err != nil {
