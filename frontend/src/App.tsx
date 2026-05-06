@@ -10,8 +10,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import ChatPage from "./pages/ChatPage";
 import DashboardPage from "./pages/DashboardPage";
 import ExecutivePage from "./pages/ExecutivePage";
-import InsightsPage from "./pages/InsightsPage";
-import HealthPage from "./pages/HealthPage";
+// import InsightsPage from "./pages/InsightsPage";
+// import HealthPage from "./pages/HealthPage";
 import HeatmapPage from "./pages/HeatmapPage";
 import AgenciesPage from "./pages/AgenciesPage";
 import AgencyDetailPage from "./pages/AgencyDetailPage";
@@ -49,8 +49,8 @@ const App = () => (
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/executive" element={<ExecutivePage />} />
-                <Route path="/insights" element={<InsightsPage />} />
-                <Route path="/health" element={<HealthPage />} />
+                {/* <Route path="/insights" element={<InsightsPage />} /> */}
+                {/* <Route path="/health" element={<HealthPage />} /> */}
                 <Route path="/heatmap" element={<HeatmapPage />} />
                 <Route path="/agencies" element={<AgenciesPage />} />
                 <Route path="/agencies/:id" element={<AgencyDetailPage />} />

@@ -121,7 +121,7 @@ export default function ExecutivePage() {
   const { kpis, agencyScorecard, monthlyTrend, topIssues, weeklyBrief, generatedAt } = data;
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-6 space-y-6 mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
