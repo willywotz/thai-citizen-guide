@@ -7,8 +7,8 @@ from tortoise.functions import Count
 from tortoise.transactions import in_transaction
 
 from app.utils import now
-from app.schemas.insight import AnalyticsInsightsData, AgencyHealthData, BusiestInsight, HeatmapInsights, UsageHeatmapData, HeatmapRange
-from app.models import Agency, Conversation, Message
+from app.schemas.insight import AnalyticsInsightsData, AgencyHealthData, BusiestInsight, HeatmapInsights, UsageHeatmapData, HeatmapRange, Agency as AgencyHealth
+from app.models import Agency, Conversation, Message, ConnectionLog
 
 router = APIRouter(tags=["insight"])
 days_labels = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"]
@@ -31,9 +31,98 @@ async def get_insight_analytics_insights() -> AnalyticsInsightsData:
 
 @router.get("/agency-health")
 async def get_insight_agency_health() -> AgencyHealthData:
+
+    agencies = await Agency.all().values("id", "name", "short_name", "status")
+
+    agencies_health = []
+
+    for ag in agencies:
+        status = {"active": "healthy", "inactive": "down"}.get(ag["status"], "down")
+
+        currentLatency = await ConnectionLog \
+            .annotate(avg_latency=RawSQL("AVG(latency_ms)")) \
+            .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(minutes=15)) \
+            .group_by("agency_id") \
+            .values("avg_latency")
+        currentLatency = currentLatency[0]["avg_latency"] if len(currentLatency) > 0 and currentLatency[0]["avg_latency"] is not None else 0
+
+        avgLatency = await ConnectionLog \
+            .annotate(avg_latency=RawSQL("AVG(latency_ms)")) \
+            .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=7)) \
+            .group_by("agency_id") \
+            .values("avg_latency")
+        avgLatency = avgLatency[0]["avg_latency"] if len(avgLatency) > 0 and avgLatency[0]["avg_latency"] is not None else 0
+
+        errorRate = await ConnectionLog \
+            .annotate(error_count=RawSQL("SUM(CASE WHEN status >= 'success' THEN 1 ELSE 0 END)"), total_count=RawSQL("COUNT(*)")) \
+            .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=7)) \
+            .group_by("agency_id") \
+            .values("error_count", "total_count")
+        errorRate = (errorRate[0]["error_count"] / errorRate[0]["total_count"]) if len(errorRate) > 0 and errorRate[0]["total_count"] > 0 else 0
+
+        totalDayRequest = await ConnectionLog.filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=1)).count()
+
+        agencies_health.append(AgencyHealth(
+            id=str(ag["id"]),
+            name=ag["name"],
+            shortName=ag["short_name"],
+            status=status,
+            uptime=round(100.0 - errorRate, 2),
+            currentLatency=currentLatency // 1,
+            avgLatency=avgLatency // 1,
+            errorRate=round(errorRate, 2),
+            requestsPerMin=totalDayRequest // 1440,
+            lastCheckedAt=now()
+        ))
+
+    # historical = {
+            #     "time": "03:00",
+            #     "fda_latency": 260,
+            #     "fda_uptime": 99.55,
+            #     "revenue_latency": 117,
+            #     "revenue_uptime": 99.59,
+            #     "dopa_latency": 423,
+            #     "dopa_uptime": 98.21,
+            #     "land_latency": 561,
+            #     "land_uptime": 97.67
+            # },
+            # {
+            #     "time": "04:00",
+            #     "fda_latency": 319,
+            #     "fda_uptime": 99.75,
+            #     "revenue_latency": 175,
+            #     "revenue_uptime": 99.79,
+            #     "dopa_latency": 482,
+            #     "dopa_uptime": 98.41,
+            #     "land_latency": 470,
+            #     "land_uptime": 97.37
+            # },
+
+    rawHistorical =  await ConnectionLog \
+        .annotate(
+            time=RawSQL("to_char(created_at, 'HH24:00')"),
+            latency=RawSQL("AVG(latency_ms)"),
+            uptime=RawSQL("AVG(CASE WHEN status >= 'success' THEN 1 ELSE 0 END) * 100")
+        ) \
+        .filter(created_at__gte=now() - timedelta(days=1)) \
+        .group_by("time", "agency_id") \
+        .values("time", "agency_id", "latency", "uptime")
+    
+    historical = {}
+
+    for entry in rawHistorical:
+        time = entry["time"]
+        agency_id = str(entry["agency_id"])
+
+        if time not in historical:
+            historical[time] = {"time": time}
+
+        historical[time][f"{agency_id}_latency"] = entry["latency"] // 1
+        historical[time][f"{agency_id}_uptime"] = round(entry["uptime"], 2)
+            
     return AgencyHealthData(
-        agencies=[],
-        historical=[],
+        agencies=agencies_health,
+        historical=sorted(historical.values(), key=lambda x: x["time"]),
         incidents=[],
         slaCompliance=[],
         generatedAt=now()

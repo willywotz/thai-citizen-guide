@@ -125,9 +125,9 @@ export default function HealthPage() {
       </Card>
 
       {/* Two columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 hidden">
         {/* SLA */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle className="text-base">SLA Compliance</CardTitle>
             <CardDescription>เป้าหมาย Uptime ≥ 99%</CardDescription>
@@ -152,10 +152,10 @@ export default function HealthPage() {
               ))}
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Incidents */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="h-4 w-4" /> Incidents 24 ชม.ล่าสุด
@@ -187,7 +187,7 @@ export default function HealthPage() {
               )}
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
     </div>
   );
