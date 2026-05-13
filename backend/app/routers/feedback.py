@@ -159,7 +159,7 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
             rating_down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
             rate=RawSQL('AVG(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END) * 100')
         ) \
-        .filter(rating__isnull=False, created_at__gte=now() - timedelta(days=14)) \
+        .filter(rating__isnull=False) \
         .values("total_rating", "rating_up", "rating_down", "rate")
     
     daily_trend = await Message \
@@ -187,7 +187,6 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
             .filter(
                 rating__isnull=False,
                 agency_ids__contains=[str(ag["id"])],
-                created_at__gte=now() - timedelta(days=14),
             ) \
             .values("rating_up", "rating_down")
         
@@ -202,8 +201,9 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
         })
 
     rawLowRatedQuestions = await Message \
-        .filter(role="assistant", rating="down", created_at__gte=now() - timedelta(days=14)) \
+        .filter(role="assistant", rating="down") \
         .order_by("-created_at") \
+        .limit(5) \
         .values("feedback_text", "agency_ids", "created_at", "parent_id")
     
     low_rated_questions = []
@@ -223,7 +223,7 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
             entry["content"] = parent_msg.content if parent_msg else "ไม่ทราบคำถาม"
 
         low_rated_questions.append({
-            "content": entry["content"] or "ไม่ทราบคำถาม",
+            "content": entry.get("content", "ไม่ทราบคำถาม"),
             "feedback_text": entry["feedback_text"],
             "agency": entry["agency"],
             "created_at": entry["created_at"],
@@ -233,7 +233,7 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
         total_ratings=message_state[0]["total_rating"] if message_state else 0,
         up_count=message_state[0]["rating_up"] if message_state else 0,
         down_count=message_state[0]["rating_down"] if message_state else 0,
-        satisfaction_rate=round(message_state[0]["rate"], 2) if message_state else 0,
+        satisfaction_rate=(message_state[0]["rate"] // 1) if message_state else 0,
         daily_trend=daily_trend,
         low_rated_questions=low_rated_questions,
         agency_breakdown=agency_breakdown,
