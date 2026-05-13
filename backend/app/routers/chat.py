@@ -537,6 +537,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         )
         
         response_msg = await Message.create(
+            parent_id=query_msg.id,
             conversation_id=conversation_id,
             role='assistant',
             content=answer,

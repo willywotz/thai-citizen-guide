@@ -42,6 +42,7 @@ class Message(Model):
     """
 
     id = fields.UUIDField(primary_key=True, default=generate_uuid)
+    parent_id = fields.UUIDField(null=True)  # for threading or follow-up messages
     conversation = fields.ForeignKeyField(
         "models.Conversation",
         related_name="messages",

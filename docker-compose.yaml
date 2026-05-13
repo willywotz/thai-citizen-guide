@@ -26,7 +26,7 @@ services:
       target: ${BUILD_TARGET:-production}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
+      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     depends_on:
       - postgres
@@ -51,7 +51,7 @@ services:
       target: ${BUILD_TARGET:-production}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
+      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
     depends_on:
       - postgres
     networks:
