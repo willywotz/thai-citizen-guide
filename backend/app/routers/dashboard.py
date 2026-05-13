@@ -86,7 +86,7 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         ]
 
         categories = await Message.filter(category__isnull=False).annotate(cnt=Count("id")).group_by("category").values("category", "cnt")
-        category_data = [{"category": row["category"], "count": row["cnt"]} for row in categories]
+        category_data = sorted([{"category": row["category"], "count": row["cnt"]} for row in categories], key=lambda x: x["count"], reverse=True)
 
         return {
             "success": True,
