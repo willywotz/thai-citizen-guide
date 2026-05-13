@@ -6,6 +6,7 @@ import type { ChatMessage } from "@/types";
 // import { AgentStepDisplay } from "./AgentStepDisplay";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { AppLogo } from "../ui/AppLogo";
 
 export function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
@@ -62,7 +63,7 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
             <div className="whitespace-pre-wrap">{answer}</div>
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
-              <ReactMarkdown>{answer}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
             </div>
           )}
         </div>
