@@ -146,9 +146,13 @@ export const conversationHistory: ConversationHistory[] = [
 
 export const dashboardStats: DashboardStats = {
   totalQuestions: 0,
+  totalQuestionsTrend: 0.0,
   todayQuestions: 0,
-  avgResponseTime: '0.0 วินาที',
+  todayQuestionsTrend: 0.0,
+  avgResponseTime: 0.0,
+  avgResponseTimeTrend: 0.0,
   satisfactionRate: 0.0,
+  satisfactionRateTrend: 0.0,
 };
 
 export const agencyUsageData = [

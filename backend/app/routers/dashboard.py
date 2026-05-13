@@ -8,7 +8,7 @@ Endpoint
 
 import random
 import time
-from datetime import datetime, time as dt_time
+from datetime import datetime, time as dt_time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from app.auth.dependencies import require_admin, get_current_user
@@ -18,6 +18,7 @@ from app.models.agency import Agency
 from tortoise import Tortoise
 from tortoise.functions import Count
 from tortoise.transactions import in_transaction
+from tortoise.expressions import RawSQL
 
 from app.utils import now
 
@@ -36,27 +37,28 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         start = time.time()
 
         stats = {
-            # "totalQuestions": 48290 + random.randint(0, 50),
-            # "todayQuestions": 150 + random.randint(0, 20),
-            # "avgResponseTime": f"{(2.0 + random.random() * 0.6):.1f} วินาที",
-            # "satisfactionRate": round(93.5 + random.random() * 2, 1),
+            "totalQuestions": 0, # int
+            "totalQuestionsTrend": 0.0, # float percentage change from previous period
+            "todayQuestions": 0, # int
+            "todayQuestionsTrend": 0.0, # float percentage change from previous day
+            "avgResponseTime": 0.0, # float in seconds
+            "avgResponseTimeTrend": 0.0, # float percentage change from previous period in seconds
+            "satisfactionRate": 0.0, # float percentage of "up" ratings
+            "satisfactionRateTrend": 0.0, # float percentage change from previous period
         }
-
+        
         stats["totalQuestions"] = await Message.filter(role="user").count()
 
-        today_start = datetime.combine(now().date(), dt_time.min)
-        today_end = datetime.combine(now().date(), dt_time.max)
+        today_start = now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = now().replace(hour=23, minute=59, second=59, microsecond=999999)
         stats["todayQuestions"] = await Message.filter(role="user", created_at__range=(today_start, today_end)).count()
 
-        raw_data = await conn.execute_query_dict("SELECT AVG(response_time) AS avg_response_time FROM messages")
-        avg_response_time = (raw_data[0]["avg_response_time"] if raw_data else 0) / 1000
-        stats["avgResponseTime"] = f"{avg_response_time:.2f} วินาที"
+        avg_response_time = await Message.annotate(avg_time=RawSQL("AVG(response_time) / 1000")).values("avg_time")
+        stats["avgResponseTime"] = float(round(avg_response_time[0]["avg_time"], 2) if avg_response_time else 0)
 
-        raw_data = await conn.execute_query_dict("SELECT rating, count(1) as cnt FROM messages where rating IS NOT NULL group BY rating")
-        rating_counts = {row["rating"]: row["cnt"] for row in raw_data}
-        total_rated = sum(rating_counts.values())
-        satisfaction_rate = (rating_counts.get("up", 0) / total_rated * 100) if total_rated > 0 else 0
-        stats["satisfactionRate"] = round(satisfaction_rate, 1)
+        rate = await Message.annotate(rate=RawSQL("avg(case when rating = 'up' then 1 else 0 end) * 100")).filter(rating__isnull=False).values("rate")
+        stats["satisfactionRate"] = float(round(rate[0]["rate"], 2) if rate else 0)
+            
 
         # agency_usage = [
         #     {"name": "อย.", "value": 12450 + random.randint(0, 100), "fill": "hsl(145 55% 40%)"},

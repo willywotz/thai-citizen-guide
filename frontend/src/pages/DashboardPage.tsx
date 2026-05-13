@@ -70,10 +70,10 @@ export default function DashboardPage() {
   }, [dataUpdatedAt]);
 
   const statCards = stats ? [
-    { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare, trend: "+12%", trendUp: true, color: "text-primary" },
-    { label: "คำถามวันนี้", value: stats.todayQuestions.toLocaleString(), icon: TrendingUp, trend: "+8%", trendUp: true, color: "text-success" },
-    { label: "เวลาตอบเฉลี่ย", value: stats.avgResponseTime, icon: Clock, trend: "-0.3s", trendUp: true, color: "text-warning" },
-    { label: "ความพึงพอใจ", value: `${stats.satisfactionRate}%`, icon: ThumbsUp, trend: "+2.1%", trendUp: true, color: "text-info" },
+    { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare, trend: `${stats.totalQuestionsTrend}%`, trendUp: stats.totalQuestionsTrend >= 0, color: "text-primary" },
+    { label: "คำถามวันนี้", value: stats.todayQuestions.toLocaleString(), icon: TrendingUp, trend: `${stats.todayQuestionsTrend}%`, trendUp: stats.todayQuestionsTrend >= 0, color: "text-success" },
+    { label: "เวลาตอบเฉลี่ย", value: `${stats.avgResponseTime}s`, icon: Clock, trend: `${stats.avgResponseTimeTrend}s`, trendUp: stats.avgResponseTimeTrend >= 0, color: "text-warning" },
+    { label: "ความพึงพอใจ", value: `${stats.satisfactionRate}%`, icon: ThumbsUp, trend: `${stats.satisfactionRateTrend}%`, trendUp: stats.satisfactionRateTrend >= 0, color: "text-info" },
   ] : [];
 
   const totalUsage = agencyUsage?.reduce((sum, a) => sum + a.value, 0) || 1;
@@ -124,12 +124,12 @@ export default function DashboardPage() {
               <p className="text-2xl font-bold text-foreground tracking-tight">
                 <AnimatedNumber value={s.value} />
               </p>
-              <div className="flex items-center gap-1 mt-1.5">
+              {/* <div className="flex items-center gap-1 mt-1.5">
                 <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", s.trendUp ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
                   {s.trend}
                 </span>
                 <span className="text-[10px] text-muted-foreground">vs สัปดาห์ก่อน</span>
-              </div>
+              </div> */}
             </CardContent>
             {/* Decorative gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

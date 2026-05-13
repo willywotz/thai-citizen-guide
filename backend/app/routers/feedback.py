@@ -13,6 +13,7 @@ from app.auth.dependencies import require_admin, get_current_user
 from app.models.user import User
 from tortoise.functions import Count, Sum
 from tortoise.expressions import Case, When, RawSQL, F
+from tortoise.transactions import in_transaction
 
 from app.models.conversation import Conversation, Message
 from app.schemas.conversation import FeedbackStats
@@ -152,89 +153,92 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
     #     .filter(rating__isnull=False) \
     #     .values("rating_total", "rating_up", "rating_down").sql(), flush=True)
 
-    message_state = await Message \
-        .annotate(
-            total_rating=Count("rating"),
-            rating_up=RawSQL('SUM(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END)'),
-            rating_down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
-            rate=RawSQL('AVG(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END) * 100')
-        ) \
-        .filter(rating__isnull=False) \
-        .values("total_rating", "rating_up", "rating_down", "rate")
-    
-    daily_trend = await Message \
-        .annotate(
-            date=RawSQL("TO_CHAR(created_at, 'MM-DD')"),
-            up=RawSQL('SUM(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END)'),
-            down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
-            rate=RawSQL('0'),
-        ) \
-        .filter(rating__isnull=False, created_at__gte=now() - timedelta(days=14)) \
-        .group_by("date") \
-        .order_by("date") \
-        .values("date", "up", "down", "rate")
-    
-    agency_breakdown = []
+    async with in_transaction() as conn:
+        await conn.execute_query("SET TIME ZONE 'Asia/Bangkok';")
 
-    agencies = await Agency.all().values("id", "short_name")
-
-    for ag in agencies:
-        stats = await Message \
+        message_state = await Message \
             .annotate(
+                total_rating=Count("rating"),
                 rating_up=RawSQL('SUM(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END)'),
                 rating_down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
+                rate=RawSQL('AVG(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END) * 100')
             ) \
-            .filter(
-                rating__isnull=False,
-                agency_ids__contains=[str(ag["id"])],
+            .filter(rating__isnull=False) \
+            .values("total_rating", "rating_up", "rating_down", "rate")
+        
+        daily_trend = await Message \
+            .annotate(
+                date=RawSQL("TO_CHAR(created_at, 'MM-DD')"),
+                up=RawSQL('SUM(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END)'),
+                down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
+                rate=RawSQL('0'),
             ) \
-            .values("rating_up", "rating_down")
+            .filter(rating__isnull=False, created_at__gte=now() - timedelta(days=14)) \
+            .group_by("date") \
+            .order_by("date") \
+            .values("date", "up", "down", "rate")
         
-        rating_up = stats[0]["rating_up"] if stats and stats[0]["rating_up"] is not None else 0
-        rating_down = stats[0]["rating_down"] if stats and stats[0]["rating_down"] is not None else 0
+        agency_breakdown = []
+
+        agencies = await Agency.all().values("id", "short_name")
+
+        for ag in agencies:
+            stats = await Message \
+                .annotate(
+                    rating_up=RawSQL('SUM(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END)'),
+                    rating_down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
+                ) \
+                .filter(
+                    rating__isnull=False,
+                    agency_ids__contains=[str(ag["id"])],
+                ) \
+                .values("rating_up", "rating_down")
+            
+            rating_up = stats[0]["rating_up"] if stats and stats[0]["rating_up"] is not None else 0
+            rating_down = stats[0]["rating_down"] if stats and stats[0]["rating_down"] is not None else 0
+            
+            agency_breakdown.append({
+                "agency": ag["short_name"],
+                "up": rating_up,
+                "down": rating_down,
+                "rate": 0,
+            })
+
+        rawLowRatedQuestions = await Message \
+            .filter(role="assistant", rating="down") \
+            .order_by("-created_at") \
+            .limit(5) \
+            .values("feedback_text", "agency_ids", "created_at", "parent_id")
         
-        agency_breakdown.append({
-            "agency": ag["short_name"],
-            "up": rating_up,
-            "down": rating_down,
-            "rate": 0,
-        })
+        low_rated_questions = []
 
-    rawLowRatedQuestions = await Message \
-        .filter(role="assistant", rating="down") \
-        .order_by("-created_at") \
-        .limit(5) \
-        .values("feedback_text", "agency_ids", "created_at", "parent_id")
-    
-    low_rated_questions = []
+        for index, entry in enumerate(rawLowRatedQuestions):        
+            agency_names = []
+            for ag_id in entry["agency_ids"] or []:
+                ag = next((a for a in agencies if str(a["id"]) == ag_id), None)
+                if ag:
+                    agency_names.append(ag["short_name"])
+            
+            entry["agency"] = ", ".join(agency_names) if agency_names else "-"
+            entry["created_at"] = entry["created_at"].isoformat() if entry.get("created_at") else ""
 
-    for index, entry in enumerate(rawLowRatedQuestions):        
-        agency_names = []
-        for ag_id in entry["agency_ids"] or []:
-            ag = next((a for a in agencies if str(a["id"]) == ag_id), None)
-            if ag:
-                agency_names.append(ag["short_name"])
-        
-        entry["agency"] = ", ".join(agency_names) if agency_names else "-"
-        entry["created_at"] = entry["created_at"].isoformat() if entry.get("created_at") else ""
+            if entry["parent_id"]:
+                parent_msg = await Message.filter(id=entry["parent_id"]).first()
+                entry["content"] = parent_msg.content if parent_msg else "ไม่ทราบคำถาม"
 
-        if entry["parent_id"]:
-            parent_msg = await Message.filter(id=entry["parent_id"]).first()
-            entry["content"] = parent_msg.content if parent_msg else "ไม่ทราบคำถาม"
+            low_rated_questions.append({
+                "content": entry.get("content", "ไม่ทราบคำถาม"),
+                "feedback_text": entry["feedback_text"],
+                "agency": entry["agency"],
+                "created_at": entry["created_at"],
+            })
 
-        low_rated_questions.append({
-            "content": entry.get("content", "ไม่ทราบคำถาม"),
-            "feedback_text": entry["feedback_text"],
-            "agency": entry["agency"],
-            "created_at": entry["created_at"],
-        })
-
-    return FeedbackStats(
-        total_ratings=message_state[0]["total_rating"] if message_state else 0,
-        up_count=message_state[0]["rating_up"] if message_state else 0,
-        down_count=message_state[0]["rating_down"] if message_state else 0,
-        satisfaction_rate=(message_state[0]["rate"] // 1) if message_state else 0,
-        daily_trend=daily_trend,
-        low_rated_questions=low_rated_questions,
-        agency_breakdown=agency_breakdown,
-    )
+        return FeedbackStats(
+            total_ratings=message_state[0]["total_rating"] if message_state else 0,
+            up_count=message_state[0]["rating_up"] if message_state else 0,
+            down_count=message_state[0]["rating_down"] if message_state else 0,
+            satisfaction_rate=(message_state[0]["rate"] // 1) if message_state else 0,
+            daily_trend=daily_trend,
+            low_rated_questions=low_rated_questions,
+            agency_breakdown=agency_breakdown,
+        )
