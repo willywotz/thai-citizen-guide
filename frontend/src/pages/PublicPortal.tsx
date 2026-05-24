@@ -1,9 +1,9 @@
-import { Send, Search, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Send, Search, X, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { agencies, suggestedQuestions } from '@/data/mockData';
 import { MessageBubble } from '@/components/chat/MessageBubble';
-import { AgentStepDisplay } from '@/components/chat/AgentStepDisplay';
+import { AgentStepDisplay, StreamingProgress } from '@/components/chat/AgentStepDisplay';
 import { LandingHero } from '@/components/public/LandingHero';
 import { AgencyCards } from '@/components/public/AgencyCards';
 import { SuggestedQuestions } from '@/components/public/SuggestedQuestions';
@@ -14,9 +14,11 @@ import { AppLogo } from '@/components/ui/AppLogo';
 export default function PublicPortal() {
   const {
     messages, input, setInput, isTyping, activeStepCount, currentSteps,
-    scrollRef, handleSend, handleRate, reset, hasMessages,
+    streamingState, scrollRef, handleSend, handleRate, reset, cancelStream, hasMessages,
   } = useChat();
   const [chatMode, setChatMode] = useState(false);
+
+  const isStreaming = isTyping && streamingState.pipelineSteps.length > 0 && !streamingState.done;
 
   const onSend = (text?: string) => {
     if (!chatMode) setChatMode(true);
@@ -57,7 +59,9 @@ export default function PublicPortal() {
                 <div className="flex items-start gap-3 mb-4">
                   <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />
                   <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
-                    {activeStepCount > 0 ? (
+                    {isStreaming ? (
+                      <StreamingProgress state={streamingState} />
+                    ) : activeStepCount > 0 ? (
                       <AgentStepDisplay steps={currentSteps} visibleCount={activeStepCount} />
                     ) : (
                       <div className="flex items-center gap-1">
@@ -79,9 +83,15 @@ export default function PublicPortal() {
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSend()}
                 placeholder="พิมพ์คำถามของคุณที่นี่..."
                 className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              <Button onClick={() => onSend()} size="icon" className="rounded-xl shrink-0" disabled={!input.trim() || isTyping}>
-                <Send className="h-4 w-4" />
-              </Button>
+              {isTyping ? (
+                <Button onClick={cancelStream} size="icon" variant="outline" className="rounded-xl shrink-0" title="ยกเลิก">
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button onClick={() => onSend()} size="icon" className="rounded-xl shrink-0" disabled={!input.trim()}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
         </>
