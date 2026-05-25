@@ -21,6 +21,7 @@ from app.auth.dependencies import require_admin
 from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
+from app.config import settings
 from app.auth.dependencies import get_current_user
 from app.auth.security import (
     create_access_token,
@@ -79,7 +80,7 @@ def _user_dict(user: User) -> dict:
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, summary="Create a new account")
 async def register(body: RegisterRequest) -> dict:
-    if len(body.password) < 6:
+    if len(body.password) < settings.MIN_PASSWORD_LENGTH:
         raise HTTPException(status_code=400, detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")
 
     exists = await User.filter(email=body.email).exists()
@@ -180,7 +181,7 @@ async def forgot_password(body: ForgotPasswordRequest) -> dict:
 
 @router.post("/reset-password", summary="Set a new password using the reset token")
 async def reset_password(body: ResetPasswordRequest) -> dict:
-    if len(body.new_password) < 6:
+    if len(body.new_password) < settings.MIN_PASSWORD_LENGTH:
         raise HTTPException(status_code=400, detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")
 
     user = await User.filter(reset_token=body.token, is_active=True).first()

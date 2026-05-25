@@ -42,9 +42,6 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
-ONECHAT_V3_URL = "http://185.84.160.55:8000/v3/chat"
-ONECHAT_V4_URL = "http://185.84.160.55:8000/v4/chat"
-MCP_ENDPOINT_URL = "http://185.84.161.145/mcp/"
 
 """
 Multi-Agent Router with LangGraph
@@ -105,7 +102,7 @@ async def call_llm(messages: list[dict]) -> str:
 
     print(f"Calling LLM with messages: {messages}")
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
         resp = await client.post(
             os.getenv("PARSE_SPEC_URL", ""),
             headers={
@@ -226,7 +223,7 @@ async def dispatch_to_agencies(state: AgentState) -> dict:
         try:
             # ─── A2A Protocol ───
             if conn == "A2A":
-                async with httpx.AsyncClient(timeout=30) as client:
+                async with httpx.AsyncClient(timeout=settings.A2A_DISPATCH_TIMEOUT) as client:
                     resp = await client.post(
                         route["endpoint_url"],
                         json={
@@ -397,7 +394,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
                 "references": asst_msg.sources if asst_msg.sources else [],
                 "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
                 "agencies": [],
-                "confidence": 0.95,
+                "confidence": settings.SIMILARITY_THRESHOLD,
                 "cached": True,
             },
             "conversation_id": str(user_msg.conversation_id),
@@ -407,11 +404,11 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     conversation_id = body.conversation_id or str(generate_uuid())
 
     app = build_graph()
-    
+
     result = await app.ainvoke({"query": query, "conversation_id": conversation_id})
 
     response_time = int((time.time() - start) * 1000)
-    
+
     answer = result.get("final_answer", "").strip()
 
     references = []
@@ -439,8 +436,8 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     if not body.conversation_id:
         conv = await Conversation.create(
             id=conversation_id,
-            title=query[:50],
-            preview=query[:100],
+            title=query[:settings.TITLE_MAX_LENGTH],
+            preview=query[:settings.PREVIEW_MAX_LENGTH],
             agencies=[],
             status='success',
             message_count=len(answer),
@@ -517,18 +514,18 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                     "references": asst_msg.sources if asst_msg.sources else [],
                     "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
                     "agencies": [],
-                    "confidence": 0.95,
+                    "confidence": settings.SIMILARITY_THRESHOLD,
                     "cached": True,
                 },
                 "conversation_id": str(user_msg.conversation_id),
                 "responseTime": 0,
             }
 
-        payload = {"query": query, "mcp_endpoint_url": MCP_ENDPOINT_URL, "session_id": conversation_id}
+        payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
+        async with httpx.AsyncClient(timeout=settings.EXTERNAL_CHAT_TIMEOUT) as client:
             start_time_ns = time.perf_counter_ns()
-            resp = await client.post(ONECHAT_V3_URL, headers={"Content-Type": "application/json"}, json=payload)
+            resp = await client.post(settings.ONECHAT_V3_URL, headers={"Content-Type": "application/json"}, json=payload)
             end_time_ns = time.perf_counter_ns()
 
         if resp.status_code != 200:
@@ -569,8 +566,8 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         if not body.conversation_id:
             conv = await Conversation.create(
                 id=conversation_id,
-                title=query[:50],
-                preview=query[:100],
+                title=query[:settings.TITLE_MAX_LENGTH],
+                preview=query[:settings.PREVIEW_MAX_LENGTH],
                 agencies=[],
                 status='success',
                 message_count=len(answer),
@@ -644,7 +641,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
         except Exception:
             pass
 
-    payload = {"query": query, "mcp_endpoint_url": MCP_ENDPOINT_URL, "session_id": conversation_id}
+    payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
     async def event_generator():
         """Connect to OneChat v4 SSE, parse events, re-emit to client, save on completion."""
@@ -655,8 +652,8 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
         log_latency_ms = 0
 
         try:
-            async with httpx.AsyncClient(timeout=300.0) as client:
-                async with client.stream("POST", ONECHAT_V4_URL, headers={"Content-Type": "application/json"}, json=payload) as resp:
+            async with httpx.AsyncClient(timeout=settings.V4_STREAM_TIMEOUT) as client:
+                async with client.stream("POST", settings.ONECHAT_V4_URL, headers={"Content-Type": "application/json"}, json=payload) as resp:
                     if resp.status_code != 200:
                         error_msg = f"OneChat v4 returned {resp.status_code}"
                         try:
@@ -811,7 +808,7 @@ async def _save_stream_conversation(
         latency_ms=latency_ms,
         detail=f"v4 stream query: {query[:100]}",
         request_body=json.dumps({"query": query, "session_id": conversation_id}),
-        response_body=json.dumps(answer_data, ensure_ascii=False)[:5000],
+        response_body=json.dumps(answer_data, ensure_ascii=False)[:settings.CONN_LOG_BODY_MAX],
     )
 
     background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
@@ -840,11 +837,11 @@ async def classify_message_category(message_id: str, query: str, answer: str):
 คำตอบ: {answer}
 """
 
-    url = "https://openrouter.ai/api/v1/chat/completions"
+    url = settings.OPENROUTER_API_URL
     header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
-    payload = {"model": "google/gemini-2.5-flash-lite", "messages": [{"role": "user", "content": content}]}
+    payload = {"model": settings.CLASSIFICATION_MODEL, "messages": [{"role": "user", "content": content}]}
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
         resp = await client.post(url, headers=header, json=payload)
 
     try:

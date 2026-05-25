@@ -18,7 +18,7 @@ router = APIRouter(tags=["executive"])
 async def get_executive_summary() -> ExecutiveData:
     
     async with in_transaction() as conn:
-        await conn.execute_query("SET TIME ZONE 'Asia/Bangkok';")
+        await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
 
         thisMonthQuestions = await Message.filter(role="user", created_at__month=now().month).count()
         lastMonthQuestions = await Message.filter(role="user", created_at__month=now().month-1).count()
@@ -105,15 +105,15 @@ async def get_weeklyBrief(content: str) -> str:
     async with weeklyBriefLock:
         global weeklyBriefResultCache, weeklyBriefResultTime
 
-        if weeklyBriefResultCache and weeklyBriefResultTime and now() - weeklyBriefResultTime < timedelta(minutes=60):
+        if weeklyBriefResultCache and weeklyBriefResultTime and now() - weeklyBriefResultTime < timedelta(minutes=settings.WEEKLY_BRIEF_CACHE_TTL_MINUTES):
             return weeklyBriefResultCache
 
         try:
-            url = "https://openrouter.ai/api/v1/chat/completions"
+            url = settings.OPENROUTER_API_URL
             header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
-            payload = {"model": "google/gemini-2.5-flash-lite", "messages": [{"role": "user", "content": content}]}
+            payload = {"model": settings.CLASSIFICATION_MODEL, "messages": [{"role": "user", "content": content}]}
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=settings.WEEKLY_BRIEF_TIMEOUT) as client:
                 resp = await client.post(url, headers=header, json=payload)
 
             weeklyBrief = resp.json()["choices"][0]["message"]["content"].strip()

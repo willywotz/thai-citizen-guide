@@ -299,20 +299,20 @@ async def _test_rest(agency: Agency) -> dict[str, Any]:
 
     steps: list[dict] = []
     total_start = time.monotonic()
-    headers = {"User-Agent": "AI-Chatbot-Portal/1.0 ConnectionTest"}
+    headers = {"User-Agent": f"{settings.USER_AGENT_PREFIX} ConnectionTest"}
 
     s1 = time.monotonic()
     response = None
     fetch_error: str | None = None
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=settings.CONNECTION_TEST_TIMEOUT) as client:
         try:
             response = await client.head(url, headers=headers)
         except Exception:
             try:
                 response = await client.get(url, headers=headers)
             except httpx.TimeoutException:
-                fetch_error = "Connection timeout (10s)"
+                fetch_error = f"Connection timeout ({settings.CONNECTION_TEST_TIMEOUT}s)"
             except Exception as exc:
                 fetch_error = str(exc)
 
@@ -360,7 +360,7 @@ async def _test_mcp(agency: Agency) -> dict[str, Any]:
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "AI-Chatbot-Portal/1.0 MCPProbe",
+        "User-Agent": f"{settings.USER_AGENT_PREFIX} MCPProbe",
     }
 
     if not agency.endpoint_url:
@@ -371,16 +371,16 @@ async def _test_mcp(agency: Agency) -> dict[str, Any]:
     # Step 1 — TCP / HTTP reachability
     s1 = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=settings.CONNECTION_TEST_TIMEOUT) as client:
             # Step 2 — MCP initialize handshake
             init_payload = {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "initialize",
                 "params": {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": settings.MCP_PROTOCOL_VERSION,
                     "capabilities": {},
-                    "clientInfo": {"name": "AI-Chatbot-Portal", "version": "1.0"},
+                    "clientInfo": {"name": settings.USER_AGENT_PREFIX.split("/")[0], "version": settings.MCP_CLIENT_VERSION},
                 },
             }
             s1_ms = int((time.monotonic() - s1) * 1000)
@@ -430,7 +430,7 @@ async def _test_mcp(agency: Agency) -> dict[str, Any]:
         if not steps:
             steps.append({"step": 1, "label": "TCP Connection", "status": "error", "time": total_ms})
         steps.append({"step": 2, "label": "MCP Handshake", "status": "error", "time": 0})
-        return {"success": False, "protocol": "MCP", "version": "-", "steps": steps, "latency": f"{total_ms}ms", "error": "Connection timeout (10s)"}
+        return {"success": False, "protocol": "MCP", "version": "-", "steps": steps, "latency": f"{total_ms}ms", "error": f"Connection timeout ({settings.CONNECTION_TEST_TIMEOUT}s)"}
     except Exception as exc:
         total_ms = int((time.monotonic() - total_start) * 1000)
         if not steps:
@@ -456,10 +456,10 @@ async def _test_a2a(agency: Agency) -> dict[str, Any]:
     if not agency.endpoint_url:
         return {"success": False, "protocol": "A2A", "version": "-", "steps": [], "latency": "0ms", "error": "Endpoint URL is required"}
 
-    rpc_headers  = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "AI-Chatbot-Portal/1.0 A2AProbe"}
+    rpc_headers  = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": f"{settings.USER_AGENT_PREFIX} A2AProbe"}
 
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=settings.CONNECTION_TEST_TIMEOUT, follow_redirects=True) as client:
             # ── Phase 1: TCP Connection ──────────────────────────────────────────
             s1 = time.monotonic()
             await client.get(agency.endpoint_url)
@@ -482,7 +482,7 @@ async def _test_a2a(agency: Agency) -> dict[str, Any]:
         if len(steps) < 4:
             steps.append({"step": len(steps) + 1, "label": "Timeout", "status": "error", "time": 0})
         return {"success": False, "protocol": "A2A", "version": "-", "steps": steps,
-                "latency": f"{total_ms}ms", "error": "Connection timeout (10s)"}
+                "latency": f"{total_ms}ms", "error": f"Connection timeout ({settings.CONNECTION_TEST_TIMEOUT}s)"}
     except Exception as exc:
         total_ms = int((time.monotonic() - total_start) * 1000)
         if not steps:
@@ -523,7 +523,7 @@ async def parse_api_spec(body: ParseSpecRequest):
             },
             {
                 "role": "user",
-                "content": f"Parse this API specification and extract the details including response field schemas:\n\n{body.spec_text[:30000]}",
+                "content": f"Parse this API specification and extract the details including response field schemas:\n\n{body.spec_text[:settings.SPEC_TEXT_MAX_CHARS]}",
             },
         ],
         "tools": [

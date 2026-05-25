@@ -20,6 +20,7 @@ from tortoise.functions import Count
 from tortoise.transactions import in_transaction
 from tortoise.expressions import RawSQL
 
+from app.config import settings
 from app.utils import now
 
 
@@ -32,7 +33,7 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงข้อมูลนี้ได้")
 
     async with in_transaction() as conn:
-        await conn.execute_query("SET TIME ZONE 'Asia/Bangkok';")
+        await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
 
         start = time.time()
 
@@ -54,10 +55,14 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         stats["todayQuestions"] = await Message.filter(role="user", created_at__range=(today_start, today_end)).count()
 
         avg_response_time = await Message.annotate(avg_time=RawSQL("AVG(response_time) / 1000")).values("avg_time")
-        stats["avgResponseTime"] = float(round(avg_response_time[0]["avg_time"], 2) if avg_response_time else 0)
+        avg_response_time = avg_response_time[0]["avg_time"] if avg_response_time else 0
+        avg_response_time = avg_response_time if avg_response_time is not None else 0
+        stats["avgResponseTime"] = float(round(avg_response_time, 2))
 
         rate = await Message.annotate(rate=RawSQL("avg(case when rating = 'up' then 1 else 0 end) * 100")).filter(rating__isnull=False).values("rate")
-        stats["satisfactionRate"] = float(round(rate[0]["rate"], 2) if rate else 0)
+        rate = rate[0]["rate"] if rate else 0
+        rate = rate if rate is not None else 0
+        stats["satisfactionRate"] = float(round(rate, 2))
             
 
         # agency_usage = [

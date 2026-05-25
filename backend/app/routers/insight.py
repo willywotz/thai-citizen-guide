@@ -6,6 +6,7 @@ from tortoise.expressions import RawSQL
 from tortoise.functions import Count
 from tortoise.transactions import in_transaction
 
+from app.config import settings
 from app.utils import now
 from app.schemas.insight import AnalyticsInsightsData, AgencyHealthData, BusiestInsight, HeatmapInsights, UsageHeatmapData, HeatmapRange, Agency as AgencyHealth
 from app.models import Agency, Conversation, Message, ConnectionLog
@@ -33,7 +34,7 @@ async def get_insight_analytics_insights() -> AnalyticsInsightsData:
 async def get_insight_agency_health() -> AgencyHealthData:
 
     async with in_transaction() as conn:
-        await conn.execute_query("SET TIME ZONE 'Asia/Bangkok';")
+        await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
 
         agencies = await Agency.all().values("id", "name", "short_name", "status")
 
@@ -44,7 +45,7 @@ async def get_insight_agency_health() -> AgencyHealthData:
 
             currentLatency = await ConnectionLog \
                 .annotate(avg_latency=RawSQL("AVG(latency_ms)")) \
-                .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(minutes=15)) \
+                .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES)) \
                 .group_by("agency_id") \
                 .values("avg_latency")
             currentLatency = currentLatency[0]["avg_latency"] if len(currentLatency) > 0 and currentLatency[0]["avg_latency"] is not None else 0
@@ -63,7 +64,7 @@ async def get_insight_agency_health() -> AgencyHealthData:
                 .values("error_count", "total_count")
             errorRate = (errorRate[0]["error_count"] / errorRate[0]["total_count"]) if len(errorRate) > 0 and errorRate[0]["total_count"] > 0 else 0
 
-            totalDayRequest = await ConnectionLog.filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=1)).count()
+            totalDayRequest = await ConnectionLog.filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)).count()
 
             agencies_health.append(AgencyHealth(
                 id=str(ag["id"]),
@@ -74,7 +75,7 @@ async def get_insight_agency_health() -> AgencyHealthData:
                 currentLatency=currentLatency // 1,
                 avgLatency=avgLatency // 1,
                 errorRate=round(errorRate, 2),
-                requestsPerMin=totalDayRequest // 1440,
+                requestsPerMin=totalDayRequest // (settings.AVG_LATENCY_WINDOW_DAYS * 1440),
                 lastCheckedAt=now()
             ))
 
@@ -84,7 +85,7 @@ async def get_insight_agency_health() -> AgencyHealthData:
                 latency=RawSQL("AVG(latency_ms)"),
                 uptime=RawSQL("AVG(CASE WHEN status >= 'success' THEN 1 ELSE 0 END) * 100")
             ) \
-            .filter(created_at__gte=now() - timedelta(days=1)) \
+            .filter(created_at__gte=now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)) \
             .group_by("date", "agency_id") \
             .values("date", "agency_id", "latency", "uptime")
         
@@ -114,7 +115,7 @@ async def get_insight_agency_health() -> AgencyHealthData:
 async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
 
     async with in_transaction() as conn:
-        await conn.execute_query("SET TIME ZONE 'Asia/Bangkok';")
+        await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
 
         target_date = {
             "7d": now() - timedelta(days=7),
@@ -175,7 +176,7 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
             data = entry["data"].values()
             dayHourMatrix[index]["data"] = data
 
-            business_hours_count += sum([int(x) for x in list(data)[8:18]])
+            business_hours_count += sum([int(x) for x in list(data)[settings.BUSINESS_HOURS_START:settings.BUSINESS_HOURS_END]])
 
         dayHourMatrix = list(dayHourMatrix.values())
 

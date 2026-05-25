@@ -1,9 +1,10 @@
 import asyncio
 
 from fastmcp import Client
+from app.config import settings
 
 async def main():
-    
+
     # mcp
     # async with Client("http://185.84.161.24/mcp") as client:
     #     print("mcp http transport")
@@ -18,7 +19,7 @@ async def main():
     #     print("list_tools: ", await client.list_tools())
     #     print("list_agency: ", await client.call_tool("list_agency"))
 
-    async with Client("http://localhost:8080/mcp/") as client:
+    async with Client(settings.MCP_CLIENT_URL) as client:
         print(await client.call_tool("list_agency"))
 
 if __name__ == "__main__":
