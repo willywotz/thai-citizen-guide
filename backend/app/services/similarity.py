@@ -2,9 +2,9 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from backend.app.config import settings
-from backend.app.models.conversation import Message, Conversation
-from backend.app.services.embedding import encode_embedding
+from app.config import settings
+from app.models.conversation import Message, Conversation
+from app.services.embedding import encode_embedding
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 import json
 import logging
-from backend.app.config import settings
+from app.config import settings
 
 import httpx
 
