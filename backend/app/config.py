@@ -25,6 +25,15 @@ class Settings(BaseSettings):
 
     OPENROUTER_API_KEY: str = ""
 
+    # Embedding service
+    EMBEDDING_API_URL: str = "https://api.openai.com/v1/embeddings"
+    EMBEDDING_API_KEY: str = ""
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_DIMENSIONS: int = 384
+    EMBEDDING_TIMEOUT: int = 5
+    SIMILARITY_THRESHOLD: float = 0.95
+    SIMILARITY_WINDOW_DAYS: int = 3
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
