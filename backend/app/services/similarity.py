@@ -20,7 +20,7 @@ async def find_similar_question(
     """Find a similar question from the last `window_days` days.
 
     Uses pgvector cosine similarity if embedding is provided,
-    falls back to pg_trgm text similarity if embedding is None.
+    falls back to Levenshtein distance if embedding is None.
 
     Returns (user_message, assistant_message) if a match is found above threshold,
     None otherwise.
@@ -30,7 +30,7 @@ async def find_similar_question(
     if embedding is not None:
         match = await _vector_search(query, embedding, threshold, cutoff)
     else:
-        match = await _trigram_search(query, threshold, cutoff)
+        match = await _levenshtein_search(query, threshold, cutoff)
 
     if match is None:
         return None
@@ -90,24 +90,30 @@ async def _vector_search(
     return await Message.get(id=row["id"])
 
 
-async def _trigram_search(
+async def _levenshtein_search(
     query: str,
     threshold: float,
     cutoff,
 ) -> Message | None:
-    """Search for similar questions using pg_trgm text similarity."""
+    """Search for similar questions using Levenshtein distance.
+
+    threshold=0.95 means max_distance = floor(len(query) * (1 - 0.95)).
+    E.g. a 50-char query allows max 2 edits.
+    """
+    max_distance = max(1, int(len(query) * (1 - threshold)))
+
     conn = Tortoise.get_connection("default")
     rows = await conn.execute_query_dict(
         """
-        SELECT id, content, conversation_id, similarity(content, $1) AS sim_score
+        SELECT id, content, conversation_id, levenshtein(content, $1) AS dist
         FROM messages
         WHERE role = 'user'
           AND created_at >= $2
-          AND similarity(content, $3) >= $4
-        ORDER BY similarity(content, $5) DESC
+          AND levenshtein(content, $3) <= $4
+        ORDER BY levenshtein(content, $5) ASC
         LIMIT 1
         """,
-        [query, cutoff, query, threshold, query],
+        [query, cutoff, query, max_distance, query],
     )
 
     if not rows:
