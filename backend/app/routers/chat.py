@@ -33,6 +33,8 @@ from app.models.connection_log import ConnectionLog
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
+from app.services.similarity import find_similar_question
+from app.services.embedding import generate_embedding, encode_embedding
 from app.utils import generate_uuid, now
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -380,8 +382,28 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     if not query:
         return {"success": False, "error": "Missing query"}
 
+    # Check for similar question in cache
+    embedding = await generate_embedding(query)
+    cached = await find_similar_question(query=query, embedding=embedding)
+    if cached:
+        user_msg, asst_msg = cached
+        return {
+            "success": True,
+            "data": {
+                "message_id": asst_msg.id,
+                "answer": asst_msg.content,
+                "references": asst_msg.sources if asst_msg.sources else [],
+                "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
+                "agencies": [],
+                "confidence": 0.95,
+                "cached": True,
+            },
+            "conversation_id": str(user_msg.conversation_id),
+            "responseTime": 0,
+        }
+
     conversation_id = body.conversation_id or str(generate_uuid())
-    
+
     app = build_graph()
     
     result = await app.ainvoke({"query": query, "conversation_id": conversation_id})
@@ -428,7 +450,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
         conv.message_count += len(answer)
         await conv.save()
 
-    await Message.create(
+    query_msg = await Message.create(
         conversation_id=conversation_id,
         role='user',
         content=query,
@@ -436,7 +458,10 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
         sources=[],
         category=category,
     )
-    
+
+    # Schedule embedding generation
+    asyncio.create_task(_store_embedding(str(query_msg.id), query))
+
     response_msg = await Message.create(
         conversation_id=conversation_id,
         role='assistant',
@@ -475,6 +500,27 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             span.set_status(StatusCode.ERROR, "Missing query")
             span.set_attributes({"error": "missing query"})
             raise HTTPException(status_code=400, detail="Missing query")
+
+        # Check for similar question in cache
+        embedding = await generate_embedding(query)
+        cached = await find_similar_question(query=query, embedding=embedding)
+        if cached:
+            user_msg, asst_msg = cached
+            span.set_attribute("cache_hit", True)
+            return {
+                "success": True,
+                "data": {
+                    "message_id": asst_msg.id,
+                    "answer": asst_msg.content,
+                    "references": asst_msg.sources if asst_msg.sources else [],
+                    "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
+                    "agencies": [],
+                    "confidence": 0.95,
+                    "cached": True,
+                },
+                "conversation_id": str(user_msg.conversation_id),
+                "responseTime": 0,
+            }
 
         payload = {"query": query, "mcp_endpoint_url": MCP_ENDPOINT_URL, "session_id": conversation_id}
 
@@ -552,6 +598,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         )
 
         background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
+        background_tasks.add_task(_store_embedding, str(query_msg.id), query)
 
         return {
             "success": True,
@@ -577,6 +624,16 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
 
     if not query:
         raise HTTPException(status_code=400, detail="Missing query")
+
+    # Check for similar question in cache
+    embedding = await generate_embedding(query)
+    cached = await find_similar_question(query=query, embedding=embedding)
+    if cached:
+        user_msg, asst_msg = cached
+        async def cached_stream():
+            yield _sse_event("answer", {"answer": asst_msg.content})
+            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0, "cached": True})
+        return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     if body.conversation_id:
         try:
@@ -755,6 +812,15 @@ async def _save_stream_conversation(
     )
 
     background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
+    background_tasks.add_task(_store_embedding, str(query_msg.id), query)
+
+
+async def _store_embedding(message_id: str, query: str):
+    """Generate embedding for a message and store it in the database."""
+    embedding = await generate_embedding(query)
+    if embedding is not None:
+        encoded = encode_embedding(embedding)
+        await Message.filter(id=message_id).update(embedding=encoded)
 
 
 async def classify_message_category(message_id: str, query: str, answer: str):
