@@ -79,7 +79,7 @@ async def _vector_search(
         ORDER BY (embedding::vector <=> %s::vector)
         LIMIT 1
         """,
-        [cutoff, embedding_json, threshold_distance, embedding_json],
+        cutoff, embedding_json, threshold_distance, embedding_json,
     )
 
     if not results:
@@ -106,7 +106,7 @@ async def _trigram_search(
         ORDER BY similarity(content, %s) DESC
         LIMIT 1
         """,
-        [query, cutoff, query, threshold, query],
+        query, cutoff, query, threshold, query,
     )
 
     if not results:
