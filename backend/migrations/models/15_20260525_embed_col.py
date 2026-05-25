@@ -1,4 +1,4 @@
-from aerich.models import BaseDBAsyncClient
+from tortoise import BaseDBAsyncClient
 
 
 async def upgrade(db: BaseDBAsyncClient) -> str:
