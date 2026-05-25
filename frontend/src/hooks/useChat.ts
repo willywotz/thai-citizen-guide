@@ -106,7 +106,7 @@ export function useChat() {
         content: state.answer,
         timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
         agentSteps: buildAgentStepsFromStreaming(state),
-        sources: state.sections.flatMap((s) =>
+        sources: state.sections?.flatMap((s) =>
           s.agencies.map((a) => ({ agency: a.name, url: '', title: s.title }))
         ),
         rating: null,

@@ -23,7 +23,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Request
-from starlette.responses import StreamingResponse
+from fastapi.responses import StreamingResponse
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
@@ -633,8 +633,9 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
     if cached:
         user_msg, asst_msg = cached
         async def cached_stream():
-            yield _sse_event("answer", {"answer": asst_msg.content, "cached": True})
-            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0, "cached": True})
+            await asyncio.sleep(0.01)
+            yield _sse_event("answer", {"answer": asst_msg.content})
+            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
         return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     if body.conversation_id:
