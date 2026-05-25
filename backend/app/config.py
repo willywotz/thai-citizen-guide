@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     EMBEDDING_TIMEOUT: int = 5
     SIMILARITY_THRESHOLD: float = 0.95
     SIMILARITY_WINDOW_DAYS: int = 3
+    SIMILARITY_FALLBACK: str = "both"  # "levenshtein", "trigram", or "both"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

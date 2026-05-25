@@ -7,6 +7,7 @@ async def upgrade(db: BaseDBAsyncClient) -> str:
     return """
         CREATE EXTENSION IF NOT EXISTS vector;
         CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+        CREATE EXTENSION IF NOT EXISTS pg_trgm;
         ALTER TABLE "messages" ADD "embedding" VARCHAR(50000);
         CREATE INDEX IF NOT EXISTS idx_messages_role_created ON "messages" (role, created_at) WHERE role = 'user';"""
 
