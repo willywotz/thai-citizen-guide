@@ -631,7 +631,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
     if cached:
         user_msg, asst_msg = cached
         async def cached_stream():
-            yield _sse_event("answer", {"answer": asst_msg.content})
+            yield _sse_event("cached", {"answer": asst_msg.content})
             yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0, "cached": True})
         return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
