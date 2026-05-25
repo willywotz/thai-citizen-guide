@@ -7,6 +7,7 @@ from tortoise import Tortoise
 from app.config import settings
 from app.models.conversation import Message, Conversation
 from app.services.embedding import encode_embedding
+from app.utils import now
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ async def find_similar_question(
     None otherwise.
     """
     threshold = settings.SIMILARITY_THRESHOLD
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS)
+    cutoff = now() - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS)
 
     if embedding is not None:
         match = await _vector_search(query, embedding, threshold, cutoff)
