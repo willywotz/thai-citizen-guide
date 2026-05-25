@@ -2,6 +2,8 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
+from tortoise import Tortoise
+
 from app.config import settings
 from app.models.conversation import Message, Conversation
 from app.services.embedding import encode_embedding
@@ -66,27 +68,25 @@ async def _vector_search(
     threshold_distance = 1 - threshold  # cosine distance = 1 - cosine similarity
     embedding_json = encode_embedding(embedding)
 
-    # Use raw SQL with pgvector for cosine distance search
-    # Tortoise ORM doesn't natively support vector operators, so we use raw SQL
-    results = await Message.raw(
+    conn = Tortoise.get_connection("default")
+    rows = await conn.execute_query_dict(
         """
         SELECT id, content, conversation_id, embedding
         FROM messages
         WHERE role = 'user'
-          AND created_at >= %s
+          AND created_at >= $1
           AND embedding IS NOT NULL
-          AND (embedding::vector <=> %s::vector) < %s
-        ORDER BY (embedding::vector <=> %s::vector)
+          AND (embedding::vector <=> $2::vector) < $3
+        ORDER BY (embedding::vector <=> $4::vector)
         LIMIT 1
         """,
-        cutoff, embedding_json, threshold_distance, embedding_json,
+        [cutoff, embedding_json, threshold_distance, embedding_json],
     )
 
-    if not results:
+    if not rows:
         return None
 
-    row = results[0]
-    # Fetch the full ORM object
+    row = rows[0]
     return await Message.get(id=row["id"])
 
 
@@ -96,21 +96,22 @@ async def _trigram_search(
     cutoff,
 ) -> Message | None:
     """Search for similar questions using pg_trgm text similarity."""
-    results = await Message.raw(
+    conn = Tortoise.get_connection("default")
+    rows = await conn.execute_query_dict(
         """
-        SELECT id, content, conversation_id, similarity(content, %s) AS sim_score
+        SELECT id, content, conversation_id, similarity(content, $1) AS sim_score
         FROM messages
         WHERE role = 'user'
-          AND created_at >= %s
-          AND similarity(content, %s) >= %s
-        ORDER BY similarity(content, %s) DESC
+          AND created_at >= $2
+          AND similarity(content, $3) >= $4
+        ORDER BY similarity(content, $5) DESC
         LIMIT 1
         """,
-        query, cutoff, query, threshold, query,
+        [query, cutoff, query, threshold, query],
     )
 
-    if not results:
+    if not rows:
         return None
 
-    row = results[0]
+    row = rows[0]
     return await Message.get(id=row["id"])
