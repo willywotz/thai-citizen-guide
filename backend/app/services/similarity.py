@@ -14,10 +14,8 @@ logger = logging.getLogger(__name__)
 async def find_similar_question(
     query: str,
     embedding: list[float] | None = None,
-    threshold: float = 0.95,
-    window_days: int = 3,
 ) -> tuple[Message, Message] | None:
-    """Find a similar question from the last `window_days` days.
+    """Find a similar question within SIMILARITY_WINDOW_SECONDS.
 
     Uses pgvector cosine similarity if embedding is provided.
     Falls back to text similarity (levenshtein and/or trigram) if embedding is None.
@@ -26,7 +24,8 @@ async def find_similar_question(
     Returns (user_message, assistant_message) if a match is found above threshold,
     None otherwise.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+    threshold = settings.SIMILARITY_THRESHOLD
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS)
 
     if embedding is not None:
         match = await _vector_search(query, embedding, threshold, cutoff)
