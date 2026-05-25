@@ -67,8 +67,8 @@ async def _text_fallback_search(
     """Try text similarity methods based on SIMILARITY_FALLBACK config."""
     fallback = settings.SIMILARITY_FALLBACK
 
-    if fallback in ("trigram", "both"):
-        match = await _trigram_search(query, threshold, cutoff)
+    if fallback in ("similarity", "both"):
+        match = await _similarity_search(query, threshold, cutoff)
         if match is not None:
             return match
 
@@ -111,6 +111,31 @@ async def _vector_search(
     row = rows[0]
     return await Message.get(id=row["id"])
 
+async def _similarity_search(
+    query: str,
+    threshold: float,
+    cutoff,
+) -> Message | None:
+    """Search for similar questions using pg_trgm text similarity."""
+    conn = Tortoise.get_connection("default")
+    rows = await conn.execute_query_dict(
+        """
+        SELECT id, content, conversation_id, similarity(content, $1) AS sim_score
+        FROM messages
+        WHERE role = 'user'
+          AND created_at >= $2
+          AND similarity(content, $3) >= $4
+        ORDER BY similarity(content, $5) DESC
+        LIMIT 1
+        """,
+        [query, cutoff, query, threshold, query],
+    )
+
+    if not rows:
+        return None
+
+    row = rows[0]
+    return await Message.get(id=row["id"])
 
 async def _levenshtein_search(
     query: str,
@@ -136,33 +161,6 @@ async def _levenshtein_search(
         LIMIT 1
         """,
         [query, cutoff, query, max_distance, query],
-    )
-
-    if not rows:
-        return None
-
-    row = rows[0]
-    return await Message.get(id=row["id"])
-
-
-async def _trigram_search(
-    query: str,
-    threshold: float,
-    cutoff,
-) -> Message | None:
-    """Search for similar questions using pg_trgm text similarity."""
-    conn = Tortoise.get_connection("default")
-    rows = await conn.execute_query_dict(
-        """
-        SELECT id, content, conversation_id, similarity(content, $1) AS sim_score
-        FROM messages
-        WHERE role = 'user'
-          AND created_at >= $2
-          AND similarity(content, $3) >= $4
-        ORDER BY similarity(content, $5) DESC
-        LIMIT 1
-        """,
-        [query, cutoff, query, threshold, query],
     )
 
     if not rows:
