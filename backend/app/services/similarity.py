@@ -67,13 +67,13 @@ async def _text_fallback_search(
     """Try text similarity methods based on SIMILARITY_FALLBACK config."""
     fallback = settings.SIMILARITY_FALLBACK
 
-    if fallback in ("levenshtein", "both"):
-        match = await _levenshtein_search(query, threshold, cutoff)
+    if fallback in ("trigram", "both"):
+        match = await _trigram_search(query, threshold, cutoff)
         if match is not None:
             return match
 
-    if fallback in ("trigram", "both"):
-        match = await _trigram_search(query, threshold, cutoff)
+    if fallback in ("levenshtein", "both"):
+        match = await _levenshtein_search(query, threshold, cutoff)
         if match is not None:
             return match
 
