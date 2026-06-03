@@ -33,6 +33,9 @@ jobs:
     runs-on: self-hosted
     needs: check-deploy
     if: ${{ needs.check-deploy.outputs.deploy == 'true' }}
+    defaults:
+      run:
+        working-directory: /home/xver/thai-citizen-guide
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
