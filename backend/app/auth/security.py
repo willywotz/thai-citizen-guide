@@ -50,8 +50,8 @@ def decode_access_token(token: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def generate_reset_token() -> str:
-    return secrets.token_urlsafe(32)
+    return secrets.token_urlsafe(settings.RESET_TOKEN_BYTES)
 
 
 def reset_token_expiry() -> datetime:
-    return datetime.now(timezone.utc) + timedelta(hours=1)
+    return datetime.now(timezone.utc) + timedelta(hours=settings.RESET_TOKEN_EXPIRE_HOURS)

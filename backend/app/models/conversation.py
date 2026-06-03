@@ -58,6 +58,7 @@ class Message(Model):
     category = fields.CharField(max_length=50, null=True) # สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
     agency_ids = fields.JSONField(default=list, null=True)     # list of agency ids involved in this message
     errors = fields.JSONField(default=list, null=True)       # list of error messages if any
+    embedding = fields.CharField(max_length=50000, null=True)  # JSON-encoded vector, nullable until populated
 
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

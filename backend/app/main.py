@@ -184,7 +184,7 @@ FastAPIInstrumentor.instrument_app(app, excluded_urls="^/health$")
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 scheduler = AsyncIOScheduler()
-sem = asyncio.Semaphore(5)
+sem = asyncio.Semaphore(settings.AGENCY_CHAT_CONCURRENCY)
 
 async def agency_chat_item(agency: Agency):
     async with sem:
@@ -192,7 +192,7 @@ async def agency_chat_item(agency: Agency):
             scope = agency.data_scope or ["ทั่วไป"]
             scope = scope[random.randint(0, len(scope)-1)] if len(scope) > 0 else "ทั่วไป"
 
-            async with httpx.AsyncClient(timeout=180) as client:
+            async with httpx.AsyncClient(timeout=settings.AGENCY_CHAT_TIMEOUT) as client:
                 headers = {"content-type": "application/json"}
                 for v in (agency.api_headers or []):
                     headers[v["name"].lower()] = v["value"]
@@ -226,7 +226,7 @@ async def agency_chat_test():
 
 async def start_scheduler():
     asyncio.create_task(agency_chat_test())
-    scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=15))
+    scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES))
     scheduler.start()
 
 async def stop_scheduler():

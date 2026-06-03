@@ -3,8 +3,9 @@ import uuid
 from .uuid7 import generate_uuid7
 from tortoise.timezone import now as tortoise_now
 import pytz
+from app.config import settings
 
-tz = pytz.timezone('Asia/Bangkok')
+tz = pytz.timezone(settings.TIMEZONE)
 
 def generate_uuid() -> uuid.UUID:
     return generate_uuid7()

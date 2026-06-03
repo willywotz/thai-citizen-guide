@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OneChat v4 Streaming API (SSE)</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --green: #3fb950; --orange: #d29922; --red: #f85149; --purple: #bc8cff; --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; padding: 0 1rem; }
+  .container { max-width: 880px; margin: 0 auto; padding: 2.5rem 0 4rem; }
+
+  h1 { font-size: 1.9rem; margin-bottom: .4rem; }
+  h1 small { display: block; font-size: .85rem; color: var(--muted); font-weight: 400; margin-top: .3rem; }
+  h2 { font-size: 1.35rem; margin: 2.8rem 0 1rem; padding-bottom: .35rem; border-bottom: 1px solid var(--border); color: var(--accent); }
+  h3 { font-size: 1.1rem; margin: 1.8rem 0 .6rem; color: var(--purple); }
+  p { margin: .5rem 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: .88rem; }
+  th, td { padding: .45rem .7rem; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; white-space: nowrap; }
+  td { background: rgba(22,27,34,.5); }
+  td code { font-size: .82rem; }
+
+  code { font-family: var(--mono); background: var(--surface); padding: .15em .4em; border-radius: 4px; font-size: .88em; }
+  pre { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto; margin: 1rem 0 1.5rem; }
+  pre code { background: none; padding: 0; font-size: .84rem; line-height: 1.55; }
+
+  .callout { background: var(--surface); border-left: 3px solid var(--orange); padding: .8rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0 1.5rem; }
+  .callout.warn { border-left-color: var(--red); }
+  .callout.tip { border-left-color: var(--green); }
+  .callout p { margin: .25rem 0; }
+  .callout-title { font-weight: 700; margin-bottom: .3rem; }
+
+  .badge { display: inline-block; font-size: .72rem; font-weight: 600; padding: .1em .45em; border-radius: 3px; vertical-align: middle; margin-left: .3em; }
+  .badge-req { background: var(--red); color: #fff; }
+  .badge-opt { background: var(--border); color: var(--muted); }
+
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; margin: 1.5rem 0 2rem; }
+  .toc ol { padding-left: 1.4rem; }
+  .toc li { margin: .25rem 0; }
+
+  .flow { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+  .flow-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: .5rem .8rem; font-family: var(--mono); font-size: .82rem; white-space: nowrap; }
+  .flow-item.running { border-color: var(--orange); color: var(--orange); }
+  .flow-item.done { border-color: var(--green); color: var(--green); }
+  .flow-arrow { display: flex; align-items: center; color: var(--muted); font-size: .9rem; }
+
+  .event-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin: 1.2rem 0; overflow: hidden; }
+  .event-card-header { display: flex; align-items: center; gap: .5rem; padding: .7rem 1rem; border-bottom: 1px solid var(--border); }
+  .event-card-header code { font-size: 1rem; font-weight: 700; color: var(--accent); }
+  .event-card-body { padding: 1rem; }
+  .event-card-body p { margin: .3rem 0; }
+
+  .lifecycle { display: flex; align-items: center; gap: .5rem; margin: .8rem 0; font-family: var(--mono); font-size: .85rem; flex-wrap: wrap; }
+  .lifecycle .arrow { color: var(--muted); }
+
+  @media (max-width: 640px) {
+    .container { padding: 1.5rem .5rem 3rem; }
+    table { font-size: .8rem; }
+    th, td { padding: .35rem .4rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>OneChat v4 Streaming API (SSE) <small>เอกสารสำหรับทีม Frontend — วิธีเชื่อมต่อและใช้งาน <code>POST /v4/chat</code></small></h1>
+
+<div class="toc">
+<strong>สารบัญ</strong>
+<ol>
+  <li><a href="#overview">ภาพรวม</a></li>
+  <li><a href="#endpoint">Endpoint</a></li>
+  <li><a href="#request">Request body</a></li>
+  <li><a href="#sse-format">รูปแบบ SSE</a></li>
+  <li><a href="#event-flow">ลำดับเหตุการณ์ (event flow)</a></li>
+  <li><a href="#events">Event reference</a></li>
+  <li><a href="#state">จัดการ state ฝั่ง Frontend</a></li>
+  <li><a href="#errors">การจัดการข้อผิดพลาด</a></li>
+  <li><a href="#perf">หมายเหตุด้านประสิทธิภาพ</a></li>
+  <li><a href="#summary">สรุป event ทั้งหมด</a></li>
+</ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="overview">1. ภาพรวม</h2>
+
+<p><code>/v4/chat</code> ให้คำตอบเหมือน <code>/v3/chat</code> ทุกประการ แต่เปลี่ยนรูปแบบการรับส่ง:</p>
+
+<table>
+  <tr><th></th><th>v3</th><th>v4</th></tr>
+  <tr><td>รูปแบบ</td><td>ขอครั้งเดียว รอจนเสร็จ ได้ JSON ก้อนเดียว</td><td>เปิด connection ค้างไว้ ส่ง event ทีละขั้นแบบ real-time</td></tr>
+  <tr><td>Content-Type</td><td><code>application/json</code></td><td><code>text/event-stream</code> (SSE)</td></tr>
+  <tr><td>ผลลัพธ์สุดท้าย</td><td><code>ChatV3Response</code></td><td>event ชื่อ <code>answer</code> (ข้อมูลชุดเดียวกับ <code>ChatV3Data</code>)</td></tr>
+  <tr><td>ประโยชน์</td><td>—</td><td>แสดงความคืบหน้าให้ผู้ใช้เห็นระหว่างรอ (discover → classify → invoke → …)</td></tr>
+</table>
+
+<div class="callout tip">
+  <p class="callout-title">ทำไมต้องมี v4</p>
+  <p>pipeline ใช้เวลานานได้ถึง ~60–90 วินาที (หน่วยงานปลายทางเป็น LLM agent ที่ตอบช้า) ถ้ารอแบบ v3 หน้าเว็บจะค้างเงียบ ๆ ทั้งช่วงนั้น v4 ส่งสัญญาณบอกทุกขั้นตอนเพื่อให้แสดง progress ได้</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="endpoint">2. Endpoint</h2>
+
+<pre><code>POST /v4/chat
+Content-Type: application/json
+Accept: text/event-stream</code></pre>
+
+<p>Response headers:</p>
+
+<pre><code>Content-Type: text/event-stream
+Cache-Control: no-cache
+X-Accel-Buffering: no</code></pre>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="request">3. Request body</h2>
+
+<p>โครงสร้างเดียวกับ v1/v2/v3:</p>
+
+<pre><code>{
+  "query": "อยากเปิดร้านอาหารและขายเหล้า ต้องขออนุญาตอะไรบ้าง",
+  "session_id": "abc-123",
+  "mcp_endpoint_url": "http://185.84.161.145/mcp"
+}</code></pre>
+
+<table>
+  <tr><th>ฟิลด์</th><th>ชนิด</th><th>จำเป็น</th><th>คำอธิบาย</th></tr>
+  <tr><td><code>query</code></td><td>string</td><td><span class="badge badge-req">ใช่</span></td><td>คำถามจากผู้ใช้ ห้ามว่าง (ช่องว่างซ้ำจะถูกตัดอัตโนมัติ)</td></tr>
+  <tr><td><code>session_id</code></td><td>string</td><td><span class="badge badge-opt">ไม่</span></td><td>ใช้ผูกประวัติการสนทนา ถ้าไม่ส่ง server จะสร้าง UUID ใหม่ให้ (ดูได้จาก event <code>done</code>)</td></tr>
+  <tr><td><code>mcp_endpoint_url</code></td><td>string (URL)</td><td><span class="badge badge-req">ใช่</span></td><td>MCP catalog endpoint สำหรับ discover หน่วยงาน ต้องเป็น public URL (ถูกบล็อก IP วงใน)</td></tr>
+</table>
+
+<div class="callout warn">
+  <p>ส่งฟิลด์เกินมาจะได้ <code>400</code> (<code>extra = "forbid"</code>)</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="sse-format">4. รูปแบบ SSE</h2>
+
+<p>ทุก event ส่งมาเป็นบล็อกข้อความ ปิดท้ายด้วยบรรทัดว่าง:</p>
+
+<pre><code>event: &lt;ชื่อ event&gt;
+data: &lt;JSON หนึ่งบรรทัด&gt;
+
+</code></pre>
+
+<p>ตัวอย่าง raw จริงจาก wire:</p>
+
+<pre><code>event: step
+data: {"name": "discover", "status": "running", "ms": null}
+
+event: agencies
+data: {"agencies": [...], "count": 3}
+
+</code></pre>
+
+<p>ข้อควรรู้:</p>
+<ul style="margin:.5rem 0 1rem; padding-left:1.4rem;">
+  <li><code>data:</code> เป็น JSON บรรทัดเดียวเสมอ (ไม่มี newline ภายใน) — parse ด้วย <code>JSON.parse()</code> ได้ตรง ๆ</li>
+  <li>ข้อความภาษาไทยส่งเป็น UTF-8 ไม่ได้ escape (<code>ensure_ascii=false</code>)</li>
+  <li>event แต่ละตัวคั่นด้วย <code>\n\n</code></li>
+</ul>
+
+<div class="callout warn">
+  <p class="callout-title">ห้ามใช้ <code>EventSource</code> ของ browser</p>
+  <p><code>EventSource</code> รองรับเฉพาะ <code>GET</code> แต่ v4 เป็น <code>POST</code> ที่มี body จึงต้องใช้ <code>fetch()</code> แล้วอ่าน <code>ReadableStream</code> ของ response body เอง โดยแยก event ที่คั่นด้วย <code>\n\n</code> และ parse บรรทัด <code>data:</code> เป็น JSON</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="event-flow">5. ลำดับเหตุการณ์ (event flow)</h2>
+
+<h3>กรณี <code>intent = search</code> (คำถามทั่วไป — เส้นทางหลัก)</h3>
+
+<div class="flow">
+  <span class="flow-item">discover</span><span class="flow-arrow">→</span>
+  <span class="flow-item">classify</span><span class="flow-arrow">→</span>
+  <span class="flow-item">invoke</span><span class="flow-arrow">→</span>
+  <span class="flow-item">verify</span><span class="flow-arrow">→</span>
+  <span class="flow-item">synthesize</span><span class="flow-arrow">→</span>
+  <span class="flow-item">answer</span>
+</div>
+
+<pre><code>step      {name: "discover",   status: "running"}      ← เปิด connection ปุ๊บ ส่งทันที
+step      {name: "discover",   status: "done"}
+agencies  {agencies: [...], count: N}
+step      {name: "classify",   status: "running"}
+step      {name: "classify",   status: "done"}
+intent    {intent: "search", ...}
+routing   {sub_questions: [...]}
+step      {name: "invoke",     status: "running"}
+agency_start      {agency_id: "A", ...}                  ← ส่งทีเดียวทุกหน่วยงาน
+agency_start      {agency_id: "B", ...}
+agency_responded  {agency_id: "B", status: "ok"}         ← ทยอยมา
+agency_responded  {agency_id: "A", status: "error"}
+step      {name: "invoke",     status: "done"}
+step      {name: "verify",     status: "running"}
+agency_verified   {agency_id: "B", status: "passed", relevance_score: 1.0}
+step      {name: "verify",     status: "done"}
+step      {name: "synthesize", status: "running"}
+step      {name: "synthesize", status: "done"}
+answer    {answer: "...", sections: [...], errors: [...], debug: {...}}
+done      {session_id: "...", total_ms: 66351}</code></pre>
+
+<h3>กรณี <code>intent = chitchat</code> หรือ <code>capability</code> (ทักทาย / ถามความสามารถ)</h3>
+
+<p>ข้ามขั้น invoke/verify ทั้งหมด:</p>
+
+<pre><code>step      {name: "discover",   status: "running"}
+step      {name: "discover",   status: "done"}
+agencies  {agencies: [...], count: N}
+step      {name: "classify",   status: "running"}
+step      {name: "classify",   status: "done"}
+intent    {intent: "chitchat", ...}
+step      {name: "synthesize", status: "running"}
+step      {name: "synthesize", status: "done"}
+answer    {answer: "สวัสดีครับ ...", sections: [], errors: [], debug: {...}}
+done      {session_id: "...", total_ms: 4200}</code></pre>
+
+<div class="callout">
+  <p><strong>หลักการสำคัญ:</strong></p>
+  <ul style="margin:.3rem 0; padding-left:1.4rem;">
+    <li>ทุก step มาเป็นคู่ <code>running</code> แล้วตามด้วย <code>done</code> เสมอ — ใช้จับว่าตอนนี้อยู่ขั้นไหน</li>
+    <li><code>done</code> คือ event ปิดท้ายเสมอ หลังจากนั้น server จะปิด connection</li>
+    <li>ถ้า connection ปิดโดยไม่มี <code>done</code> ถือว่าเกิดข้อผิดพลาด (ดู<a href="#errors">ข้อ 8</a>)</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="events">6. Event reference</h2>
+
+<!-- ─── step ─── -->
+<div class="event-card" id="ev-step">
+  <div class="event-card-header">
+    <code>step</code>
+    <span style="color:var(--muted); font-size:.82rem;">สถานะของแต่ละขั้นใน pipeline</span>
+  </div>
+  <div class="event-card-body">
+    <pre><code>{ "name": "classify", "status": "running", "ms": null }
+{ "name": "classify", "status": "done",    "ms": 5580.5 }</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>name</code></td><td>enum</td><td><code>discover</code> / <code>classify</code> / <code>invoke</code> / <code>verify</code> / <code>synthesize</code></td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>running</code> (เริ่มขั้นนี้) / <code>done</code> (จบขั้นนี้)</td></tr>
+      <tr><td><code>ms</code></td><td>number | null</td><td>เวลาที่ใช้ของขั้นนี้ (มิลลิวินาที) — มีค่าเฉพาะตอน <code>done</code>, ตอน <code>running</code> เป็น <code>null</code></td></tr>
+    </table>
+
+    <p>ความหมายแต่ละขั้น:</p>
+    <table>
+      <tr><th>name</th><th>ทำอะไร</th><th>เวลาโดยทั่วไป</th></tr>
+      <tr><td><code>discover</code></td><td>ดึงรายชื่อหน่วยงานจาก MCP catalog</td><td>~0.5 วินาที (ถ้า endpoint ล่ม จะรอนานถึง ~30 วินาที)</td></tr>
+      <tr><td><code>classify</code></td><td>LLM วิเคราะห์คำถาม จัดประเภท intent + แตกคำถามย่อย</td><td>~5–12 วินาที</td></tr>
+      <tr><td><code>invoke</code></td><td>ยิงคำถามไปทุกหน่วยงานพร้อมกัน</td><td>สูงสุด ~60 วินาที (ตาม timeout ของหน่วยงานช้าสุด)</td></tr>
+      <tr><td><code>verify</code></td><td>LLM ให้คะแนนความเกี่ยวข้องของแต่ละคำตอบ</td><td>~1–3 วินาที</td></tr>
+      <tr><td><code>synthesize</code></td><td>เรียบเรียงคำตอบสุดท้ายเป็น Markdown</td><td>แปรผัน</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ─── agencies ─── -->
+<div class="event-card" id="ev-agencies">
+  <div class="event-card-header">
+    <code>agencies</code>
+    <span style="color:var(--muted); font-size:.82rem;">รายชื่อหน่วยงานที่ค้นพบ</span>
+  </div>
+  <div class="event-card-body">
+    <pre><code>{
+  "agencies": [
+    {
+      "id": "019d5cf7-9dc4-70e0-b4a5-3f549d0cf7b9",
+      "name": "กรมการปกครอง",
+      "description": "ระบบตรวจสอบข้อมูลทะเบียนราษฎร์ บัตรประชาชน และงานปกครอง",
+      "data_scope": ["อาวุธปืน", "โรงแรม", "สถานบริการ"]
+    }
+  ],
+  "count": 3
+}</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>agencies[].id</code></td><td>string</td><td>รหัสหน่วยงาน — ใช้เป็น key อ้างอิงใน event อื่น ๆ</td></tr>
+      <tr><td><code>agencies[].name</code></td><td>string</td><td>ชื่อหน่วยงาน</td></tr>
+      <tr><td><code>agencies[].description</code></td><td>string | null</td><td>คำอธิบาย</td></tr>
+      <tr><td><code>agencies[].data_scope</code></td><td>string[]</td><td>ขอบเขตข้อมูลที่หน่วยงานนี้ดูแล</td></tr>
+      <tr><td><code>count</code></td><td>number</td><td>จำนวนหน่วยงานที่ค้นพบ (อาจเป็น <code>0</code> ถ้า MCP ล่ม)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ─── intent ─── -->
+<div class="event-card" id="ev-intent">
+  <div class="event-card-header">
+    <code>intent</code>
+    <span style="color:var(--muted); font-size:.82rem;">ผลการจัดประเภทคำถาม</span>
+  </div>
+  <div class="event-card-body">
+    <pre><code>{
+  "intent": "search",
+  "normalized_query": "อยากเปิดร้านอาหารและขายเหล้า ต้องขออนุญาตอะไรบ้าง",
+  "reasoning": "User wants to know permits for opening a restaurant..."
+}</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>intent</code></td><td>enum</td><td><code>search</code> (ค้นหาคำตอบ) / <code>chitchat</code> (ทักทาย) / <code>capability</code> (ถามว่าระบบทำอะไรได้)</td></tr>
+      <tr><td><code>normalized_query</code></td><td>string | null</td><td>คำถามที่ถูกปรับให้สมบูรณ์ (เช่นเติมบริบทจากประวัติ)</td></tr>
+      <tr><td><code>reasoning</code></td><td>string | null</td><td>เหตุผลของการจัดประเภท (ภาษาอังกฤษ — ใช้ debug)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ─── routing ─── -->
+<div class="event-card" id="ev-routing">
+  <div class="event-card-header">
+    <code>routing</code>
+    <span style="color:var(--muted); font-size:.82rem;">การแตกคำถามย่อยและจับคู่หน่วยงาน</span>
+    <span class="badge badge-opt" style="margin-left:auto;">เฉพาะ <code>intent = search</code></span>
+  </div>
+  <div class="event-card-body">
+    <pre><code>{
+  "sub_questions": [
+    {
+      "section_label": "ขออนุญาตเปิดร้านอาหารและขายเหล้า",
+      "broadcast": false,
+      "agencies": [
+        {
+          "id": "019d5cf7-9dc4-70e0-b4a5-3f549d0cf7b9",
+          "name": "กรมการปกครอง",
+          "query": "ต้องขออนุญาตอะไรบ้างในการเปิดร้านอาหารที่ขายเหล้า"
+        }
+      ]
+    }
+  ]
+}</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>sub_questions[].section_label</code></td><td>string</td><td>ชื่อกลุ่ม/หัวข้อย่อย (ตรงกับ <code>section_label</code> ใน event <code>agency_*</code> และ <code>title</code> ใน <code>answer.sections</code>)</td></tr>
+      <tr><td><code>sub_questions[].broadcast</code></td><td>boolean</td><td><code>true</code> = ถามทุกหน่วยงาน (LLM ไม่มั่นใจ), <code>false</code> = เจาะจงหน่วยงาน</td></tr>
+      <tr><td><code>sub_questions[].agencies[]</code></td><td>array</td><td>หน่วยงานที่จะถูกถามในหัวข้อนี้ พร้อมคำถามที่ปรับเฉพาะหน่วยงาน</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ─── agency_start ─── -->
+<div class="event-card" id="ev-agency-start">
+  <div class="event-card-header">
+    <code>agency_start</code>
+    <span style="color:var(--muted); font-size:.82rem;">เริ่มยิงคำถามไปหน่วยงานหนึ่ง</span>
+  </div>
+  <div class="event-card-body">
+    <p>ส่งทีเดียวพร้อมกันทุกหน่วยงานทันทีที่ขั้น <code>invoke</code> เริ่ม — ใช้สร้าง placeholder/spinner รอไว้ล่วงหน้า</p>
+    <pre><code>{
+  "agency_id": "019d5cf7-9dc4-70e0-b4a5-3f549d0cf7b9",
+  "agency_name": "กรมการปกครอง",
+  "query": "ต้องขออนุญาตอะไรบ้างในการเปิดร้านอาหารที่ขายเหล้า",
+  "section_label": "ขออนุญาตเปิดร้านอาหารและขายเหล้า"
+}</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>agency_id</code></td><td>string</td><td>รหัสหน่วยงาน</td></tr>
+      <tr><td><code>agency_name</code></td><td>string | null</td><td>ชื่อหน่วยงาน</td></tr>
+      <tr><td><code>query</code></td><td>string</td><td>คำถามที่ส่งไปหน่วยงานนี้จริง</td></tr>
+      <tr><td><code>section_label</code></td><td>string | null</td><td>หัวข้อย่อยที่หน่วยงานนี้สังกัด</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ─── agency_responded ─── -->
+<div class="event-card" id="ev-agency-responded">
+  <div class="event-card-header">
+    <code>agency_responded</code>
+    <span style="color:var(--muted); font-size:.82rem;">หน่วยงานหนึ่งตอบกลับ (จากขั้น invoke)</span>
+  </div>
+  <div class="event-card-body">
+    <p>ส่ง 1 ครั้งต่อหน่วยงาน ทันทีที่หน่วยงานนั้นตอบกลับหรือล้มเหลว — ทยอยมาตามที่แต่ละหน่วยงานเสร็จ ไม่ตามลำดับ และไม่รอตัวอื่น</p>
+    <pre><code>{
+  "agency_id": "019d5cf7-9dcf-7aa5-bc3e-21ba67822923",
+  "agency_name": "กรมที่ดิน",
+  "status": "ok",
+  "section_label": "โอนที่ดิน",
+  "error_type": null
+}</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>agency_id</code></td><td>string</td><td>รหัสหน่วยงาน</td></tr>
+      <tr><td><code>agency_name</code></td><td>string | null</td><td>ชื่อหน่วยงาน</td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>ok</code> = หน่วยงานตอบกลับสำเร็จ / <code>error</code> = ล้มเหลว</td></tr>
+      <tr><td><code>section_label</code></td><td>string | null</td><td>หัวข้อย่อยที่สังกัด</td></tr>
+      <tr><td><code>error_type</code></td><td>string | null</td><td>ชนิดข้อผิดพลาด เช่น <code>TimeoutError</code>, <code>CircuitOpenError</code> (มีค่าเมื่อ <code>status = error</code>)</td></tr>
+    </table>
+
+    <div class="callout">
+      <p>หน่วยงานที่ <code>status = error</code> จะ<strong>ไม่มี</strong> event <code>agency_verified</code> ตามมา (ขั้น verify ข้ามตัวที่ล้มเหลว)</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── agency_verified ─── -->
+<div class="event-card" id="ev-agency-verified">
+  <div class="event-card-header">
+    <code>agency_verified</code>
+    <span style="color:var(--muted); font-size:.82rem;">ผลตรวจความเกี่ยวข้อง (จากขั้น verify)</span>
+  </div>
+  <div class="event-card-body">
+    <p>ส่ง 1 ครั้งต่อหน่วยงานที่ <code>agency_responded</code> ด้วย <code>status = ok</code> — เป็นคำตัดสินสุดท้ายของหน่วยงานนั้น</p>
+    <pre><code>{
+  "agency_id": "019d5cf7-9dcf-7aa5-bc3e-21ba67822923",
+  "agency_name": "กรมที่ดิน",
+  "status": "passed",
+  "relevance_score": 1.0,
+  "section_label": "โอนที่ดิน"
+}</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>agency_id</code></td><td>string</td><td>รหัสหน่วยงาน</td></tr>
+      <tr><td><code>agency_name</code></td><td>string | null</td><td>ชื่อหน่วยงาน</td></tr>
+      <tr><td><code>status</code></td><td>enum</td><td><code>passed</code> = คำตอบผ่าน จะถูกใช้ใน <code>answer</code> / <code>rejected</code> = ไม่เกี่ยวข้อง ถูกตัดทิ้ง</td></tr>
+      <tr><td><code>relevance_score</code></td><td>number | null</td><td>คะแนนความเกี่ยวข้อง 0–1</td></tr>
+      <tr><td><code>section_label</code></td><td>string | null</td><td>หัวข้อย่อยที่สังกัด</td></tr>
+    </table>
+
+    <p>วงจรชีวิตของหน่วยงานหนึ่ง:</p>
+    <div class="lifecycle">
+      <span style="color:var(--green);">สำเร็จ:</span>
+      <code>agency_start</code> <span class="arrow">→</span>
+      <code>agency_responded</code>(<span style="color:var(--green)">ok</span>) <span class="arrow">→</span>
+      <code>agency_verified</code>(<span style="color:var(--green)">passed</span> | <span style="color:var(--orange)">rejected</span>)
+    </div>
+    <div class="lifecycle">
+      <span style="color:var(--red);">ล้มเหลว:</span>
+      <code>agency_start</code> <span class="arrow">→</span>
+      <code>agency_responded</code>(<span style="color:var(--red)">error</span>)
+    </div>
+
+    <div class="callout">
+      <p><code>agency_responded</code> ของแต่ละหน่วยงานส่งทันทีไม่รอกัน แต่ช่วงเวลาจาก <code>agency_responded</code> ถึง <code>agency_verified</code> ของหน่วยงานเดียวกันจะรอจนหน่วยงานช้าสุดตอบครับ เพราะขั้น verify เริ่มทำงานหลังขั้น invoke จบทั้งหมด</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── answer ─── -->
+<div class="event-card" id="ev-answer">
+  <div class="event-card-header">
+    <code>answer</code>
+    <span style="color:var(--muted); font-size:.82rem;">คำตอบสุดท้าย (ข้อมูลชุดเดียวกับ ChatV3Data)</span>
+  </div>
+  <div class="event-card-body">
+    <pre><code>{
+  "answer": "## โอนที่ดิน\n\n**กรมที่ดิน**\n\nสวัสดีค่ะ สำหรับขั้นตอน...",
+  "sections": [
+    {
+      "title": "โอนที่ดิน",
+      "agencies": [
+        {
+          "id": "019d5cf7-9dcf-7aa5-bc3e-21ba67822923",
+          "name": "กรมที่ดิน",
+          "query": "ต้องการโอนที่ดิน...",
+          "content": "สวัสดีค่ะ สำหรับขั้นตอนการโอนที่ดิน..."
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "agency": "019d5cf7-9dc4-70e0-b4a5-3f549d0cf7b9",
+      "name": "กรมการปกครอง",
+      "errorType": "TimeoutError",
+      "message": "agency timed out after 60000 ms"
+    }
+  ],
+  "debug": { "...": "ดูด้านล่าง" }
+}</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>answer</code></td><td>string</td><td>คำตอบสุดท้ายเป็น Markdown — ฟิลด์หลักที่ใช้แสดงผล</td></tr>
+      <tr><td><code>sections</code></td><td>array</td><td>คำตอบแยกตามหัวข้อย่อย (ก่อนเรียบเรียง) ใช้แสดงแบบ structured ได้</td></tr>
+      <tr><td><code>sections[].title</code></td><td>string</td><td>ชื่อหัวข้อ (= <code>section_label</code>)</td></tr>
+      <tr><td><code>sections[].agencies[]</code></td><td>array</td><td>คำตอบดิบของแต่ละหน่วยงานในหัวข้อนั้น (<code>id</code>, <code>name</code>, <code>query</code>, <code>content</code>)</td></tr>
+      <tr><td><code>errors</code></td><td>array</td><td>หน่วยงานที่ล้มเหลว (<code>agency</code> = id, <code>name</code>, <code>errorType</code>, <code>message</code>)</td></tr>
+      <tr><td><code>debug</code></td><td>object | null</td><td>ข้อมูล debug ของทั้ง request (ดูด้านล่าง)</td></tr>
+    </table>
+
+    <div class="callout">
+      <p>ถ้าไม่มีคำตอบที่เกี่ยวข้องเลย <code>answer</code> จะเป็นข้อความ fallback เช่น <code>"ขออภัย ไม่พบคำตอบที่เกี่ยวข้อง กรุณาลองใหม่อีกครั้ง หรือติดต่อหน่วยงานโดยตรง"</code> และ <code>sections</code> จะเป็น <code>[]</code></p>
+    </div>
+
+    <h3 style="margin-top:1.2rem;">โครงสร้าง <code>debug</code> <span style="font-size:.78rem; color:var(--muted);">(สำหรับหน้า debug/dev เท่านั้น)</span></h3>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>intent</code></td><td>string</td><td>intent ที่จัด</td></tr>
+      <tr><td><code>query</code></td><td>string</td><td>คำถามดิบ</td></tr>
+      <tr><td><code>normalized_query</code></td><td>string | null</td><td>คำถามที่ปรับแล้ว</td></tr>
+      <tr><td><code>history_turns</code></td><td>number</td><td>จำนวน turn ของประวัติที่ใช้</td></tr>
+      <tr><td><code>reasoning</code></td><td>string</td><td>เหตุผลการจัดประเภท</td></tr>
+      <tr><td><code>discovered_agencies[]</code></td><td>array</td><td>หน่วยงานที่ค้นพบ (<code>id</code>, <code>name</code>, <code>description</code>, <code>data_scope</code>)</td></tr>
+      <tr><td><code>sub_questions[]</code></td><td>array</td><td>การแตกคำถาม + routing + ผลต่อหน่วยงาน (ดูตารางถัดไป)</td></tr>
+      <tr><td><code>passed_count</code></td><td>number</td><td>จำนวนคำตอบที่ผ่าน</td></tr>
+      <tr><td><code>rejected_count</code></td><td>number</td><td>จำนวนคำตอบที่ถูกตัดเพราะไม่เกี่ยวข้อง</td></tr>
+      <tr><td><code>error_count</code></td><td>number</td><td>จำนวนหน่วยงานที่ล้มเหลว</td></tr>
+      <tr><td><code>fallback_used</code></td><td>boolean</td><td><code>true</code> ถ้าไม่มีคำตอบผ่านเลย</td></tr>
+      <tr><td><code>timings</code></td><td>object</td><td><code>intent_ms</code>, <code>mcp_discovery_ms</code>, <code>invoke_ms</code>, <code>verify_ms</code></td></tr>
+    </table>
+
+    <p>แต่ละรายการใน <code>debug.sub_questions[]</code>:</p>
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>section_label</code></td><td>string</td><td>ชื่อหัวข้อย่อย</td></tr>
+      <tr><td><code>original_query</code></td><td>string</td><td>คำถามดิบของผู้ใช้</td></tr>
+      <tr><td><code>confidence</code></td><td>number | null</td><td>ความมั่นใจของ LLM ในการ routing</td></tr>
+      <tr><td><code>broadcast</code></td><td>boolean</td><td>ถามทุกหน่วยงานหรือเจาะจง</td></tr>
+      <tr><td><code>broadcast_reason</code></td><td>string | null</td><td><code>no_match</code> / <code>low_confidence</code> / <code>classify_failed</code> / <code>null</code></td></tr>
+      <tr><td><code>suggested_agencies</code></td><td>string[]</td><td>agency_id ที่ LLM แนะนำ</td></tr>
+      <tr><td><code>selected_agencies</code></td><td>string[]</td><td>agency_id ที่ถูกเรียกจริง</td></tr>
+      <tr><td><code>results[]</code></td><td>array</td><td>ผลต่อหน่วยงาน: <code>agency_id</code>, <code>agency_name</code>, <code>query_sent</code>, <code>status</code>, <code>relevance_score</code>, <code>raw_answer</code>, <code>error_type</code>, <code>error_message</code>, <code>response_time_ms</code>, <code>retry_count</code></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ─── done ─── -->
+<div class="event-card" id="ev-done">
+  <div class="event-card-header">
+    <code>done</code>
+    <span style="color:var(--muted); font-size:.82rem;">จบ stream</span>
+  </div>
+  <div class="event-card-body">
+    <p>event สุดท้ายเสมอ หลังจากนี้ server ปิด connection</p>
+    <pre><code>{ "session_id": "f4ea61cc-47ac-4e46-bd6c-9cadc54ba999", "total_ms": 66351 }</code></pre>
+
+    <table>
+      <tr><th>ฟิลด์</th><th>ชนิด</th><th>คำอธิบาย</th></tr>
+      <tr><td><code>session_id</code></td><td>string</td><td>session ID ของ request นี้ — เก็บไว้ส่งกลับใน request ถัดไปเพื่อให้จำประวัติได้</td></tr>
+      <tr><td><code>total_ms</code></td><td>number</td><td>เวลารวมทั้ง request (มิลลิวินาที)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ─── error ─── -->
+<div class="event-card" id="ev-error">
+  <div class="event-card-header">
+    <code>error</code>
+    <span style="color:var(--muted); font-size:.82rem;">ข้อผิดพลาดร้ายแรง (reserved)</span>
+  </div>
+  <div class="event-card-body">
+    <pre><code>{ "message": "...", "code": 500 }</code></pre>
+
+    <div class="callout warn">
+      <p>ขั้นตอนต่าง ๆ ใน pipeline ดักจับ error ของตัวเองไว้หมดแล้ว (MCP ล่ม → <code>agencies.count = 0</code>, หน่วยงาน error → <code>agency_responded.status = "error"</code> และ <code>answer.errors</code>) event <code>error</code> จึงแทบไม่ถูกส่งในทางปฏิบัติ</p>
+      <p>หากเกิดข้อผิดพลาดที่ดักไม่ได้จริง ๆ connection จะถูกตัดโดยไม่มี <code>done</code> — อย่ารอ <code>error</code> เป็นสัญญาณหลัก ให้ใช้เกณฑ์ <strong>"stream ปิดโดยไม่มี <code>done</code>"</strong> แทน (ดู<a href="#errors">ข้อ 8</a>)</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="state">7. แนวทางจัดการ state ฝั่ง Frontend</h2>
+
+<p>แนะนำให้เก็บ state กลางเป็น object เดียว แล้วอัปเดตตาม event ที่เข้ามา:</p>
+
+<table>
+  <tr><th>ส่วนของ state</th><th>อัปเดตจาก event</th><th>วิธีอัปเดต</th></tr>
+  <tr><td>ขั้นตอนปัจจุบัน</td><td><code>step</code> (<code>status: running</code>)</td><td>บันทึกชื่อขั้นล่าสุด</td></tr>
+  <tr><td>สถานะแต่ละขั้น</td><td><code>step</code></td><td>เก็บ map ของ <code>name</code> → <code>running</code>/<code>done</code></td></tr>
+  <tr><td>รายชื่อหน่วยงาน</td><td><code>agencies</code></td><td>แทนที่ทั้งชุด</td></tr>
+  <tr><td>intent / routing</td><td><code>intent</code>, <code>routing</code></td><td>แทนที่</td></tr>
+  <tr><td>สถานะรายหน่วยงาน</td><td><code>agency_start</code>, <code>agency_responded</code>, <code>agency_verified</code></td><td>เก็บ map key ด้วย <code>agency_id</code> แล้วเขียนทับทุกครั้ง</td></tr>
+  <tr><td>คำตอบสุดท้าย</td><td><code>answer</code></td><td>แทนที่</td></tr>
+  <tr><td>จบหรือยัง</td><td><code>done</code></td><td>ตั้ง flag เป็น true</td></tr>
+</table>
+
+<div class="callout">
+  <p><strong>จุดสำคัญ:</strong></p>
+  <ul style="margin:.3rem 0; padding-left:1.4rem;">
+    <li>หน่วยงานหนึ่งมีลำดับ <code>agency_start</code> → <code>agency_responded</code> → <code>agency_verified</code> อ้างอิงด้วย <code>agency_id</code> แล้ว<strong>เขียนทับ</strong>สถานะเดิมเสมอ ห้ามเก็บแบบ append เข้า array</li>
+    <li><code>agency_start</code> มาก่อน ใช้สร้าง entry สถานะ "กำลังรอ" ไว้รอ</li>
+    <li>หน่วยงานที่ <code>agency_responded</code> ด้วย <code>status = error</code> จะไม่มี <code>agency_verified</code> ตามมา</li>
+    <li>ใช้ event <code>step</code> คุม UI progress bar / spinner ของแต่ละขั้น</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="errors">8. การจัดการข้อผิดพลาด</h2>
+
+<table>
+  <tr><th>สถานการณ์</th><th>สิ่งที่เกิดขึ้น</th><th>ฝั่ง Frontend ควรทำ</th></tr>
+  <tr><td>Request ผิด (ขาด field / field เกิน)</td><td>HTTP <code>400</code> พร้อม JSON <code>{"error": "..."}</code> ก่อนเปิด stream</td><td>ตรวจ HTTP status ก่อนอ่าน stream</td></tr>
+  <tr><td>MCP catalog ล่ม / discover ไม่เจอ</td><td>stream ทำงานปกติ แต่ <code>agencies.count = 0</code> และ <code>answer</code> เป็นข้อความ fallback</td><td>แสดงข้อความว่าไม่พบหน่วยงาน</td></tr>
+  <tr><td>หน่วยงานหนึ่ง timeout / error</td><td><code>agency_responded.status = "error"</code> และอยู่ใน <code>answer.errors</code> (หน่วยงานอื่นยังทำงานต่อ)</td><td>แสดง error เฉพาะหน่วยงานนั้น</td></tr>
+  <tr><td>Server error ที่ดักไม่ได้</td><td>connection ถูกตัด ไม่มี event <code>done</code></td><td>เช็ค flag "ได้ <code>done</code> หรือยัง" — ถ้าไม่ได้ ถือว่า error</td></tr>
+  <tr><td>ผู้ใช้กดยกเลิก</td><td>—</td><td>ยกเลิก request (เช่น ผ่าน <code>AbortController</code>)</td></tr>
+</table>
+
+<div class="callout warn">
+  <p class="callout-title">กฎทอง</p>
+  <p>ความสำเร็จของ request วัดจากการได้รับ event <code>done</code> ไม่ใช่แค่ stream ปิด</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="perf">9. หมายเหตุด้านประสิทธิภาพ</h2>
+
+<ul style="padding-left:1.4rem; margin:.5rem 0;">
+  <li>pipeline ทั้งหมดใช้เวลาทั่วไป ~30–90 วินาที — ตั้ง timeout ฝั่ง client ให้ยาวพอ (แนะนำอย่างน้อย 120 วินาที) หรือไม่ตั้งเลยแล้วใช้กลไกยกเลิก request แทน</li>
+  <li>ขั้น <code>invoke</code> นานสุด — หน่วยงานเป็น LLM agent ตอบช้า (เคยวัดได้ ~43 วินาที) timeout ต่อหน่วยงานคือ ~60 วินาที</li>
+  <li>หน่วยงานถูกเรียกพร้อมกันทุกตัว ขั้น <code>invoke</code> จึงจบเมื่อหน่วยงานช้าสุดเสร็จ</li>
+  <li>ใช้ event <code>step</code> ร่วมกับ <code>agency_start</code>/<code>agency_responded</code>/<code>agency_verified</code> แสดง progress ละเอียดเพื่อไม่ให้ผู้ใช้รู้สึกว่าค้าง</li>
+  <li>header <code>X-Accel-Buffering: no</code> ถูกตั้งให้แล้ว — ถ้าเว็บอยู่หลัง reverse proxy (nginx ฯลฯ) ต้องไม่ buffer response ของ endpoint นี้</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="summary">10. สรุป event ทั้งหมด</h2>
+
+<table>
+  <tr><th>event</th><th>ส่งเมื่อ</th><th>จำนวนครั้งต่อ request</th></tr>
+  <tr><td><code>step</code></td><td>เริ่ม/จบแต่ละขั้น</td><td>2 ครั้ง/ขั้น (running + done)</td></tr>
+  <tr><td><code>agencies</code></td><td>discover เสร็จ</td><td>1</td></tr>
+  <tr><td><code>intent</code></td><td>classify เสร็จ</td><td>1</td></tr>
+  <tr><td><code>routing</code></td><td>classify เส็จ (เฉพาะ <code>search</code>)</td><td>0–1</td></tr>
+  <tr><td><code>agency_start</code></td><td>เริ่ม invoke</td><td>1 ครั้ง/หน่วยงาน</td></tr>
+  <tr><td><code>agency_responded</code></td><td>หน่วยงานตอบกลับหรือล้มเหลว</td><td>1 ครั้ง/หน่วยงาน</td></tr>
+  <tr><td><code>agency_verified</code></td><td>ผลตรวจความเกี่ยวข้องเสร็จ</td><td>0–1 ครั้ง/หน่วยงาน (ไม่มีถ้า responded = error)</td></tr>
+  <tr><td><code>answer</code></td><td>synthesize เสร็จ</td><td>1</td></tr>
+  <tr><td><code>done</code></td><td>จบ stream</td><td>1 (event สุดท้าย)</td></tr>
+  <tr><td><code>error</code></td><td>ข้อผิดพลาดร้ายแรง</td><td>0 (แทบไม่เกิด — ดู<a href="#ev-error">event <code>error</code></a>)</td></tr>
+</table>
+
+</div>
+</body>
+</html>

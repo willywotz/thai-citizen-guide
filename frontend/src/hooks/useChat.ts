@@ -1,11 +1,65 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { ChatMessage, AgentStep } from '@/types';
-import { sendChatQuery } from '@/services/chatApi';
-import { saveConversation } from '@/services/historyApi';
+import type { ChatMessage, AgentStep, StreamingState } from '@/types';
+import type {
+  StepEvent, AgenciesEvent, IntentEvent, RoutingEvent,
+  AgencyStartEvent, AgencyRespondedEvent, AgencyVerifiedEvent,
+  AnswerEvent, DoneEvent, ErrorEvent,
+} from '@/types/chat';
+import { sendChatQuery, sendChatQuerySSE } from '@/services/chatApi';
 import { updateMessageRating } from '@/services/feedbackApi';
-import { mockAgentSteps, mockConversation } from '@/data/mockData';
+import { mockAgentSteps } from '@/data/mockData';
 import { generateUniqueId } from '@/lib/utils';
-import { set } from 'date-fns';
+
+const INITIAL_STREAMING_STATE: StreamingState = {
+  pipelineSteps: [],
+  currentStep: null,
+  agencies: [],
+  intent: null,
+  routing: null,
+  agencyStatuses: {},
+  answer: null,
+  sections: [],
+  errors: [],
+  sessionId: null,
+  totalMs: null,
+  done: false,
+};
+
+const STEP_LABELS: Record<string, { icon: string; label: string }> = {
+  discover: { icon: '🔍', label: 'ค้นหาหน่วยงาน' },
+  classify: { icon: '🧠', label: 'วิเคราะห์คำถาม' },
+  invoke: { icon: '🔗', label: 'สืบค้นจากหน่วยงาน' },
+  verify: { icon: '✅', label: 'ตรวจสอบความเกี่ยวข้อง' },
+  synthesize: { icon: '📝', label: 'สังเคราะห์คำตอบ' },
+};
+
+function buildAgentStepsFromStreaming(state: StreamingState): AgentStep[] {
+  const steps: AgentStep[] = [];
+
+  for (const ps of state.pipelineSteps) {
+    const info = STEP_LABELS[ps.name] ?? { icon: '⚙️', label: ps.name };
+    steps.push({
+      icon: info.icon,
+      label: info.label + (ps.ms ? ` (${(ps.ms / 1000).toFixed(1)}s)` : ''),
+      status: ps.status === 'done' ? 'done' : 'active',
+    });
+  }
+
+  const agencyEntries = Object.values(state.agencyStatuses);
+  if (agencyEntries.length > 0) {
+    for (const a of agencyEntries) {
+      const statusIcon = a.status === 'error' ? '❌' : a.status === 'passed' ? '✅' : a.status === 'rejected' ? '⚠️' : a.status === 'ok' ? '⏳' : '🔗';
+      steps.push({
+        icon: statusIcon,
+        label: a.agencyName ?? a.agencyId,
+        detail: a.errorType ?? undefined,
+        status: a.status === 'running' ? 'active' : 'done',
+      });
+    }
+  }
+
+  return steps;
+}
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -13,17 +67,69 @@ export function useChat() {
   const [isTyping, setIsTyping] = useState(false);
   const [activeStepCount, setActiveStepCount] = useState(0);
   const [currentSteps, setCurrentSteps] = useState<AgentStep[]>(mockAgentSteps);
+  const [streamingState, setStreamingState] = useState<StreamingState>(INITIAL_STREAMING_STATE);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  // Ref to always have latest streaming state in closures
+  const streamingRef = useRef<StreamingState>(INITIAL_STREAMING_STATE);
+
+  // Keep ref in sync
+  useEffect(() => {
+    streamingRef.current = streamingState;
+  }, [streamingState]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeStepCount]);
+  }, [messages, activeStepCount, streamingState.currentStep]);
 
   const handleRate = useCallback((id: string, rating: 'up' | 'down', feedbackText?: string) => {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, rating } : m)));
-    // Persist to database
     updateMessageRating(id, rating, feedbackText);
+  }, []);
+
+  const cancelStream = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsTyping(false);
+    setActiveStepCount(0);
+    setStreamingState(INITIAL_STREAMING_STATE);
+    streamingRef.current = INITIAL_STREAMING_STATE;
+  }, []);
+
+  const finalizeStreaming = useCallback(() => {
+    const state = streamingRef.current;
+    if (state.answer) {
+      const aiMsg: ChatMessage = {
+        id: generateUniqueId(),
+        role: 'assistant',
+        content: state.answer,
+        timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+        agentSteps: buildAgentStepsFromStreaming(state),
+        sources: state.sections?.flatMap((s) =>
+          s.agencies.map((a) => ({ agency: a.name, url: '', title: s.title }))
+        ),
+        rating: null,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } else if (!state.done) {
+      // Stream ended without answer or done — connection lost
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: generateUniqueId(),
+          role: 'assistant',
+          content: 'ขออภัย การเชื่อมต่อถูกตัด โปรดลองอีกครั้ง',
+          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+          rating: null,
+        },
+      ]);
+    }
+    if (state.sessionId) {
+      setConversationId(state.sessionId);
+    }
+    setIsTyping(false);
+    setActiveStepCount(0);
   }, []);
 
   const handleSend = useCallback(async (text?: string) => {
@@ -40,21 +146,157 @@ export function useChat() {
     setInput('');
     setIsTyping(true);
     setActiveStepCount(0);
+    const freshState = { ...INITIAL_STREAMING_STATE };
+    setStreamingState(freshState);
+    streamingRef.current = freshState;
 
-    // Animate placeholder steps while waiting
-    // const placeholderSteps = mockAgentSteps;
-    // setCurrentSteps(placeholderSteps);
-    // placeholderSteps.forEach((_, i) => {
-    //   setTimeout(() => setActiveStepCount(i + 1), (i + 1) * 500);
-    // });
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
+    // Callbacks update state via setStreamingState + streamingRef
+    const onStep = (event: StepEvent) => {
+      setStreamingState((prev) => {
+        const steps = [...prev.pipelineSteps];
+        const existingIdx = steps.findIndex((s) => s.name === event.name && s.status === 'running');
+        if (event.status === 'running') {
+          steps.push({ name: event.name, status: 'running', ms: null });
+        } else if (existingIdx >= 0) {
+          steps[existingIdx] = { name: event.name, status: 'done', ms: event.ms };
+        } else {
+          steps.push({ name: event.name, status: 'done', ms: event.ms });
+        }
+        const next = { ...prev, pipelineSteps: steps, currentStep: event.status === 'running' ? event.name : prev.currentStep };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onAgencies = (event: AgenciesEvent) => {
+      setStreamingState((prev) => {
+        const next = { ...prev, agencies: event.agencies };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onIntent = (event: IntentEvent) => {
+      setStreamingState((prev) => {
+        const next = { ...prev, intent: event };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onRouting = (event: RoutingEvent) => {
+      setStreamingState((prev) => {
+        const next = { ...prev, routing: event };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onAgencyStart = (event: AgencyStartEvent) => {
+      setStreamingState((prev) => {
+        const statuses = { ...prev.agencyStatuses };
+        statuses[event.agency_id] = {
+          agencyId: event.agency_id,
+          agencyName: event.agency_name,
+          query: event.query,
+          sectionLabel: event.section_label,
+          status: 'running',
+        };
+        const next = { ...prev, agencyStatuses: statuses };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onAgencyResponded = (event: AgencyRespondedEvent) => {
+      setStreamingState((prev) => {
+        const statuses = { ...prev.agencyStatuses };
+        const existing = statuses[event.agency_id] || {
+          agencyId: event.agency_id,
+          agencyName: event.agency_name,
+          query: '',
+          sectionLabel: event.section_label,
+          status: 'pending' as const,
+        };
+        statuses[event.agency_id] = {
+          ...existing,
+          status: event.status === 'ok' ? 'ok' : 'error',
+          errorType: event.error_type,
+        };
+        const next = { ...prev, agencyStatuses: statuses };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onAgencyVerified = (event: AgencyVerifiedEvent) => {
+      setStreamingState((prev) => {
+        const statuses = { ...prev.agencyStatuses };
+        const existing = statuses[event.agency_id];
+        if (existing) {
+          statuses[event.agency_id] = {
+            ...existing,
+            status: event.status,
+            relevanceScore: event.relevance_score,
+          };
+        }
+        const next = { ...prev, agencyStatuses: statuses };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onAnswer = (event: AnswerEvent) => {
+      setStreamingState((prev) => {
+        const next = { ...prev, answer: event.answer, sections: event.sections, errors: event.errors };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onDone = (_event: DoneEvent) => {
+      setStreamingState((prev) => {
+        const next = { ...prev, sessionId: _event.session_id, totalMs: _event.total_ms, done: true };
+        streamingRef.current = next;
+        return next;
+      });
+    };
+
+    const onError = (event: ErrorEvent) => {
+      setStreamingState((prev) => {
+        const next = {
+          ...prev,
+          errors: [...prev.errors, { agency: '', name: '', errorType: 'SSE', message: event.message }],
+          done: true,
+        };
+        streamingRef.current = next;
+        return next;
+      });
+    };
 
     try {
+      // Try SSE first
+      const usedSSE = await sendChatQuerySSE(
+        { query: question, conversation_id: conversationId || undefined },
+        { onStep, onAgencies, onIntent, onRouting, onAgencyStart, onAgencyResponded, onAgencyVerified, onAnswer, onDone, onError },
+        abortController.signal,
+      );
+
+      if (abortController.signal.aborted) return;
+
+      if (usedSSE) {
+        finalizeStreaming();
+        return;
+      }
+
+      // Fallback: regular JSON POST
       const response = await sendChatQuery({ query: question, conversation_id: conversationId || undefined });
 
       if (response.success) {
         setConversationId(response.conversation_id);
-
-        // Update steps with real data from API
         setCurrentSteps(response.data.agentSteps as AgentStep[]);
         setActiveStepCount(response.data.agentSteps.length);
 
@@ -75,56 +317,26 @@ export function useChat() {
         setMessages((prev) => [...prev, aiMsg]);
         setIsTyping(false);
         setActiveStepCount(0);
-
-        // Save conversation to database
-        // const autoTitle = question.length > 50 ? question.slice(0, 50) + '...' : question;
-        // saveConversation({
-        //   title: autoTitle,
-        //   preview: question,
-        //   agencies: response.data.agencies?.map((a) => a.name) || [],
-        //   status: 'success',
-        //   responseTime: `${(response.responseTime / 1000).toFixed(1)} วินาที`,
-        //   messages: [
-        //     { id: userMsg.id, role: 'user', content: question },
-        //     {
-        //       id: aiMsgId,
-        //       role: 'assistant',
-        //       content: response.data.answer,
-        //       agentSteps: response.data.agentSteps,
-        //       sources: response.data.references,
-        //     },
-        //   ],
-        // });
-
         return;
       }
-    } catch {
-      // console.warn('API call failed, falling back to mock data');
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
+
       setCurrentSteps([]);
       setActiveStepCount(0);
       setIsTyping(false);
-      setMessages((prev) => [...prev, {
-        id: generateUniqueId(),
-        role: 'assistant',
-        content: 'ขออภัย ฉันไม่สามารถตอบคำถามได้ในขณะนี้ โปรดลองอีกครั้งในภายหลัง',
-        timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-        rating: null,
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: generateUniqueId(),
+          role: 'assistant',
+          content: 'ขออภัย ฉันไม่สามารถตอบคำถามได้ในขณะนี้ โปรดลองอีกครั้งในภายหลัง',
+          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+          rating: null,
+        },
+      ]);
     }
-
-    // Fallback to mock data
-    // setTimeout(() => {
-    //   const aiMsg: ChatMessage = {
-    //     ...mockConversation[1],
-    //     id: generateUniqueId(),
-    //     timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-    //     rating: null,
-    //   };
-    //   setMessages((prev) => [...prev, aiMsg]);
-    //   setIsTyping(false);
-    //   setActiveStepCount(0);
-    // }, (placeholderSteps.length + 1) * 500);
-  }, [input, isTyping]);
+  }, [input, isTyping, conversationId, finalizeStreaming]);
 
   const reset = useCallback(() => {
     setMessages([]);
@@ -133,6 +345,9 @@ export function useChat() {
     setInput('');
     setCurrentSteps(mockAgentSteps);
     setConversationId(null);
+    setStreamingState(INITIAL_STREAMING_STATE);
+    streamingRef.current = INITIAL_STREAMING_STATE;
+    abortRef.current?.abort();
   }, []);
 
   return {
@@ -142,10 +357,12 @@ export function useChat() {
     isTyping,
     activeStepCount,
     currentSteps,
+    streamingState,
     scrollRef,
     handleSend,
     handleRate,
     reset,
+    cancelStream,
     hasMessages: messages.length > 0,
   };
 }

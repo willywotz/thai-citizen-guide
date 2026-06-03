@@ -7,6 +7,7 @@ from tortoise.exceptions import DoesNotExist
 from app.models import Agency, ConnectionLog, User
 from app.auth.dependencies import require_admin
 from datetime import datetime, timedelta
+from app.config import settings
 from app.utils import now
 
 router = APIRouter(prefix="/connection-logs", tags=["Connection Logs"])
@@ -79,7 +80,7 @@ async def list_connection_logs(
     successful_connections = await qs.filter(status="success").count()
     failed_connections = await qs.filter(status="error").count()
 
-    last_day_date = now() - timedelta(days=1)
+    last_day_date = now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)
     average_latency_ms = await qs.filter(created_at__gte=last_day_date).annotate(avg=Avg("latency_ms")).values("avg")
     average_latency_ms = int(average_latency_ms[0]["avg"] or 0) if average_latency_ms else 0
 
@@ -138,7 +139,7 @@ async def get_connection_log_info(_: User = Depends(require_admin)) -> Connectio
     successful_connections = await ConnectionLog.filter(status="success").count()
     failed_connections = await ConnectionLog.filter(status="error").count()
     
-    last_day_date = now() - timedelta(days=1)
+    last_day_date = now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)
     average_latency_ms = await ConnectionLog.filter(created_at__gte=last_day_date).annotate(avg=Avg("latency_ms")).values("avg")
     average_latency_ms = int(average_latency_ms[0]["avg"] or 0) if average_latency_ms else 0
 

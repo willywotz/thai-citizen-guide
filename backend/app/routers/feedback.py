@@ -15,6 +15,7 @@ from tortoise.functions import Count, Sum
 from tortoise.expressions import Case, When, RawSQL, F
 from tortoise.transactions import in_transaction
 
+from app.config import settings
 from app.models.conversation import Conversation, Message
 from app.schemas.conversation import FeedbackStats
 from app.models.agency import Agency
@@ -154,7 +155,7 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
     #     .values("rating_total", "rating_up", "rating_down").sql(), flush=True)
 
     async with in_transaction() as conn:
-        await conn.execute_query("SET TIME ZONE 'Asia/Bangkok';")
+        await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
 
         message_state = await Message \
             .annotate(
@@ -173,7 +174,7 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
                 down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
                 rate=RawSQL('0'),
             ) \
-            .filter(rating__isnull=False, created_at__gte=now() - timedelta(days=14)) \
+            .filter(rating__isnull=False, created_at__gte=now() - timedelta(days=settings.FEEDBACK_TREND_DAYS)) \
             .group_by("date") \
             .order_by("date") \
             .values("date", "up", "down", "rate")

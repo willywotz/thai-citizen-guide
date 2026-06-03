@@ -16,12 +16,14 @@ Endpoint
 """
 
 import asyncio
+import json
+import logging
 import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
@@ -32,10 +34,14 @@ from app.models.connection_log import ConnectionLog
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
+from app.services.similarity import find_similar_question
+from app.services.embedding import generate_embedding, encode_embedding
 from app.utils import generate_uuid, now
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 tracer = trace.get_tracer(__name__)
+logger = logging.getLogger(__name__)
+
 
 """
 Multi-Agent Router with LangGraph
@@ -96,7 +102,7 @@ async def call_llm(messages: list[dict]) -> str:
 
     print(f"Calling LLM with messages: {messages}")
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
         resp = await client.post(
             os.getenv("PARSE_SPEC_URL", ""),
             headers={
@@ -217,7 +223,7 @@ async def dispatch_to_agencies(state: AgentState) -> dict:
         try:
             # ─── A2A Protocol ───
             if conn == "A2A":
-                async with httpx.AsyncClient(timeout=30) as client:
+                async with httpx.AsyncClient(timeout=settings.A2A_DISPATCH_TIMEOUT) as client:
                     resp = await client.post(
                         route["endpoint_url"],
                         json={
@@ -375,14 +381,34 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     if not query:
         return {"success": False, "error": "Missing query"}
 
+    # Check for similar question in cache
+    embedding = await generate_embedding(query)
+    cached = await find_similar_question(query=query, embedding=embedding)
+    if cached:
+        user_msg, asst_msg = cached
+        return {
+            "success": True,
+            "data": {
+                "message_id": asst_msg.id,
+                "answer": asst_msg.content,
+                "references": asst_msg.sources if asst_msg.sources else [],
+                "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
+                "agencies": [],
+                "confidence": settings.SIMILARITY_THRESHOLD,
+                "cached": True,
+            },
+            "conversation_id": str(user_msg.conversation_id),
+            "responseTime": 0,
+        }
+
     conversation_id = body.conversation_id or str(generate_uuid())
-    
+
     app = build_graph()
-    
+
     result = await app.ainvoke({"query": query, "conversation_id": conversation_id})
 
     response_time = int((time.time() - start) * 1000)
-    
+
     answer = result.get("final_answer", "").strip()
 
     references = []
@@ -410,8 +436,8 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     if not body.conversation_id:
         conv = await Conversation.create(
             id=conversation_id,
-            title=query[:50],
-            preview=query[:100],
+            title=query[:settings.TITLE_MAX_LENGTH],
+            preview=query[:settings.PREVIEW_MAX_LENGTH],
             agencies=[],
             status='success',
             message_count=len(answer),
@@ -423,7 +449,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
         conv.message_count += len(answer)
         await conv.save()
 
-    await Message.create(
+    query_msg = await Message.create(
         conversation_id=conversation_id,
         role='user',
         content=query,
@@ -431,7 +457,10 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
         sources=[],
         category=category,
     )
-    
+
+    # Schedule embedding generation
+    asyncio.create_task(_store_embedding(str(query_msg.id), query))
+
     response_msg = await Message.create(
         conversation_id=conversation_id,
         role='assistant',
@@ -471,11 +500,32 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             span.set_attributes({"error": "missing query"})
             raise HTTPException(status_code=400, detail="Missing query")
 
-        payload = {"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id}
+        # Check for similar question in cache
+        embedding = await generate_embedding(query)
+        cached = await find_similar_question(query=query, embedding=embedding)
+        if cached:
+            user_msg, asst_msg = cached
+            span.set_attribute("cache_hit", True)
+            return {
+                "success": True,
+                "data": {
+                    "message_id": asst_msg.id,
+                    "answer": asst_msg.content,
+                    "references": asst_msg.sources if asst_msg.sources else [],
+                    "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
+                    "agencies": [],
+                    "confidence": settings.SIMILARITY_THRESHOLD,
+                    "cached": True,
+                },
+                "conversation_id": str(user_msg.conversation_id),
+                "responseTime": 0,
+            }
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
+        payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
+
+        async with httpx.AsyncClient(timeout=settings.EXTERNAL_CHAT_TIMEOUT) as client:
             start_time_ns = time.perf_counter_ns()
-            resp = await client.post("http://185.84.160.55:8000/v3/chat", headers={"Content-Type": "application/json"}, json=payload)
+            resp = await client.post(settings.ONECHAT_V3_URL, headers={"Content-Type": "application/json"}, json=payload)
             end_time_ns = time.perf_counter_ns()
 
         if resp.status_code != 200:
@@ -516,8 +566,8 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         if not body.conversation_id:
             conv = await Conversation.create(
                 id=conversation_id,
-                title=query[:50],
-                preview=query[:100],
+                title=query[:settings.TITLE_MAX_LENGTH],
+                preview=query[:settings.PREVIEW_MAX_LENGTH],
                 agencies=[],
                 status='success',
                 message_count=len(answer),
@@ -547,6 +597,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         )
 
         background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
+        background_tasks.add_task(_store_embedding, str(query_msg.id), query)
 
         return {
             "success": True,
@@ -562,6 +613,216 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             "responseTime": response_time,
         }
     
+# ─── v4 SSE Streaming Endpoint ────────────────────────────────────────────────
+
+@router.post("/stream", summary="Send a query and receive SSE streaming response (v4)")
+async def chat_stream(body: ChatRequest, request: Request, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)):
+    """Proxy to OneChat v4 SSE endpoint, re-emit events to client, save conversation after answer."""
+    query = body.query.strip()
+    conversation_id = body.conversation_id or str(generate_uuid())
+
+    if not query:
+        raise HTTPException(status_code=400, detail="Missing query")
+
+    # Check for similar question in cache
+    embedding = await generate_embedding(query)
+    cached = await find_similar_question(query=query, embedding=embedding)
+    if cached:
+        user_msg, asst_msg = cached
+        async def cached_stream():
+            await asyncio.sleep(0.01)
+            yield _sse_event("answer", {"answer": asst_msg.content})
+            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+        return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    if body.conversation_id:
+        try:
+            await Conversation.get(id=conversation_id)
+        except Exception:
+            pass
+
+    payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
+
+    async def event_generator():
+        """Connect to OneChat v4 SSE, parse events, re-emit to client, save on completion."""
+        answer_data = None
+        session_id = None
+        total_ms = None
+        start_ns = time.perf_counter_ns()
+        log_latency_ms = 0
+
+        try:
+            async with httpx.AsyncClient(timeout=settings.V4_STREAM_TIMEOUT) as client:
+                async with client.stream("POST", settings.ONECHAT_V4_URL, headers={"Content-Type": "application/json"}, json=payload) as resp:
+                    if resp.status_code != 200:
+                        error_msg = f"OneChat v4 returned {resp.status_code}"
+                        try:
+                            error_body = await resp.aread()
+                            error_msg = f"OneChat v4 returned {resp.status_code}: {error_body.decode()[:200]}"
+                        except Exception:
+                            pass
+                        yield _sse_event("error", {"message": error_msg, "code": resp.status_code})
+                        yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+                        return
+
+                    log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
+
+                    buffer = ""
+                    async for chunk in resp.aiter_text():
+                        buffer += chunk
+                        # Split on double newline (SSE event boundary)
+                        while "\n\n" in buffer:
+                            event_block, buffer = buffer.split("\n\n", 1)
+                            parsed = _parse_sse_block(event_block)
+                            if not parsed:
+                                continue
+
+                            event_name, event_data = parsed
+
+                            # Capture answer and session data for persistence
+                            if event_name == "answer":
+                                answer_data = event_data
+                            elif event_name == "done":
+                                session_id = event_data.get("session_id")
+                                total_ms = event_data.get("total_ms")
+
+                            # Re-emit to client
+                            yield _sse_event(event_name, event_data)
+
+        except httpx.ReadTimeout:
+            yield _sse_event("error", {"message": "OneChat v4 connection timed out", "code": 504})
+            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+            return
+        except Exception as e:
+            yield _sse_event("error", {"message": str(e), "code": 500})
+            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+            return
+
+        # Persist conversation + messages after stream completes
+        if answer_data:
+            await _save_stream_conversation(
+                query=query,
+                conversation_id=conversation_id,
+                answer_data=answer_data,
+                session_id=session_id,
+                total_ms=total_ms,
+                latency_ms=log_latency_ms,
+                user=user,
+                background_tasks=background_tasks,
+            )
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _sse_event(event: str, data: Any) -> str:
+    """Format a single SSE event block."""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _parse_sse_block(block: str) -> tuple[str, Any] | None:
+    """Parse an SSE block into (event_name, data_dict)."""
+    event_name = "message"
+    data_line = None
+    for line in block.strip().split("\n"):
+        if line.startswith("event:"):
+            event_name = line[6:].strip()
+        elif line.startswith("data:"):
+            data_line = line[5:].strip()
+    if not data_line:
+        return None
+    try:
+        return event_name, json.loads(data_line)
+    except json.JSONDecodeError:
+        return None
+
+
+async def _save_stream_conversation(
+    *,
+    query: str,
+    conversation_id: str,
+    answer_data: dict,
+    session_id: str | None,
+    total_ms: int | None,
+    latency_ms: int,
+    user: User | None,
+    background_tasks: BackgroundTasks,
+):
+    """Persist conversation and messages after v4 stream completes."""
+    answer = answer_data.get("answer", "").strip()
+    errors = answer_data.get("errors", [])
+    sections = answer_data.get("sections", [])
+
+    agency_ids = []
+    for sec in sections:
+        if "agencies" in sec:
+            agency_ids.extend([ag["id"] for ag in sec["agencies"]])
+
+    response_time = total_ms if total_ms else latency_ms
+
+    try:
+        conv = await Conversation.get(id=conversation_id)
+        conv.message_count += len(answer)
+        conv.updated_at = now()
+        await conv.save()
+    except Exception:
+        await Conversation.create(
+            id=conversation_id,
+            title=query[:50],
+            preview=query[:100],
+            agencies=[],
+            status="success",
+            message_count=len(answer),
+            response_time=response_time,
+            user_id=user.id if user else None,
+            external_session_id=session_id,
+        )
+
+    query_msg = await Message.create(
+        conversation_id=conversation_id,
+        role="user",
+        content=query,
+    )
+
+    await Message.create(
+        parent_id=query_msg.id,
+        conversation_id=conversation_id,
+        role="assistant",
+        content=answer,
+        response_time=response_time,
+        errors=errors,
+        agency_ids=agency_ids,
+    )
+
+    await ConnectionLog.create(
+        id=str(generate_uuid()),
+        action="query",
+        connection_type="external_chat_v4",
+        status="success",
+        latency_ms=latency_ms,
+        detail=f"v4 stream query: {query[:100]}",
+        request_body=json.dumps({"query": query, "session_id": conversation_id}),
+        response_body=json.dumps(answer_data, ensure_ascii=False)[:settings.CONN_LOG_BODY_MAX],
+    )
+
+    background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
+    background_tasks.add_task(_store_embedding, str(query_msg.id), query)
+
+
+async def _store_embedding(message_id: str, query: str):
+    """Generate embedding for a message and store it in the database."""
+    embedding = await generate_embedding(query)
+    if embedding is not None:
+        encoded = encode_embedding(embedding)
+        await Message.filter(id=message_id).update(embedding=encoded)
+
+
 async def classify_message_category(message_id: str, query: str, answer: str):
     content = f"""\
 คุณเป็นโมเดลภาษา LLM ที่เชี่ยวชาญด้านการวิเคราะห์ข้อความและการจัดหมวดหมู่คำถามในบริบทของการให้บริการข้อมูลภาครัฐไทย
@@ -576,11 +837,11 @@ async def classify_message_category(message_id: str, query: str, answer: str):
 คำตอบ: {answer}
 """
 
-    url = "https://openrouter.ai/api/v1/chat/completions"
+    url = settings.OPENROUTER_API_URL
     header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
-    payload = {"model": "google/gemini-2.5-flash-lite", "messages": [{"role": "user", "content": content}]}
+    payload = {"model": settings.CLASSIFICATION_MODEL, "messages": [{"role": "user", "content": content}]}
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
         resp = await client.post(url, headers=header, json=payload)
 
     try:

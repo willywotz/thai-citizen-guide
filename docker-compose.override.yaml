@@ -1,0 +1,41 @@
+services:
+
+  backend:
+    build:
+      target: development
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend/pyproject.toml
+        - action: rebuild
+          path: ./backend/uv.lock
+        - action: restart
+          path: ./backend/migrations
+          target: /app/migrations
+        - action: sync
+          path: ./backend/app
+          target: /app/app
+
+  agent-proxy:
+    build:
+      target: development
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./agent-proxy
+          target: /app
+
+  frontend:
+    build:
+      target: development
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: rebuild
+          path: ./frontend/package.json
+        - action: rebuild
+          path: ./frontend/pnpm-lock.yaml
