@@ -3,8 +3,6 @@ services:
   backend:
     build:
       target: development
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
     develop:
       watch:
         - action: rebuild
