@@ -1,3 +1,6 @@
+import json
+from typing import get_origin
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -82,8 +85,59 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    def apply_overrides(self, overrides: dict[str, str]) -> None:
+        for key, raw_value in overrides.items():
+            field_info = self.model_fields.get(key)
+            if field_info is None:
+                continue
+            try:
+                parsed = _deserialize(raw_value, field_info.annotation)
+                object.__setattr__(self, key, parsed)
+            except Exception:
+                pass
+
+
+def _deserialize(raw: str, annotation: type):
+    origin = get_origin(annotation)
+    if annotation is bool:
+        return raw.lower() in ("true", "1", "yes")
+    if annotation is int:
+        return int(raw)
+    if annotation is float:
+        return float(raw)
+    if origin is list or annotation in (list, list[str]):
+        return json.loads(raw)
+    return raw
+
+
+SETTINGS_GROUPS: dict[str, list[str]] = {
+    "App": ["APP_NAME", "APP_VERSION", "DEBUG", "TIMEZONE", "USER_AGENT_PREFIX"],
+    "Database": ["DATABASE_URL"],
+    "CORS": ["CORS_ORIGINS"],
+    "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES"],
+    "LLM / OpenRouter": ["OPENROUTER_API_KEY", "OPENROUTER_API_URL", "CLASSIFICATION_MODEL", "LLM_CALL_TIMEOUT"],
+    "Parse spec": ["PARSE_SPEC_URL", "PARSE_SPEC_API_KEY", "PARSE_SPEC_TIMEOUT", "PARSE_SPEC_LLM_MODEL"],
+    "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "MCP_ENDPOINT_URL"],
+    "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
+    "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "CONN_LOG_BODY_MAX", "SPEC_TEXT_MAX_CHARS"],
+    "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT"],
+    "Executive summary": ["WEEKLY_BRIEF_CACHE_TTL_MINUTES", "WEEKLY_BRIEF_TIMEOUT"],
+    "Analytics": ["AVG_LATENCY_WINDOW_DAYS", "FEEDBACK_TREND_DAYS", "BUSINESS_HOURS_START", "BUSINESS_HOURS_END"],
+    "Embedding / similarity": ["EMBEDDING_API_URL", "EMBEDDING_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_DIMENSIONS", "EMBEDDING_TIMEOUT", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_FALLBACK"],
+}
+
+SECRET_FIELD_NAMES: set[str] = {
+    "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY", "EMBEDDING_API_KEY",
+}
 
 settings = Settings()
+
+
+async def load_settings_from_db() -> None:
+    from app.models.setting import Setting as SettingModel
+    rows = await SettingModel.all()
+    overrides = {row.key: row.value for row in rows}
+    settings.apply_overrides(overrides)
 
 # Tortoise ORM config (used by aerich and register_tortoise)
 TORTOISE_ORM = {
