@@ -112,6 +112,7 @@ services:
       - chatbot-network
 
   tailscale:
+    hostname: thai-citizen-guide
     image: tailscale/tailscale:latest
     restart: unless-stopped
     environment:
