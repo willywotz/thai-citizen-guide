@@ -48,7 +48,3 @@ jobs:
       - name: Deploy Stack
         run: |
           docker compose -f docker-compose.yaml up -d --build --remove-orphans
-
-      - name: Run database migrations
-        run: |
-          docker compose -f docker-compose.yaml exec backend uv run aerich upgrade
