@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     USER_AGENT_PREFIX: str = "AI-Chatbot-Portal/1.0"
 
     # ── Database ─────────────────────────────────────────────────────────────
-    DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/ai_chatbot"
+    DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatbot"
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"]
