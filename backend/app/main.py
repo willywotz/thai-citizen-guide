@@ -37,10 +37,10 @@ from mcp.server.sse import SseServerTransport
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.config import settings
+from app.config import settings, load_settings_from_db
 from app.database import init_db, close_db
 from app.mcp.server import mcp
-from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight
+from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, settings as settings_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.models import Agency, ConnectionLog
 from app.utils import generate_uuid, now
@@ -74,6 +74,7 @@ async def _sse_handler(request: Request) -> Response:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await load_settings_from_db()
     await _run_seed_admin()
     await _run_seed_agencies()
     await start_scheduler()
@@ -130,6 +131,7 @@ app.include_router(connection_logs.router, prefix="/api/v1")
 app.include_router(api_key.router, prefix="/api/v1")
 app.include_router(executive_summary.router, prefix="/api/v1")
 app.include_router(insight.router, prefix="/api/v1")
+app.include_router(settings_router.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # MCP server — streamable-HTTP sub-app (backward compat)
@@ -184,7 +186,7 @@ FastAPIInstrumentor.instrument_app(app, excluded_urls="^/health$")
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 scheduler = AsyncIOScheduler()
-sem = asyncio.Semaphore(settings.AGENCY_CHAT_CONCURRENCY)
+sem: asyncio.Semaphore | None = None
 
 async def agency_chat_item(agency: Agency):
     async with sem:
@@ -225,6 +227,8 @@ async def agency_chat_test():
     await asyncio.gather(*[agency_chat_item(ag) for ag in agencies])
 
 async def start_scheduler():
+    global sem
+    sem = asyncio.Semaphore(settings.AGENCY_CHAT_CONCURRENCY)
     asyncio.create_task(agency_chat_test())
     scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES))
     scheduler.start()

@@ -5,21 +5,18 @@ from tortoise.timezone import now as tortoise_now
 import pytz
 from app.config import settings
 
-tz = pytz.timezone(settings.TIMEZONE)
+
+def get_tz():
+    return pytz.timezone(settings.TIMEZONE)
+
 
 def generate_uuid() -> uuid.UUID:
     return generate_uuid7()
 
 def now() -> datetime:
-    return datetime.now(tz)
-    # return datetime.now(timezone.utc)
-    # return tortoise_now()
+    return datetime.now(get_tz())
 
 def to_bangkok_time(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        # Assume naive datetimes are in UTC
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(tz)
-
-def get_tz():
-    return tz
+    return dt.astimezone(get_tz())

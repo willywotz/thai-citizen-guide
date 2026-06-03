@@ -24,6 +24,7 @@ import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ApiKeysPage from "./pages/ApiKeysPage";
+import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +59,7 @@ const App = () => (
                 <Route path="/connection-logs" element={<ConnectionLogsPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

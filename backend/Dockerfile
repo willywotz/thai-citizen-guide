@@ -11,7 +11,6 @@ run --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project
 copy . .
-expose 8080
 cmd ["uv", "run", "fastapi", "dev", "--host", "0.0.0.0", "--port", "8080"]
 
 from base as production
@@ -26,7 +25,4 @@ run --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project
 copy . .
-expose 8080
-healthcheck --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    cmd curl -f http://localhost:8080/health || exit 1
 cmd ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
