@@ -93,7 +93,7 @@ export default function SettingsPage() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
   });
@@ -141,6 +141,16 @@ export default function SettingsPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <Alert variant="destructive">
+          <AlertDescription>โหลดการตั้งค่าไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</AlertDescription>
+        </Alert>
       </div>
     );
   }
