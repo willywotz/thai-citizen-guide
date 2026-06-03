@@ -2,6 +2,7 @@ from python:3.12-slim-trixie as base
 copy --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 from base as development
+run apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 workdir /app
 env UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
@@ -14,7 +15,7 @@ copy . .
 cmd ["uv", "run", "fastapi", "dev", "--host", "0.0.0.0", "--port", "8080"]
 
 from base as production
-run apt update && apt install -y curl ca-certificates
+run apt-get update && apt-get install -y wget ca-certificates && rm -rf /var/lib/apt/lists/*
 workdir /app
 env UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
