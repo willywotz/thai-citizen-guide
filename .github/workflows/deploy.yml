@@ -1,111 +1,49 @@
-name: Deploy on Commit Message
+name: Deploy
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   check-deploy:
     runs-on: ubuntu-latest
     outputs:
-      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      deploy: ${{ steps.checker.outputs.deploy }}
     steps:
-      - name: Check commit message for "xver"
-        id: check
+      - name: Check trigger type and commit message
+        id: checker
+        env:
+          EVENT_NAME: "${{ github.event_name }}"
+          COMMIT_MSG: "${{ github.event.head_commit.message }}"
+        shell: bash
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          echo "Commit message: $COMMIT_MSG"
-          if echo "$COMMIT_MSG" | grep -qi "xver"; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-            echo "✅ Commit message contains 'xver' — triggering deployment"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Manual trigger detected. Forcing deployment."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$COMMIT_MSG" =~ ^deploy ]]; then
+            echo "Commit message starts with 'deploy'. Proceeding."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
           else
-            echo "should_deploy=false" >> $GITHUB_OUTPUT
-            echo "⏭️ No 'xver' keyword — skipping deployment"
+            echo "Commit message does not start with 'deploy'. Skipping deployment."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
           fi
 
   deploy:
+    runs-on: self-hosted
     needs: check-deploy
-    if: needs.check-deploy.outputs.should_deploy == 'true'
-    runs-on: self-hosted   # ← self-hosted runner ของคุณ
-
-    defaults:
-      run:
-        working-directory: /home/xver/thai-citizen-guide
-
+    if: ${{ needs.check-deploy.outputs.deploy == 'true' }}
     steps:
-      - name: Pull latest changes
-        run: |
-          echo "📥 Pulling latest changes..."
-          git pull origin ${{ github.ref_name }}
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
 
-      - name: write .env file
+      - name: Create Production .env File
         run: |
-          echo "🔧 Writing .env file..."
-          cat > .env <<EOL
+          cat > .env << 'EOF'
           TS_AUTHKEY=${{ secrets.TS_AUTHKEY }}
           OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
-          EOL
-          echo "✅ .env file created (update with actual values)"
+          EOF
 
-      - name: Build and start containers
-        id: docker_deploy
+      - name: Deploy Stack
         run: |
-          echo "🐳 Running docker compose up --build..."
-          docker compose down
-          docker compose up -d --build --remove-orphans 2>&1 | tee /tmp/docker_output.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "❌ docker compose failed with exit code $EXIT_CODE"
-            exit $EXIT_CODE
-          fi
-          echo "✅ docker compose completed successfully"
-
-      - name: Verify containers are running
-        run: |
-          echo "🔍 Checking container status..."
-          sleep 5   # รอ container stabilize
-          docker compose ps
-          
-          # ตรวจสอบว่า container ไม่อยู่ใน exited/unhealthy state
-          UNHEALTHY=$(docker compose ps --format json | \
-            python3 -c "
-          import sys, json
-          containers = []
-          for line in sys.stdin:
-              line = line.strip()
-              if line:
-                  containers.append(json.loads(line))
-          bad = [c['Name'] for c in containers if c.get('State') not in ('running', 'healthy')]
-          print('\n'.join(bad))
-          " 2>/dev/null || true)
-          
-          if [ -n "$UNHEALTHY" ]; then
-            echo "❌ Unhealthy containers detected:"
-            echo "$UNHEALTHY"
-            docker compose logs --tail=50
-            exit 1
-          fi
-          
-          echo "✅ All containers are running"
-          docker compose ps
-
-      - name: Show deployment summary
-        if: always()
-        run: |
-          echo "=============================="
-          echo "  Deployment Summary"
-          echo "=============================="
-          echo "Branch   : ${{ github.ref_name }}"
-          echo "Commit   : ${{ github.sha }}"
-          echo "Message  : ${{ github.event.head_commit.message }}"
-          echo "By       : ${{ github.actor }}"
-          echo "Time     : $(date '+%Y-%m-%d %H:%M:%S %Z')"
-          echo "=============================="
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "🚨 Deployment FAILED!"
-          echo "Check logs above for details."
-          docker compose logs --tail=100 || true
+          docker compose -f docker-compose.yaml up -d --build --remove-orphans
