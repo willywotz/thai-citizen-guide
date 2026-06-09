@@ -27,7 +27,7 @@ async def ensure_session_warmed(
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(onechat_url, json=payload)
         resp.raise_for_status()
+        data = resp.json().get("data", {})
+        conversation.external_session_id = data.get("session_id") or str(conversation.id)
 
-    data = resp.json().get("data", {})
-    conversation.external_session_id = data.get("session_id") or str(conversation.id)
     await conversation.save(update_fields=["external_session_id"])
