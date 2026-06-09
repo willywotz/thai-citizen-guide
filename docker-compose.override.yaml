@@ -21,6 +21,8 @@ services:
       target: development
     develop:
       watch:
+        - action: rebuild
+          path: ./agent-proxy/go.mod
         - action: sync+restart
           path: ./agent-proxy
           target: /app

@@ -41,7 +41,8 @@ jobs:
       - name: Create Production .env File
         run: |
           cat > .env << 'EOF'
-          TS_AUTHKEY=${{ secrets.TS_AUTHKEY }}
+          EXTERNAL_HTTP_PORT=80
+
           OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
           EOF
 

@@ -38,6 +38,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    volumes:
+      - backend-uv-cache:/root/.cache/uv
 
   agent-proxy:
     build:
@@ -58,6 +60,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    volumes:
+      - agent-proxy-go-modules:/go/pkg/mod
+      - agent-proxy-go-build-cache:/root/.cache/go-build
 
   frontend:
     build:
@@ -67,11 +72,13 @@ services:
     networks:
       - chatbot-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/index.html"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
+    volumes:
+      - frontend-pnpm-store:/pnpm/store
 
   nginx:
     image: nginx
@@ -93,7 +100,8 @@ services:
     networks:
       - chatbot-network
     ports:
-      - "${PORT:-80}:80"
+      - target: 8080
+        published: "${EXTERNAL_HTTP_PORT:-}"
 
   jaeger:
     image: jaegertracing/jaeger:2.18.0
@@ -105,6 +113,10 @@ services:
 
 volumes:
   postgres_data:
+  backend-uv-cache:
+  agent-proxy-go-modules:
+  agent-proxy-go-build-cache:
+  frontend-pnpm-store:
 
 networks:
   chatbot-network:
