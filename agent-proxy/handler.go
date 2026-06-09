@@ -117,7 +117,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var responseBody bytes.Buffer
 	_, _ = io.Copy(&responseBody, resp.Body)
-	_, _ = io.Copy(w, &responseBody)
+	_, _ = io.Copy(w, bytes.NewReader(responseBody.Bytes()))
 
 	span.SetAttributes(attribute.String("proxy.response_body", responseBody.String()))
 
