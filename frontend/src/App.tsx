@@ -8,7 +8,7 @@ import { AuthProvider } from "@/features/auth/useAuth";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { AppLayout } from "@/shared/components/layout/AppLayout";
 import ChatPage from "./pages/ChatPage";
-import DashboardPage from "./pages/DashboardPage";
+import DashboardPage from "@/features/dashboard/DashboardPage";
 import ExecutivePage from "./pages/ExecutivePage";
 // import InsightsPage from "./pages/InsightsPage";
 import HealthPage from "./pages/HealthPage";
