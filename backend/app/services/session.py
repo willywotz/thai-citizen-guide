@@ -1,5 +1,6 @@
 import httpx
 
+from app.config import settings
 from app.models.conversation import Conversation, Message
 
 
@@ -24,7 +25,7 @@ async def ensure_session_warmed(
         "mcp_endpoint_url": mcp_endpoint_url,
         "session_id": str(conversation.id),
     }
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=settings.EXTERNAL_CHAT_TIMEOUT) as client:
         resp = await client.post(onechat_url, json=payload)
         resp.raise_for_status()
         data = resp.json().get("data", {})
