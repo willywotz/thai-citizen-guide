@@ -199,7 +199,7 @@ async def agency_chat_item(agency: Agency):
                 for v in (agency.api_headers or []):
                     headers[v["name"].lower()] = v["value"]
                 payload = {}
-                for k, v in agency.expected_payload.items():
+                for k, v in (agency.expected_payload or {}).items():
                     payload[k] = v
                     if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + scope
                     if v == "__user_id__": payload[k] = str(generate_uuid())
