@@ -1,4 +1,4 @@
-import { useAnalyticsInsights } from '@/hooks/useInsights';
+import { useAnalyticsInsights } from './useInsights';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Skeleton } from '@/shared/components/ui/skeleton';

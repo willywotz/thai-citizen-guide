@@ -23,7 +23,7 @@ import {
 import { Label } from "@/shared/components/ui/label";
 import { Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { listAPIKeys, createAPIKey, updateAPIKey, deleteAPIKey, type APIKey } from "@/services/apiKeyApi";
+import { listAPIKeys, createAPIKey, updateAPIKey, deleteAPIKey, type APIKey } from "@/features/api-keys/apiKeyApi";
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();

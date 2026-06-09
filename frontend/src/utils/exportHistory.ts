@@ -1,4 +1,4 @@
-import type { HistoryItem } from '@/services/historyApi';
+import type { HistoryItem } from '@/features/history/historyApi';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 

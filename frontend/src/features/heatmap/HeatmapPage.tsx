@@ -1,5 +1,5 @@
-import { useUsageHeatmap } from '@/hooks/useInsights';
-import type { HeatmapRange } from '@/services/insightsApi';
+import { useUsageHeatmap } from './useHeatmap';
+import type { HeatmapRange } from './heatmapApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Skeleton } from '@/shared/components/ui/skeleton';

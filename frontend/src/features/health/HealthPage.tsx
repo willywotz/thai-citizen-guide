@@ -1,4 +1,4 @@
-import { useAgencyHealth } from '@/hooks/useInsights';
+import { useAgencyHealth } from './useHealth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Skeleton } from '@/shared/components/ui/skeleton';

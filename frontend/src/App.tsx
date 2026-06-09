@@ -7,25 +7,25 @@ import { ThemeProvider } from "@/shared/components/ThemeProvider";
 import { AuthProvider } from "@/features/auth/useAuth";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { AppLayout } from "@/shared/components/layout/AppLayout";
-import ChatPage from "./pages/ChatPage";
+import ChatPage from "@/features/chat/ChatPage";
 import DashboardPage from "@/features/dashboard/DashboardPage";
-import ExecutivePage from "./features/executive/ExecutivePage";
-// import InsightsPage from "./pages/InsightsPage";
-import HealthPage from "./pages/HealthPage";
-import HeatmapPage from "./pages/HeatmapPage";
+import ExecutivePage from "@/features/executive/ExecutivePage";
+// import InsightsPage from "@/features/insights/InsightsPage";
+import HealthPage from "@/features/health/HealthPage";
+import HeatmapPage from "@/features/heatmap/HeatmapPage";
 import AgenciesPage from "@/features/agencies/AgenciesPage";
 import AgencyDetailPage from "@/features/agencies/AgencyDetailPage";
-import HistoryPage from "./pages/HistoryPage";
-import ArchitecturePage from "./pages/ArchitecturePage";
-import ConnectionLogsPage from "./pages/ConnectionLogsPage";
-import PublicPortal from "./pages/PublicPortal";
-import LoginPage from "./pages/LoginPage";
-import SignupPage from "./pages/SignupPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import ApiKeysPage from "./pages/ApiKeysPage";
-import SettingsPage from "./pages/SettingsPage";
-import NotFound from "./pages/NotFound";
+import HistoryPage from "@/features/history/HistoryPage";
+import ArchitecturePage from "@/features/architecture/ArchitecturePage";
+import ConnectionLogsPage from "@/features/connection-logs/ConnectionLogsPage";
+import PublicPortal from "@/features/public/PublicPortal";
+import LoginPage from "@/features/auth/LoginPage";
+import SignupPage from "@/features/auth/SignupPage";
+import ForgotPasswordPage from "@/features/auth/ForgotPasswordPage";
+import ResetPasswordPage from "@/features/auth/ResetPasswordPage";
+import ApiKeysPage from "@/features/api-keys/ApiKeysPage";
+import SettingsPage from "@/features/settings/SettingsPage";
+import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -38,14 +38,12 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              {/* Public routes */}
               <Route path="/" element={<PublicPortal />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-              {/* Protected admin routes */}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />

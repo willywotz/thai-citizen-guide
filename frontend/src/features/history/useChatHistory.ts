@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchChatHistory } from '@/services/historyApi';
+import { fetchChatHistory } from '@/features/history/historyApi';
 
 export function useChatHistory(search?: string, filterAgency?: string) {
   return useQuery({

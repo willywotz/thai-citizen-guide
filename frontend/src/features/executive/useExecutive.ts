@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchExecutiveSummary } from '@/services/executiveApi';
+import { fetchExecutiveSummary } from '@/features/executive/executiveApi';
 
 export function useExecutiveSummary() {
   return useQuery({

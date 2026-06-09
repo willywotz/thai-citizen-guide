@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/compo
 import { Badge } from '@/shared/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import { useConversationMessages } from '@/features/history/useConversationMessages';
-import type { HistoryItem } from '@/services/historyApi';
+import type { HistoryItem } from '@/features/history/historyApi';
 import { MessageItem } from './MessageItem';
 
 interface ConversationDetailDialogProps {

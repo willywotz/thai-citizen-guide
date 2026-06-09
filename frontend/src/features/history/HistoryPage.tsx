@@ -9,8 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/shared/components/ui/alert-dialog";
 import { useChatHistory } from "@/features/history/useChatHistory";
 import { ConversationDetailDialog } from "@/components/history/ConversationDetailDialog";
-import { deleteConversation } from "@/services/historyApi";
-import type { HistoryItem } from "@/services/historyApi";
+import { deleteConversation } from "@/features/history/historyApi";
+import type { HistoryItem } from "@/features/history/historyApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { exportToCsv, exportToPdf } from "@/utils/exportHistory";
