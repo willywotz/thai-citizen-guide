@@ -1,0 +1,148 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+)
+
+var (
+	pathRegexp = regexp.MustCompile(`^/agent-proxy/([^/]+)`)
+	uuidRegexp = regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
+)
+
+type handler struct {
+	pool   *pgxpool.Pool
+	tracer trace.Tracer
+}
+
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, span := h.tracer.Start(r.Context(), "Handle HTTP Request")
+	defer span.End()
+
+	m := pathRegexp.FindStringSubmatch(r.URL.Path)
+	if len(m) < 2 {
+		span.SetStatus(codes.Error, "missing id")
+		http.Error(w, "Bad Request: missing id", http.StatusBadRequest)
+		return
+	}
+	agencyID := m[1]
+
+	if !uuidRegexp.MatchString(agencyID) {
+		span.SetStatus(codes.Error, "invalid id format")
+		http.Error(w, "Bad Request: invalid id format", http.StatusBadRequest)
+		return
+	}
+
+	a, err := getAgency(ctx, h.pool, agencyID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		span.SetStatus(codes.Error, "agent not found or inactive")
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		span.SetStatus(codes.Error, "internal server error: "+err.Error())
+		slog.Error("Error querying database", slog.Any("error", err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	defer func() { _ = r.Body.Close() }()
+	var body bytes.Buffer
+	_, _ = io.Copy(&body, r.Body)
+
+	req, _ := http.NewRequestWithContext(ctx, r.Method, a.endpointURL, bytes.NewReader(body.Bytes()))
+	req.Header = r.Header.Clone()
+
+	span.SetAttributes(attribute.String("proxy.method", req.Method))
+	span.SetAttributes(attribute.String("proxy.url", req.URL.String()))
+	span.SetAttributes(attribute.String("proxy.body", body.String()))
+
+	for _, apiHeader := range a.apiHeaders {
+		req.Header.Set(apiHeader["name"], apiHeader["value"])
+	}
+
+	// collect keys first to avoid modifying map during iteration
+	var toDelete []string
+	for k := range req.Header {
+		if strings.HasPrefix(k, "X-Forwarded") {
+			toDelete = append(toDelete, k)
+		}
+	}
+	for _, k := range toDelete {
+		req.Header.Del(k)
+	}
+	for k, v := range req.Header {
+		span.SetAttributes(attribute.String("proxy.request_header."+k, strings.Join(v, ",")))
+	}
+
+	startTime := time.Now()
+	resp, err := http.DefaultClient.Do(req)
+	latency := time.Since(startTime).Milliseconds()
+	if err != nil {
+		_ = h.addConnectionLog(ctx, agencyID, "error", latency, "error forwarding request: "+err.Error(), body.String(), "")
+		span.SetStatus(codes.Error, "error forwarding request to backend: "+err.Error())
+		slog.Error("Error forwarding request to backend", slog.Any("error", err))
+		http.Error(w, "Bad Gateway", http.StatusBadGateway)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	span.SetAttributes(attribute.Int("proxy.response_status", resp.StatusCode))
+	for k, v := range resp.Header {
+		w.Header()[k] = v
+		span.SetAttributes(attribute.String("proxy.response_header."+k, strings.Join(v, ",")))
+	}
+	w.WriteHeader(resp.StatusCode)
+
+	var responseBody bytes.Buffer
+	_, _ = io.Copy(&responseBody, resp.Body)
+	_, _ = io.Copy(w, &responseBody)
+
+	span.SetAttributes(attribute.String("proxy.response_body", responseBody.String()))
+
+	if err := incrementTotalCalls(ctx, h.pool, agencyID); err != nil {
+		span.SetStatus(codes.Error, "error updating total_calls: "+err.Error())
+		slog.Error("Error updating total_calls", slog.Any("error", err))
+	}
+
+	var raw struct {
+		Query string `json:"query"`
+	}
+	_ = json.Unmarshal(body.Bytes(), &raw)
+	detail := fmt.Sprintf("Query: %s\n\nAnswer: %s", raw.Query, responseBody.String())
+
+	status := "success"
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		status = "error"
+	}
+	_ = h.addConnectionLog(ctx, agencyID, status, latency, detail, body.String(), responseBody.String())
+
+	span.SetStatus(codes.Ok, "request handled successfully")
+}
+
+func (h *handler) addConnectionLog(ctx context.Context, agencyID, status string, latency int64, detail, requestBody, responseBody string) error {
+	ctx, span := h.tracer.Start(ctx, "Add Connection Log")
+	defer span.End()
+
+	if err := insertConnectionLog(ctx, h.pool, agencyID, status, latency, detail, requestBody, responseBody); err != nil {
+		span.SetStatus(codes.Error, "error inserting connection log: "+err.Error())
+		slog.Error("Error inserting connection log", slog.Any("error", err))
+		return err
+	}
+	return nil
+}
