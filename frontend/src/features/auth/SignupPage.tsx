@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "@/shared/lib/apiClient";
-import { useAuth, type AuthUser } from "@/hooks/useAuth";
+import { useAuth, type AuthUser } from "@/features/auth/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";

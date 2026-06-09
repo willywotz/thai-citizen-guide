@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/features/auth/useAuth";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
 interface ProtectedRouteProps {

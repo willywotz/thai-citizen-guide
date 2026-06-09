@@ -12,7 +12,7 @@ import {
   useSidebar,
 } from "@/shared/components/ui/sidebar";
 import { useAgencies } from "@/hooks/useAgencies";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/features/auth/useAuth";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 import { AppLogo } from "@/shared/components/ui/AppLogo";

@@ -10,7 +10,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Loader2, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/features/auth/useAuth";
 import { Navigate } from "react-router-dom";
 import { getSettings, updateSettings } from "@/services/settingsApi";
 import type { SettingField } from "@/shared/types/settings";
