@@ -67,7 +67,7 @@ services:
     networks:
       - chatbot-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -88,53 +88,23 @@ services:
       agent-proxy:
         condition: service_healthy
         restart: true
-      otel-collector:
-        condition: service_started
-      zipkin:
+      jaeger:
         condition: service_started
     networks:
       - chatbot-network
     ports:
       - "${PORT:-80}:80"
 
-  otel-collector:
-    image: otel/opentelemetry-collector
-    restart: unless-stopped
-    volumes:
-      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
-    networks:
-      - chatbot-network
-
-  zipkin:
-    image: openzipkin/zipkin
+  jaeger:
+    image: jaegertracing/jaeger:2.18.0
     restart: unless-stopped
     networks:
       - chatbot-network
-
-  tailscale:
-    hostname: thai-citizen-guide
-    image: tailscale/tailscale:latest
-    restart: unless-stopped
-    environment:
-      TS_AUTHKEY: ${TS_AUTHKEY:-}
-      TS_EXTRA_ARGS: --advertise-tags=tag:container
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_USERSPACE: "false"
-      TS_SERVE_CONFIG: /config/serve.json
-    volumes:
-      - tailscale:/var/lib/tailscale
-      - ./serve.json:/config/serve.json:ro
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    cap_add:
-      - net_admin
-      - net_raw
-    networks:
-      - chatbot-network
+    command:
+      - "--set=extensions.jaeger_query.base_path=/jaeger"
 
 volumes:
   postgres_data:
-  tailscale:
 
 networks:
   chatbot-network:

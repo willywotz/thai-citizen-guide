@@ -172,7 +172,7 @@ resource = Resource.create(attributes={
 })
 
 tracerProvider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="otel-collector:4317", insecure=True))
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True))
 tracerProvider.add_span_processor(processor)
 trace.set_tracer_provider(tracerProvider)
 

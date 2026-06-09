@@ -1,6 +1,4 @@
 @docs/rtk.md
-@docs/skills.md
-@docs/claude-mem.md
 
 ## Branching — Mandatory
 

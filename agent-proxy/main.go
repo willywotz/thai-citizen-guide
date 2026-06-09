@@ -191,7 +191,7 @@ func mustPanic[T any](v T, err error) T {
 
 func InitTracer(ctx context.Context) (*sdktrace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint("otel-collector:4317"),
+		otlptracegrpc.WithEndpoint("jaeger:4317"),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
