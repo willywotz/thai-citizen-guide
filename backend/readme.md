@@ -18,3 +18,5 @@ uv add some-package
 
 # ── Add a dev-only package ────────────────────
 uv add --dev pytest-something
+
+npx @modelcontextprotocol/inspector
