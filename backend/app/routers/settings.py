@@ -20,7 +20,7 @@ from app.schemas.settings import (
     SettingsUpdateRequest,
 )
 
-router = APIRouter(prefix="/settings", tags=["Settings"])
+router = APIRouter(tags=["Settings"])
 
 ALL_KEYS = {k for keys in SETTINGS_GROUPS.values() for k in keys}
 MASK = "*****"
@@ -59,7 +59,7 @@ def _serialize_default(key: str) -> str:
     return ""
 
 
-@router.get("/", response_model=SettingsResponse, dependencies=[Depends(require_admin)])
+@router.get("/settings", response_model=SettingsResponse, dependencies=[Depends(require_admin)])
 async def list_settings():
     db_rows = await Setting.all()
     db_map = {r.key: r for r in db_rows}
@@ -90,7 +90,7 @@ async def list_settings():
     return SettingsResponse(groups=groups)
 
 
-@router.put("/", dependencies=[Depends(require_admin)])
+@router.put("/settings", dependencies=[Depends(require_admin)])
 async def update_settings(body: SettingsUpdateRequest, admin: User = Depends(require_admin)):
     for item in body.settings:
         if item.key not in ALL_KEYS:
