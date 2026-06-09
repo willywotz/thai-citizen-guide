@@ -9,7 +9,7 @@ import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { AppLayout } from "@/shared/components/layout/AppLayout";
 import ChatPage from "./pages/ChatPage";
 import DashboardPage from "@/features/dashboard/DashboardPage";
-import ExecutivePage from "./pages/ExecutivePage";
+import ExecutivePage from "./features/executive/ExecutivePage";
 // import InsightsPage from "./pages/InsightsPage";
 import HealthPage from "./pages/HealthPage";
 import HeatmapPage from "./pages/HeatmapPage";

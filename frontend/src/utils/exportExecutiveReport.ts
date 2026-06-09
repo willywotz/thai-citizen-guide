@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { ExecutiveData } from '@/services/executiveApi';
+import type { ExecutiveData } from '@/features/executive/executiveApi';
 
 export function generateExecutiveReport(data: ExecutiveData) {
   const doc = new jsPDF();
