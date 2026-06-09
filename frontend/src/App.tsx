@@ -25,7 +25,7 @@ import ForgotPasswordPage from "@/features/auth/ForgotPasswordPage";
 import ResetPasswordPage from "@/features/auth/ResetPasswordPage";
 import ApiKeysPage from "@/features/api-keys/ApiKeysPage";
 import SettingsPage from "@/features/settings/SettingsPage";
-import NotFound from "@/pages/NotFound";
+import NotFound from "@/shared/NotFound";
 
 const queryClient = new QueryClient();
 

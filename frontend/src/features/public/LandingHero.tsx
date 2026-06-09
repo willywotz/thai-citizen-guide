@@ -1,4 +1,4 @@
-import { AppLogo } from "../ui/AppLogo";
+import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 export function LandingHero() {
   return (

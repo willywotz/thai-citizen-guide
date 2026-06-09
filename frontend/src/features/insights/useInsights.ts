@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchAnalyticsInsights } from '@/services/insightsApi';
+import { fetchAnalyticsInsights } from '@/features/insights/insightsApi';
 
 export function useAnalyticsInsights() {
   return useQuery({

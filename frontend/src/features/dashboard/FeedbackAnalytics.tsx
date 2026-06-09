@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { ThumbsUp, ThumbsDown, TrendingUp, MessageSquareWarning } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useFeedbackStats } from "@/hooks/useFeedbackStats";
+import { useFeedbackStats } from "@/features/dashboard/useFeedbackStats";
 import { cn } from "@/shared/lib/utils";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
