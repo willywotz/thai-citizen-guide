@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import { Plus, Pencil, Trash2, Wifi, MoreVertical } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/components/ui/dropdown-menu";
 import { useAgencies, useCreateAgency, useUpdateAgency, useDeleteAgency, useTestConnection } from "@/hooks/useAgencies";
 import { AgencyFormDialog } from "@/components/agencies/AgencyFormDialog";
 import { DeleteAgencyDialog } from "@/components/agencies/DeleteAgencyDialog";
 import { ConnectionTestResult } from "@/components/agencies/ConnectionTestResult";
 import { toast } from "sonner";
-import type { Agency } from "@/types";
+import type { Agency } from "@/shared/types";
 
 const connectionTypeColors: Record<string, string> = {
   MCP: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",

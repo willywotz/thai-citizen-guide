@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
@@ -7,7 +7,7 @@ import {
 import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity } from "lucide-react";
 import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "@/hooks/useDashboard";
 import { useAgencies } from "@/hooks/useAgencies";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { useTheme } from "next-themes";
 // import { LiveActivityChart } from "@/components/dashboard/LiveActivityChart";
 import { FeedbackAnalytics } from "@/components/dashboard/FeedbackAnalytics";

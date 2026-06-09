@@ -1,5 +1,5 @@
-import { api } from "@/lib/apiClient";
-import type { SettingsResponse, SettingUpdate } from "@/types/settings";
+import { api } from "@/shared/lib/apiClient";
+import type { SettingsResponse, SettingUpdate } from "@/shared/types/settings";
 
 export const getSettings = (): Promise<SettingsResponse> =>
   api.get<SettingsResponse>("/api/v1/settings");

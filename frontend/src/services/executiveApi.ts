@@ -1,4 +1,4 @@
-import { api } from '@/lib/apiClient';
+import { api } from '@/shared/lib/apiClient';
 
 export interface ExecutiveKPIs {
   totalQuestions: number;

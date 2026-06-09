@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn, parseThinkContent } from "@/lib/utils";
-import type { ChatMessage } from "@/types";
+import { Button } from "@/shared/components/ui/button";
+import { cn, parseThinkContent } from "@/shared/lib/utils";
+import type { ChatMessage } from "@/shared/types";
 // import { AgentStepDisplay } from "./AgentStepDisplay";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";

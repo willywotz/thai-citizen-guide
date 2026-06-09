@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/apiClient';
-import { ConnectionLog } from '@/types/connectionLog';
+import { api } from '@/shared/lib/apiClient';
+import { ConnectionLog } from '@/shared/types/connectionLog';
 
 export interface ConnectionLogResponse {
   search: string | null;

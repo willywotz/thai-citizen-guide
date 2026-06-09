@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Bot, User, Brain, ChevronDown, ChevronUp } from "lucide-react";
-import { cn, parseThinkContent } from "@/lib/utils";
-import type { ConversationMessage } from "@/types";
+import { cn, parseThinkContent } from "@/shared/lib/utils";
+import type { ConversationMessage } from "@/shared/types";
 import ReactMarkdown from "react-markdown";
 
 export function MessageItem({ msg }: { msg: ConversationMessage }) {

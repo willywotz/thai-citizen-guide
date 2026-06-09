@@ -1,5 +1,5 @@
-import { api } from '@/lib/apiClient';
-import { conversationHistory as fallback } from '@/data/mockData';
+import { api } from '@/shared/lib/apiClient';
+import { conversationHistory as fallback } from '@/shared/data/mockData';
 
 export interface HistoryItem {
   id: string;

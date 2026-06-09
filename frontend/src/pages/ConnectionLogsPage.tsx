@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/shared/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import {
   Search,
   CheckCircle2,
@@ -15,10 +15,10 @@ import {
   Activity,
 } from "lucide-react";
 import { useConnectionLogs } from "@/hooks/useConnectionLogs";
-import type { ConnectionLog } from "@/types/connectionLog";
+import type { ConnectionLog } from "@/shared/types/connectionLog";
 import { useAgencies } from "@/hooks/useAgencies";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConnectionLogInfo } from "@/hooks/useConnectionLogs";
 

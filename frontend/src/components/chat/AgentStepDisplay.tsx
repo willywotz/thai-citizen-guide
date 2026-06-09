@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
-import type { AgentStep } from "@/types";
-import type { StreamingState } from "@/types/chat";
+import { cn } from "@/shared/lib/utils";
+import type { AgentStep } from "@/shared/types";
+import type { StreamingState } from "@/shared/types/chat";
 
 const STEP_LABELS: Record<string, { icon: string; label: string }> = {
   discover: { icon: '🔍', label: 'ค้นหาหน่วยงาน' },

@@ -1,12 +1,12 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/shared/components/ui/card";
+import { Input } from "@/shared/components/ui/input";
+import { Badge } from "@/shared/components/ui/badge";
 import { Search, CheckCircle, XCircle, Loader2, Trash2, Download, FileText, CalendarIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Button } from "@/shared/components/ui/button";
+import { Calendar } from "@/shared/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/shared/components/ui/alert-dialog";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import { ConversationDetailDialog } from "@/components/history/ConversationDetailDialog";
 import { deleteConversation } from "@/services/historyApi";
@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { exportToCsv, exportToPdf } from "@/utils/exportHistory";
 import { format, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import { th } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import type { DateRange } from "react-day-picker";
 
 const PAGE_SIZE = 10;

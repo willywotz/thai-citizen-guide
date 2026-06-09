@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api } from '@/lib/apiClient';
+import { api } from '@/shared/lib/apiClient';
 
 export interface RealtimeEvent {
   id: string;

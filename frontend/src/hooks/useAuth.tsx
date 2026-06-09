@@ -6,7 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { api, tokenStorage } from "@/lib/apiClient";
+import { api, tokenStorage } from "@/shared/lib/apiClient";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -1,5 +1,5 @@
 import { CheckCircle2, Loader2, Circle, XCircle, AlertTriangle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/components/ui/badge";
 
 interface TestStep {
   step: number;

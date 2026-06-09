@@ -1,5 +1,5 @@
-import { api } from '@/lib/apiClient';
-import { dashboardStats, agencyUsageData, weeklyTrendData, categoryData } from '@/data/mockData';
+import { api } from '@/shared/lib/apiClient';
+import { dashboardStats, agencyUsageData, weeklyTrendData, categoryData } from '@/shared/data/mockData';
 
 interface DashboardApiResponse {
   success: boolean;

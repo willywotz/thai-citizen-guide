@@ -1,10 +1,10 @@
-import { api, tokenStorage } from '@/lib/apiClient';
-import type { AgentStep } from '@/types';
+import { api, tokenStorage } from '@/shared/lib/apiClient';
+import type { AgentStep } from '@/shared/types';
 import type {
   StepEvent, AgenciesEvent, IntentEvent, RoutingEvent,
   AgencyStartEvent, AgencyRespondedEvent, AgencyVerifiedEvent,
   AnswerEvent, DoneEvent, ErrorEvent,
-} from '@/types/chat';
+} from '@/shared/types/chat';
 
 export interface ChatApiRequest {
   query: string;

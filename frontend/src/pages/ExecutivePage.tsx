@@ -1,9 +1,9 @@
 import { useExecutiveSummary } from '@/hooks/useExecutive';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/shared/components/ui/card';
+import { Button } from '@/shared/components/ui/button';
+import { Badge } from '@/shared/components/ui/badge';
+import { Skeleton } from '@/shared/components/ui/skeleton';
+import { Progress } from '@/shared/components/ui/progress';
 import { generateExecutiveReport } from '@/utils/exportExecutiveReport';
 import {
   TrendingUp, TrendingDown, Users, Clock, DollarSign, Activity,
@@ -14,7 +14,7 @@ import {
   BarChart, Bar,
 } from 'recharts';
 import ReactMarkdown from 'react-markdown';
-import { toast } from '@/hooks/use-toast';
+import { toast } from '@/shared/hooks/use-toast';
 
 function StatCard({
   icon: Icon, label, value, sublabel, trend, accent = 'primary',

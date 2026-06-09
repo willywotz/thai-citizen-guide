@@ -1,4 +1,4 @@
-import type { Agency } from '@/types';
+import type { Agency } from '@/shared/types';
 
 const agencyColors: Record<string, string> = {
   fda: 'border-t-[hsl(var(--gov-fda))]',

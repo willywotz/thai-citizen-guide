@@ -1,5 +1,5 @@
 import { ArrowUpRight } from 'lucide-react';
-import type { Agency } from '@/types';
+import type { Agency } from '@/shared/types';
 
 const agencyBgColors: Record<string, string> = {
   fda: 'bg-[hsl(var(--gov-fda)/0.1)]',

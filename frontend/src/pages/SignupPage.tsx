@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { api } from "@/lib/apiClient";
+import { api } from "@/shared/lib/apiClient";
 import { useAuth, type AuthUser } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
-import { AppLogo } from "@/components/ui/AppLogo";
+import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 export default function SignupPage() {
   const navigate = useNavigate();

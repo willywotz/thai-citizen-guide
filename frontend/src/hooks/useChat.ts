@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { ChatMessage, AgentStep, StreamingState } from '@/types';
+import type { ChatMessage, AgentStep, StreamingState } from '@/shared/types';
 import type {
   StepEvent, AgenciesEvent, IntentEvent, RoutingEvent,
   AgencyStartEvent, AgencyRespondedEvent, AgencyVerifiedEvent,
   AnswerEvent, DoneEvent, ErrorEvent,
-} from '@/types/chat';
+} from '@/shared/types/chat';
 import { sendChatQuery, sendChatQuerySSE } from '@/services/chatApi';
 import { updateMessageRating } from '@/services/feedbackApi';
-import { mockAgentSteps } from '@/data/mockData';
-import { generateUniqueId } from '@/lib/utils';
+import { mockAgentSteps } from '@/shared/data/mockData';
+import { generateUniqueId } from '@/shared/lib/utils';
 
 const INITIAL_STREAMING_STATE: StreamingState = {
   pipelineSteps: [],

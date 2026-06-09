@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend,
@@ -7,8 +7,8 @@ import {
 import { ThumbsUp, ThumbsDown, TrendingUp, MessageSquareWarning } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useFeedbackStats } from "@/hooks/useFeedbackStats";
-import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/shared/lib/utils";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;

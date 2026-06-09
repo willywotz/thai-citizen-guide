@@ -1,9 +1,9 @@
 import { useUsageHeatmap } from '@/hooks/useInsights';
 import type { HeatmapRange } from '@/services/insightsApi';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Badge } from '@/shared/components/ui/badge';
+import { Skeleton } from '@/shared/components/ui/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@/shared/components/ui/toggle-group';
 import { Flame, Clock, TrendingUp, Lightbulb, Database } from 'lucide-react';
 import { useMemo, useState } from 'react';
 

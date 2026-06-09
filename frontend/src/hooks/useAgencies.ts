@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/apiClient';
-// import { agencies as mockAgencies } from '@/data/mockData';
-import type { Agency } from '@/types';
-import type { AgencyRow } from '@/types/agency';
-import { mapRowToAgency } from '@/types/agency';
+import { api } from '@/shared/lib/apiClient';
+// import { agencies as mockAgencies } from '@/shared/data/mockData';
+import type { Agency } from '@/shared/types';
+import type { AgencyRow } from '@/shared/types/agency';
+import { mapRowToAgency } from '@/shared/types/agency';
 import type { TestResult } from '@/components/agencies/ConnectionTestResult';
 
 // ---------------------------------------------------------------------------
