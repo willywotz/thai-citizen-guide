@@ -1,5 +1,9 @@
 @docs/rtk.md
 
+## Critical Rules
+
+- don't use claude worktree
+
 ## Branching — Mandatory
 
 When running multiple tasks (e.g. implementing a feature, fixing several bugs, or executing a plan with more than one step), **always create a new git branch first**:
