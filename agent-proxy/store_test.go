@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -26,7 +27,7 @@ func testPool(t *testing.T) *pgxpool.Pool {
 func TestGetAgency_NotFound(t *testing.T) {
 	pool := testPool(t)
 	_, err := getAgency(context.Background(), pool, "00000000-0000-0000-0000-000000000000")
-	if err != pgx.ErrNoRows {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("want pgx.ErrNoRows, got %v", err)
 	}
 }

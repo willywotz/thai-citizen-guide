@@ -48,7 +48,10 @@ func main() {
 	})
 
 	slog.Info("Starting HTTP server on http://localhost:8080")
-	_ = http.ListenAndServe(":8080", nil)
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		slog.Error("HTTP server error", slog.Any("error", err))
+		os.Exit(1)
+	}
 }
 
 func mustPanic[T any](v T, err error) T {
