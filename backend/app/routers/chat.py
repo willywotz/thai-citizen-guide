@@ -23,6 +23,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Request
+from tortoise.exceptions import DoesNotExist
 from fastapi.responses import StreamingResponse
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
@@ -496,7 +497,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         if body.conversation_id:
             try:
                 conv = await Conversation.get(id=conversation_id)
-            except Exception:
+            except DoesNotExist:
                 raise HTTPException(status_code=404, detail="Conversation not found")
 
         if not query:
@@ -526,7 +527,8 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                     "responseTime": 0,
                 }
         else:
-            # Turn 2+: ensure OneChat has session context from turn 1
+            # Turn 2+: warm-up via v3 (sync JSON) so OneChat has session context.
+            # v3 and v4 share session state server-side, keyed by session_id.
             try:
                 await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
             except Exception:
@@ -650,8 +652,10 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
         # Turn 2+: ensure OneChat has session context from turn 1
         try:
             conv = await Conversation.get(id=conversation_id)
-        except Exception:
+        except DoesNotExist:
             raise HTTPException(status_code=404, detail="Conversation not found")
+        # Warm-up sends turn 1 to OneChat v3 (synchronous) so it establishes session context.
+        # v3 and v4 share session state server-side, keyed by session_id.
         try:
             await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
         except Exception:
