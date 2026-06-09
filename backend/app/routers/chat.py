@@ -629,22 +629,21 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
     if not query:
         raise HTTPException(status_code=400, detail="Missing query")
 
-    # Check for similar question in cache
-    embedding = await generate_embedding(query)
-    cached = await find_similar_question(query=query, embedding=embedding)
-    if cached:
-        user_msg, asst_msg = cached
-        async def cached_stream():
-            await asyncio.sleep(0.01)
-            yield _sse_event("answer", {"answer": asst_msg.content})
-            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-        return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-
-    if body.conversation_id:
-        try:
-            await Conversation.get(id=conversation_id)
-        except Exception:
-            pass
+    # Cache applies only on turn 1 (new conversation)
+    if not body.conversation_id:
+        embedding = await generate_embedding(query)
+        cached = await find_similar_question(query=query, embedding=embedding)
+        if cached:
+            user_msg, asst_msg = cached
+            async def cached_stream():
+                await asyncio.sleep(0.01)
+                yield _sse_event("answer", {"answer": asst_msg.content})
+                yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+            return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    else:
+        # Turn 2+: ensure OneChat has session context from turn 1
+        conv = await Conversation.get(id=conversation_id)
+        await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
 
     payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
