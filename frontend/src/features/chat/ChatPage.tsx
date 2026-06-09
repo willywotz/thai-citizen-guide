@@ -1,0 +1,103 @@
+import { useEffect } from 'react';
+import { Send, X } from 'lucide-react';
+import { Button } from '@/shared/components/ui/button';
+import { ScrollArea } from '@/shared/components/ui/scroll-area';
+import { suggestedQuestions } from '@/shared/data/mockData';
+import { useSearchParams } from 'react-router-dom';
+import { MessageBubble } from '@/features/chat/MessageBubble';
+import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
+import { useChat } from '@/features/chat/useChat';
+import { AppLogo } from '@/shared/components/ui/AppLogo';
+
+export default function ChatPage() {
+  const {
+    messages, input, setInput, isTyping, activeStepCount, currentSteps,
+    streamingState, scrollRef, handleSend, handleRate, cancelStream, hasMessages,
+  } = useChat();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Detect if SSE streaming is active (has pipeline steps but not done)
+  const isStreaming = isTyping && streamingState.pipelineSteps.length > 0 && !streamingState.done;
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      setSearchParams({});
+      handleSend(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-3.5rem)]">
+      <ScrollArea className="flex-1 p-4">
+        {!hasMessages && !isTyping ? (
+          <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-4">
+            <AppLogo className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mb-4" />
+            <h1 className="text-3xl md:text-4xl font-bold text-center mb-3 portal-gradient-text">
+              ศูนย์บริการข้อมูลภาครัฐ
+            </h1>
+            <p className="text-sm md:text-base text-muted-foreground text-center max-w-lg mb-10 leading-relaxed">
+              สอบถามข้อมูลจากหน่วยงานภาครัฐได้ครบในที่เดียว —{' '}
+              <span className="text-foreground font-medium">Single Portal</span> เพื่อประชาชน
+            </p>
+            <div className="w-full max-w-lg space-y-2">
+              <p className="text-xs text-muted-foreground mb-2">ลองถามคำถามเหล่านี้:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {suggestedQuestions.map((q, i) => (
+                  <button key={i} onClick={() => handleSend(q)}
+                    className="text-left text-sm bg-card border border-border rounded-xl p-3 hover:bg-accent hover:border-primary/30 transition-colors">
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-3xl mx-auto">
+            {messages.map((msg) => (
+              <MessageBubble key={msg.id} message={msg} onRate={handleRate} />
+            ))}
+            {isTyping && (
+              <div className="flex items-start gap-3 mb-4">
+                <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />
+                <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
+                  {isStreaming ? (
+                    <StreamingProgress state={streamingState} />
+                  ) : activeStepCount > 0 ? (
+                    <AgentStepDisplay steps={currentSteps} visibleCount={activeStepCount} />
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            <div ref={scrollRef} />
+          </div>
+        )}
+      </ScrollArea>
+
+      <div className="border-t border-border bg-card p-3">
+        <div className="max-w-3xl mx-auto flex gap-2">
+          <input value={input} onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            placeholder="พิมพ์คำถามของคุณที่นี่..."
+            className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          {isTyping ? (
+            <Button onClick={cancelStream} size="icon" variant="outline" className="rounded-xl shrink-0" title="ยกเลิก">
+              <X className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button onClick={() => handleSend()} size="icon" className="rounded-xl shrink-0" disabled={!input.trim() || isTyping}>
+              <Send className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
