@@ -4,9 +4,9 @@ import { Button } from '@/shared/components/ui/button';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { suggestedQuestions } from '@/shared/data/mockData';
 import { useSearchParams } from 'react-router-dom';
-import { MessageBubble } from '@/components/chat/MessageBubble';
-import { AgentStepDisplay, StreamingProgress } from '@/components/chat/AgentStepDisplay';
-import { useChat } from '@/hooks/useChat';
+import { MessageBubble } from '@/features/chat/MessageBubble';
+import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
+import { useChat } from '@/features/chat/useChat';
 import { AppLogo } from '@/shared/components/ui/AppLogo';
 
 export default function ChatPage() {

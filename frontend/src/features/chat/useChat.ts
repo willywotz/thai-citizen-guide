@@ -5,8 +5,8 @@ import type {
   AgencyStartEvent, AgencyRespondedEvent, AgencyVerifiedEvent,
   AnswerEvent, DoneEvent, ErrorEvent,
 } from '@/shared/types/chat';
-import { sendChatQuery, sendChatQuerySSE } from '@/services/chatApi';
-import { updateMessageRating } from '@/services/feedbackApi';
+import { sendChatQuery, sendChatQuerySSE } from '@/features/chat/chatApi';
+import { updateMessageRating } from '@/features/chat/feedbackApi';
 import { mockAgentSteps } from '@/shared/data/mockData';
 import { generateUniqueId } from '@/shared/lib/utils';
 

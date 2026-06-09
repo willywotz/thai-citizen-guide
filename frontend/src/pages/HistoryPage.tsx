@@ -7,7 +7,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Calendar } from "@/shared/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/shared/components/ui/alert-dialog";
-import { useChatHistory } from "@/hooks/useChatHistory";
+import { useChatHistory } from "@/features/history/useChatHistory";
 import { ConversationDetailDialog } from "@/components/history/ConversationDetailDialog";
 import { deleteConversation } from "@/services/historyApi";
 import type { HistoryItem } from "@/services/historyApi";

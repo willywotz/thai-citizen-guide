@@ -2,12 +2,12 @@ import { Send, Search, X, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { agencies, suggestedQuestions } from '@/shared/data/mockData';
-import { MessageBubble } from '@/components/chat/MessageBubble';
-import { AgentStepDisplay, StreamingProgress } from '@/components/chat/AgentStepDisplay';
+import { MessageBubble } from '@/features/chat/MessageBubble';
+import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
 import { LandingHero } from '@/components/public/LandingHero';
 import { AgencyCards } from '@/components/public/AgencyCards';
 import { SuggestedQuestions } from '@/components/public/SuggestedQuestions';
-import { useChat } from '@/hooks/useChat';
+import { useChat } from '@/features/chat/useChat';
 import { useState } from 'react';
 import { AppLogo } from '@/shared/components/ui/AppLogo';
 

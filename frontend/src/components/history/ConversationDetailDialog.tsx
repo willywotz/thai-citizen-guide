@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import { Badge } from '@/shared/components/ui/badge';
 import { Loader2 } from 'lucide-react';
-import { useConversationMessages } from '@/hooks/useConversationMessages';
+import { useConversationMessages } from '@/features/history/useConversationMessages';
 import type { HistoryItem } from '@/services/historyApi';
 import { MessageItem } from './MessageItem';
 

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchFeedbackStats } from '@/services/feedbackApi';
+import { fetchFeedbackStats } from '@/features/chat/feedbackApi';
 
 export function useFeedbackStats() {
   return useQuery({
