@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useConnectionLogs } from "@/hooks/useConnectionLogs";
 import type { ConnectionLog } from "@/shared/types/connectionLog";
-import { useAgencies } from "@/hooks/useAgencies";
+import { useAgencies } from "@/features/agencies/useAgencies";
 import { format } from "date-fns";
 import { cn } from "@/shared/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";

@@ -11,7 +11,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/shared/components/ui/sidebar";
-import { useAgencies } from "@/hooks/useAgencies";
+import { useAgencies } from "@/features/agencies/useAgencies";
 import { useAuth } from "@/features/auth/useAuth";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";

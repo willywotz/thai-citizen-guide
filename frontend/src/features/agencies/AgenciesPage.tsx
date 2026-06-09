@@ -5,10 +5,10 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Plus, Pencil, Trash2, Wifi, MoreVertical } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/components/ui/dropdown-menu";
-import { useAgencies, useCreateAgency, useUpdateAgency, useDeleteAgency, useTestConnection } from "@/hooks/useAgencies";
+import { useAgencies, useCreateAgency, useUpdateAgency, useDeleteAgency, useTestConnection } from "@/features/agencies/useAgencies";
 import { AgencyFormDialog } from "@/components/agencies/AgencyFormDialog";
 import { DeleteAgencyDialog } from "@/components/agencies/DeleteAgencyDialog";
-import { ConnectionTestResult } from "@/components/agencies/ConnectionTestResult";
+import { ConnectionTestResult } from "@/features/agencies/ConnectionTestResult";
 import { toast } from "sonner";
 import type { Agency } from "@/shared/types";
 

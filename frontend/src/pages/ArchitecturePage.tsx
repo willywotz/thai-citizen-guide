@@ -2,7 +2,7 @@ import { useState } from "react";
 // import { agencies } from "@/shared/data/mockData";
 import { cn } from "@/shared/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useAgencies } from "@/hooks/useAgencies";
+import { useAgencies } from "@/features/agencies/useAgencies";
 
 interface NodeData {
   id: string;

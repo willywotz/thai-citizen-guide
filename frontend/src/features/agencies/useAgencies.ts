@@ -4,7 +4,7 @@ import { api } from '@/shared/lib/apiClient';
 import type { Agency } from '@/shared/types';
 import type { AgencyRow } from '@/shared/types/agency';
 import { mapRowToAgency } from '@/shared/types/agency';
-import type { TestResult } from '@/components/agencies/ConnectionTestResult';
+import type { TestResult } from '@/features/agencies/ConnectionTestResult';
 
 // ---------------------------------------------------------------------------
 // Fetch helpers

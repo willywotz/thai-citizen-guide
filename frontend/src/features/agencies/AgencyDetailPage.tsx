@@ -6,9 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { ArrowLeft, Activity, Clock, CheckCircle2, XCircle, Wifi, BarChart3, Loader2 } from "lucide-react";
-import { useAgencies, useTestConnection } from "@/hooks/useAgencies";
+import { useAgencies, useTestConnection } from "@/features/agencies/useAgencies";
 import { useConnectionLogs } from "@/hooks/useConnectionLogs";
-import { ConnectionTestResult } from "@/components/agencies/ConnectionTestResult";
+import { ConnectionTestResult } from "@/features/agencies/ConnectionTestResult";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useMemo } from "react";
 import { format } from "date-fns";

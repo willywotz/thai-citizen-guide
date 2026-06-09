@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity } from "lucide-react";
 import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "@/hooks/useDashboard";
-import { useAgencies } from "@/hooks/useAgencies";
+import { useAgencies } from "@/features/agencies/useAgencies";
 import { cn } from "@/shared/lib/utils";
 import { useTheme } from "next-themes";
 // import { LiveActivityChart } from "@/components/dashboard/LiveActivityChart";
