@@ -23,6 +23,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Request
+from tortoise.exceptions import DoesNotExist
 from fastapi.responses import StreamingResponse
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
@@ -36,6 +37,7 @@ from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
 from app.services.similarity import find_similar_question
 from app.services.embedding import generate_embedding, encode_embedding
+from app.services.session import ensure_session_warmed
 from app.utils import generate_uuid, now
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -493,33 +495,44 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         conversation_id = body.conversation_id or str(generate_uuid())
         
         if body.conversation_id:
-            conv = await Conversation.get(id=conversation_id)
+            try:
+                conv = await Conversation.get(id=conversation_id)
+            except DoesNotExist:
+                raise HTTPException(status_code=404, detail="Conversation not found")
 
         if not query:
             span.set_status(StatusCode.ERROR, "Missing query")
             span.set_attributes({"error": "missing query"})
             raise HTTPException(status_code=400, detail="Missing query")
 
-        # Check for similar question in cache
-        embedding = await generate_embedding(query)
-        cached = await find_similar_question(query=query, embedding=embedding)
-        if cached:
-            user_msg, asst_msg = cached
-            span.set_attribute("cache_hit", True)
-            return {
-                "success": True,
-                "data": {
-                    "message_id": asst_msg.id,
-                    "answer": asst_msg.content,
-                    "references": asst_msg.sources if asst_msg.sources else [],
-                    "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
-                    "agencies": [],
-                    "confidence": settings.SIMILARITY_THRESHOLD,
-                    "cached": True,
-                },
-                "conversation_id": str(user_msg.conversation_id),
-                "responseTime": 0,
-            }
+        # Cache applies only on turn 1 (new conversation)
+        if not body.conversation_id:
+            embedding = await generate_embedding(query)
+            cached = await find_similar_question(query=query, embedding=embedding)
+            if cached:
+                user_msg, asst_msg = cached
+                span.set_attribute("cache_hit", True)
+                return {
+                    "success": True,
+                    "data": {
+                        "message_id": asst_msg.id,
+                        "answer": asst_msg.content,
+                        "references": asst_msg.sources if asst_msg.sources else [],
+                        "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
+                        "agencies": [],
+                        "confidence": settings.SIMILARITY_THRESHOLD,
+                        "cached": True,
+                    },
+                    "conversation_id": str(user_msg.conversation_id),
+                    "responseTime": 0,
+                }
+        else:
+            # Turn 2+: warm-up via v3 (sync JSON) so OneChat has session context.
+            # v3 and v4 share session state server-side, keyed by session_id.
+            try:
+                await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
+            except Exception:
+                logger.warning("Session warm-up failed for conversation %s", conversation_id)
 
         payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
@@ -624,22 +637,29 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
     if not query:
         raise HTTPException(status_code=400, detail="Missing query")
 
-    # Check for similar question in cache
-    embedding = await generate_embedding(query)
-    cached = await find_similar_question(query=query, embedding=embedding)
-    if cached:
-        user_msg, asst_msg = cached
-        async def cached_stream():
-            await asyncio.sleep(0.01)
-            yield _sse_event("answer", {"answer": asst_msg.content})
-            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-        return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-
-    if body.conversation_id:
+    # Cache applies only on turn 1 (new conversation)
+    if not body.conversation_id:
+        embedding = await generate_embedding(query)
+        cached = await find_similar_question(query=query, embedding=embedding)
+        if cached:
+            user_msg, asst_msg = cached
+            async def cached_stream():
+                await asyncio.sleep(0.01)
+                yield _sse_event("answer", {"answer": asst_msg.content})
+                yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+            return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    else:
+        # Turn 2+: ensure OneChat has session context from turn 1
         try:
-            await Conversation.get(id=conversation_id)
+            conv = await Conversation.get(id=conversation_id)
+        except DoesNotExist:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        # Warm-up sends turn 1 to OneChat v3 (synchronous) so it establishes session context.
+        # v3 and v4 share session state server-side, keyed by session_id.
+        try:
+            await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
         except Exception:
-            pass
+            logger.warning("Session warm-up failed for conversation %s", conversation_id)
 
     payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 

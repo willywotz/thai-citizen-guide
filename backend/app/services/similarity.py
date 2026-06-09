@@ -118,18 +118,22 @@ async def _similarity_search(
 ) -> Message | None:
     """Search for similar questions using pg_trgm text similarity."""
     conn = Tortoise.get_connection("default")
-    rows = await conn.execute_query_dict(
-        """
-        SELECT id, content, conversation_id, similarity(content, $1) AS sim_score
-        FROM messages
-        WHERE role = 'user'
-          AND created_at >= $2
-          AND similarity(content, $3) >= $4
-        ORDER BY similarity(content, $5) DESC
-        LIMIT 1
-        """,
-        [query, cutoff, query, threshold, query],
-    )
+    try:
+        rows = await conn.execute_query_dict(
+            """
+            SELECT id, content, conversation_id, similarity(content, $1) AS sim_score
+            FROM messages
+            WHERE role = 'user'
+              AND created_at >= $2
+              AND similarity(content, $3) >= $4
+            ORDER BY similarity(content, $5) DESC
+            LIMIT 1
+            """,
+            [query, cutoff, query, threshold, query],
+        )
+    except Exception:
+        logger.warning("pg_trgm similarity search unavailable — extension not installed?")
+        return None
 
     if not rows:
         return None
@@ -150,18 +154,22 @@ async def _levenshtein_search(
     max_distance = max(1, int(len(query) * (1 - threshold)))
 
     conn = Tortoise.get_connection("default")
-    rows = await conn.execute_query_dict(
-        """
-        SELECT id, content, conversation_id, levenshtein(content, $1) AS dist
-        FROM messages
-        WHERE role = 'user'
-          AND created_at >= $2
-          AND levenshtein(content, $3) <= $4
-        ORDER BY levenshtein(content, $5) ASC
-        LIMIT 1
-        """,
-        [query, cutoff, query, max_distance, query],
-    )
+    try:
+        rows = await conn.execute_query_dict(
+            """
+            SELECT id, content, conversation_id, levenshtein(content, $1) AS dist
+            FROM messages
+            WHERE role = 'user'
+              AND created_at >= $2
+              AND levenshtein(content, $3) <= $4
+            ORDER BY levenshtein(content, $5) ASC
+            LIMIT 1
+            """,
+            [query, cutoff, query, max_distance, query],
+        )
+    except Exception:
+        logger.warning("fuzzystrmatch levenshtein search unavailable — extension not installed?")
+        return None
 
     if not rows:
         return None
