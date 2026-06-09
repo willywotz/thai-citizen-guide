@@ -65,7 +65,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var body bytes.Buffer
 	_, _ = io.Copy(&body, r.Body)
 
-	req, _ := http.NewRequestWithContext(ctx, r.Method, a.endpointURL, bytes.NewReader(body.Bytes()))
+	req, err := http.NewRequestWithContext(ctx, r.Method, a.endpointURL, bytes.NewReader(body.Bytes()))
+	if err != nil {
+		span.SetStatus(codes.Error, "error building upstream request: "+err.Error())
+		slog.Error("Error building upstream request", slog.Any("error", err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 	req.Header = r.Header.Clone()
 
 	span.SetAttributes(attribute.String("proxy.method", req.Method))
