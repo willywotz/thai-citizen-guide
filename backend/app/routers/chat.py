@@ -494,7 +494,10 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         conversation_id = body.conversation_id or str(generate_uuid())
         
         if body.conversation_id:
-            conv = await Conversation.get(id=conversation_id)
+            try:
+                conv = await Conversation.get(id=conversation_id)
+            except Exception:
+                raise HTTPException(status_code=404, detail="Conversation not found")
 
         if not query:
             span.set_status(StatusCode.ERROR, "Missing query")
@@ -524,7 +527,10 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                 }
         else:
             # Turn 2+: ensure OneChat has session context from turn 1
-            await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
+            try:
+                await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
+            except Exception:
+                logger.warning("Session warm-up failed for conversation %s", conversation_id)
 
         payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
@@ -642,8 +648,14 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
             return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
     else:
         # Turn 2+: ensure OneChat has session context from turn 1
-        conv = await Conversation.get(id=conversation_id)
-        await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
+        try:
+            conv = await Conversation.get(id=conversation_id)
+        except Exception:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        try:
+            await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
+        except Exception:
+            logger.warning("Session warm-up failed for conversation %s", conversation_id)
 
     payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
