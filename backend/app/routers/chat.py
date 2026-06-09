@@ -36,6 +36,7 @@ from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
 from app.services.similarity import find_similar_question
 from app.services.embedding import generate_embedding, encode_embedding
+from app.services.session import ensure_session_warmed
 from app.utils import generate_uuid, now
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -500,26 +501,30 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             span.set_attributes({"error": "missing query"})
             raise HTTPException(status_code=400, detail="Missing query")
 
-        # Check for similar question in cache
-        embedding = await generate_embedding(query)
-        cached = await find_similar_question(query=query, embedding=embedding)
-        if cached:
-            user_msg, asst_msg = cached
-            span.set_attribute("cache_hit", True)
-            return {
-                "success": True,
-                "data": {
-                    "message_id": asst_msg.id,
-                    "answer": asst_msg.content,
-                    "references": asst_msg.sources if asst_msg.sources else [],
-                    "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
-                    "agencies": [],
-                    "confidence": settings.SIMILARITY_THRESHOLD,
-                    "cached": True,
-                },
-                "conversation_id": str(user_msg.conversation_id),
-                "responseTime": 0,
-            }
+        # Cache applies only on turn 1 (new conversation)
+        if not body.conversation_id:
+            embedding = await generate_embedding(query)
+            cached = await find_similar_question(query=query, embedding=embedding)
+            if cached:
+                user_msg, asst_msg = cached
+                span.set_attribute("cache_hit", True)
+                return {
+                    "success": True,
+                    "data": {
+                        "message_id": asst_msg.id,
+                        "answer": asst_msg.content,
+                        "references": asst_msg.sources if asst_msg.sources else [],
+                        "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
+                        "agencies": [],
+                        "confidence": settings.SIMILARITY_THRESHOLD,
+                        "cached": True,
+                    },
+                    "conversation_id": str(user_msg.conversation_id),
+                    "responseTime": 0,
+                }
+        else:
+            # Turn 2+: ensure OneChat has session context from turn 1
+            await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
 
         payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
