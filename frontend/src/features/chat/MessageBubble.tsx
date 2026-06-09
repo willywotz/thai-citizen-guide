@@ -7,7 +7,7 @@ import type { ChatMessage } from "@/shared/types";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AppLogo } from "../ui/AppLogo";
+import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 export function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
   const [showFeedback, setShowFeedback] = useState(false);
