@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Activity, Zap } from "lucide-react";
-import { useRealtimeActivity, type RealtimeEvent } from "@/hooks/useRealtimeActivity";
+import { useRealtimeActivity, type RealtimeEvent } from "@/features/dashboard/useRealtimeActivity";
 import { Badge } from "@/shared/components/ui/badge";
 import { cn } from "@/shared/lib/utils";
 import { useTheme } from "next-themes";

@@ -5,27 +5,13 @@ import {
   PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
 import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity } from "lucide-react";
-import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "@/hooks/useDashboard";
+import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "./useDashboard";
 import { useAgencies } from "@/features/agencies/useAgencies";
 import { cn } from "@/shared/lib/utils";
 import { useTheme } from "next-themes";
-// import { LiveActivityChart } from "@/components/dashboard/LiveActivityChart";
-import { FeedbackAnalytics } from "@/components/dashboard/FeedbackAnalytics";
-
-function AnimatedNumber({ value, suffix = "" }: { value: string; suffix?: string }) {
-  return (
-    <span className="tabular-nums">
-      {value}{suffix}
-    </span>
-  );
-}
-
-const CHART_COLORS = [
-  "hsl(145 55% 40%)",
-  "hsl(213 70% 45%)",
-  "hsl(25 85% 55%)",
-  "hsl(280 50% 50%)",
-];
+import { FeedbackAnalytics } from "./FeedbackAnalytics";
+import { DashboardStatsRow } from "./DashboardStatsRow";
+import { DashboardAgencyStatus } from "./DashboardAgencyStatus";
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -46,12 +32,11 @@ export default function DashboardPage() {
   const isDark = resolvedTheme === "dark";
 
   const { data: stats, isLoading: statsLoading, dataUpdatedAt } = useDashboardStats();
-  const { data: agencyUsage, isLoading: usageLoading } = useAgencyUsage();
+  const { data: agencyUsage } = useAgencyUsage();
   const { data: weeklyTrend } = useWeeklyTrend();
   const { data: categoryStats } = useCategoryData();
-  const { data: agencies } = useAgencies();
+  const { data: agencies = [] } = useAgencies();
 
-  // Theme-aware colors
   const chartColors = useMemo(() => ({
     grid: isDark ? "hsl(220 15% 25%)" : "hsl(214 25% 92%)",
     tick: isDark ? "hsl(215 15% 60%)" : "hsl(215 15% 50%)",
@@ -69,14 +54,14 @@ export default function DashboardPage() {
     }
   }, [dataUpdatedAt]);
 
-  const statCards = stats ? [
-    { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare, trend: `${stats.totalQuestionsTrend}%`, trendUp: stats.totalQuestionsTrend >= 0, color: "text-primary" },
-    { label: "คำถามวันนี้", value: stats.todayQuestions.toLocaleString(), icon: TrendingUp, trend: `${stats.todayQuestionsTrend}%`, trendUp: stats.todayQuestionsTrend >= 0, color: "text-success" },
-    { label: "เวลาตอบเฉลี่ย", value: `${stats.avgResponseTime}s`, icon: Clock, trend: `${stats.avgResponseTimeTrend}s`, trendUp: stats.avgResponseTimeTrend >= 0, color: "text-warning" },
-    { label: "ความพึงพอใจ", value: `${stats.satisfactionRate}%`, icon: ThumbsUp, trend: `${stats.satisfactionRateTrend}%`, trendUp: stats.satisfactionRateTrend >= 0, color: "text-info" },
-  ] : [];
-
   const totalUsage = agencyUsage?.reduce((sum, a) => sum + a.value, 0) || 1;
+
+  const statCards = stats ? [
+    { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare, color: "text-primary" },
+    { label: "คำถามวันนี้", value: stats.todayQuestions.toLocaleString(), icon: TrendingUp, color: "text-success" },
+    { label: "เวลาตอบเฉลี่ย", value: `${stats.avgResponseTime}s`, icon: Clock, color: "text-warning" },
+    { label: "ความพึงพอใจ", value: `${stats.satisfactionRate}%`, icon: ThumbsUp, color: "text-info" },
+  ] : [];
 
   if (statsLoading) {
     return (
@@ -88,7 +73,6 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between animate-fade-in">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Dashboard สถิติการใช้งาน</h2>
@@ -104,45 +88,9 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((s, i) => (
-          <Card
-            key={i}
-            className={cn(
-              "group relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 animate-fade-in",
-            )}
-            style={{ animationDelay: `${i * 80}ms`, animationFillMode: "both" }}
-          >
-            <CardContent className="p-4 relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-muted-foreground font-medium">{s.label}</span>
-                <div className={cn("p-2 rounded-lg bg-muted/80 transition-colors group-hover:bg-primary/10", s.color)}>
-                  <s.icon className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-foreground tracking-tight">
-                <AnimatedNumber value={s.value} />
-              </p>
-              {/* <div className="flex items-center gap-1 mt-1.5">
-                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", s.trendUp ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
-                  {s.trend}
-                </span>
-                <span className="text-[10px] text-muted-foreground">vs สัปดาห์ก่อน</span>
-              </div> */}
-            </CardContent>
-            {/* Decorative gradient */}
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </Card>
-        ))}
-      </div>
+      <DashboardStatsRow statCards={statCards} />
 
-      {/* Live Activity - Realtime */}
-      {/* <LiveActivityChart /> */}
-
-      {/* Charts Row 1 */}
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* Weekly Trend - Area Chart */}
         <Card className="animate-fade-in" style={{ animationDelay: "320ms", animationFillMode: "both" }}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -163,24 +111,17 @@ export default function DashboardPage() {
                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="questions"
-                  name="คำถาม"
-                  stroke={chartColors.primary}
-                  strokeWidth={2.5}
-                  fill="url(#gradientQuestions)"
+                <Area type="monotone" dataKey="questions" name="คำถาม" stroke={chartColors.primary}
+                  strokeWidth={2.5} fill="url(#gradientQuestions)"
                   dot={{ r: 4, fill: chartColors.primary, stroke: chartColors.dotStroke, strokeWidth: 2 }}
                   activeDot={{ r: 6, fill: chartColors.primary, stroke: chartColors.dotStroke, strokeWidth: 2 }}
-                  animationDuration={1200}
-                  animationEasing="ease-out"
+                  animationDuration={1200} animationEasing="ease-out"
                 />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Agency Usage - Donut */}
         <Card className="animate-fade-in" style={{ animationDelay: "400ms", animationFillMode: "both" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">สัดส่วนการเรียกใช้หน่วยงาน</CardTitle>
@@ -189,20 +130,11 @@ export default function DashboardPage() {
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="55%" height={220}>
                 <PieChart>
-                  <Pie
-                    data={agencyUsage}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={85}
-                    innerRadius={55}
-                    paddingAngle={3}
-                    cornerRadius={4}
-                    animationDuration={1000}
-                    animationEasing="ease-out"
+                  <Pie data={agencyUsage} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={85} innerRadius={55} paddingAngle={3} cornerRadius={4}
+                    animationDuration={1000} animationEasing="ease-out"
                   >
-                    {agencyUsage?.map((entry, i) => (
+                    {agencyUsage?.map((_, i) => (
                       <Cell key={i} fill={chartColors.palette[i % chartColors.palette.length]} stroke="none" />
                     ))}
                   </Pie>
@@ -220,12 +152,8 @@ export default function DashboardPage() {
                       <span className="text-muted-foreground">{((entry.value / totalUsage) * 100).toFixed(0)}%</span>
                     </div>
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden ml-[18px]">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width: `${(entry.value / totalUsage) * 100}%`,
-                          backgroundColor: chartColors.palette[i % chartColors.palette.length],
-                        }}
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${(entry.value / totalUsage) * 100}%`, backgroundColor: chartColors.palette[i % chartColors.palette.length] }}
                       />
                     </div>
                   </div>
@@ -236,9 +164,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Charts Row 2 */}
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* Category Stats */}
         <Card className="animate-fade-in" style={{ animationDelay: "480ms", animationFillMode: "both" }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">หมวดหมู่คำถามยอดนิยม</CardTitle>
@@ -250,13 +176,7 @@ export default function DashboardPage() {
                 <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="category" width={110} tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar
-                  dataKey="count"
-                  name="จำนวน"
-                  radius={[0, 6, 6, 0]}
-                  animationDuration={1000}
-                  animationEasing="ease-out"
-                >
+                <Bar dataKey="count" name="จำนวน" radius={[0, 6, 6, 0]} animationDuration={1000} animationEasing="ease-out">
                   {categoryStats?.map((_, i) => (
                     <Cell key={i} fill={chartColors.palette[i % chartColors.palette.length]} />
                   ))}
@@ -266,51 +186,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Agency Connection Status */}
-        <Card className="animate-fade-in" style={{ animationDelay: "560ms", animationFillMode: "both" }}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">สถานะการเชื่อมต่อหน่วยงาน</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2.5">
-              {agencies?.map((a, i) => (
-                <div
-                  key={a.id}
-                  className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border/50 hover:bg-muted/70 hover:border-border transition-all duration-200 animate-fade-in"
-                  style={{ animationDelay: `${600 + i * 60}ms`, animationFillMode: "both" }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="text-xl w-9 h-9 rounded-lg bg-card flex items-center justify-center shadow-sm border border-border/50">
-                      {a.logo}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{a.shortName}</p>
-                      <p className="text-[10px] text-muted-foreground">{a.connectionType} Protocol</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">{a.totalCalls?.toLocaleString()} calls</span>
-                    <span className={cn(
-                      "text-[10px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1",
-                      a.status === 'active'
-                        ? 'bg-success/10 text-success'
-                        : 'bg-destructive/10 text-destructive'
-                    )}>
-                      <span className={cn(
-                        "w-1.5 h-1.5 rounded-full",
-                        a.status === 'active' ? 'bg-success animate-pulse' : 'bg-destructive'
-                      )} />
-                      {a.status === 'active' ? 'Online' : 'Offline'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <DashboardAgencyStatus agencies={agencies} />
       </div>
 
-      {/* Feedback Analytics */}
       <FeedbackAnalytics />
     </div>
   );

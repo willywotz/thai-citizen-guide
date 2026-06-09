@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchDashboardStats, fetchAgencyUsage, fetchWeeklyTrend, fetchCategoryData } from '@/services/dashboardApi';
+import { fetchDashboardStats, fetchAgencyUsage, fetchWeeklyTrend, fetchCategoryData } from '@/features/dashboard/dashboardApi';
 
 const REFETCH_INTERVAL = 30 * 1000;
 
