@@ -1,42 +1,38 @@
 """
-AI Chat router — port of the Supabase `ai-chat` edge function.
+AI Chat router.
 
-Flow
-----
-1. Detect target agencies from Thai keyword matching
-2. Fetch agency response_schema configs from DB
-3. Query each agency sub-handler in parallel (async)
-4. Build a schema-guide prompt section
-5. Synthesise a unified answer using the configured LLM (Gemini via AI Gateway)
-6. Return structured response: answer, references, agentSteps, agencies, confidence
-
-Endpoint
---------
-  POST  /chat
+Endpoints
+---------
+  POST /chat            → delegates to /chat/external
+  POST /chat/internal   → LangGraph multi-agent pipeline
+  POST /chat/external   → OneChat v3 (sync JSON)
+  POST /chat/stream     → OneChat v4 (SSE proxy)
 """
 
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Request
-from tortoise.exceptions import DoesNotExist
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import StatusCode
+from tortoise.exceptions import DoesNotExist
 
+from app.auth.dependencies import get_current_user_optional
 from app.config import settings
-from app.models.agency import Agency
-from app.models.conversation import Conversation, Message
 from app.models.connection_log import ConnectionLog
+from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.auth.dependencies import get_current_user_optional
+from app.services.chat.graph import build_graph
+from app.services.chat.llm import classify_message_category, store_embedding
+from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
-from app.services.embedding import generate_embedding, encode_embedding
 from app.services.session import ensure_session_warmed
 from app.utils import generate_uuid, now
 
@@ -45,335 +41,7 @@ tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
 
-"""
-Multi-Agent Router with LangGraph
-==================================
-Dynamic agency routing — ดึง agency list จาก MCP tool แล้ว route query
-ไปยัง agency ที่เกี่ยวข้องผ่าน A2A / API / MCP adapters
-"""
-
-import dotenv
-dotenv.load_dotenv()
-
-import os
-import asyncio
-import re
-import json
-import uuid
-import operator
-from typing import Annotated, Any
-from dataclasses import dataclass, field
-
-import httpx
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
-from langgraph.graph import StateGraph, START, END
-
-
-# ─── State ────────────────────────────────────────────────────────────────────
-
-@dataclass
-class AgentState:
-    query: str = ""
-    conversation_id: str = ""
-
-    agencies: list[dict] = field(default_factory=list)
-    routes: list[dict] = field(default_factory=list)
-    results: Annotated[list[dict], operator.add] = field(default_factory=list)
-    final_answer: str = ""
-
-
-# ─── Config ───────────────────────────────────────────────────────────────────
-
-# LLM = ChatOpenAI(
-#     model="/model",
-#     temperature=0,
-
-#     openai_api_key="sk-placeholder",
-#     openai_api_base=os.getenv("PARSE_SPEC_URL", ""),
-#     default_headers={
-#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-#         "apikey": os.getenv("PARSE_SPEC_API_KEY", ""),
-#     },
-# )
-
-async def call_llm(messages: list[dict]) -> str:
-    llm_api_key = os.getenv("PARSE_SPEC_API_KEY", "")
-    if not llm_api_key:
-        raise ValueError("Missing LLM API key")
-
-    print(f"Calling LLM with messages: {messages}")
-
-    async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
-        resp = await client.post(
-            os.getenv("PARSE_SPEC_URL", ""),
-            headers={
-                "apikey": f"{llm_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": os.getenv("PARSE_SPEC_LLM_MODEL", "gpt-4o-mini"),
-                "messages": messages,
-            },
-        )
-    if resp.status_code == 200:
-        resp_data = resp.json()
-        print(f"LLM response: {resp_data}")
-        return resp_data.get("choices", [{}])[0].get("message", {})
-    else:
-        raise ValueError(f"LLM API error: {resp.status_code} {resp.text}")
-
-
-# ─── Prompt Builder ───────────────────────────────────────────────────────────
-
-def build_router_prompt(agencies: list[dict]) -> str:
-    """สร้าง system prompt พร้อม available sources จาก agency list"""
-
-    source_lines = []
-    for ag in agencies:
-        scope = ", ".join(ag.get("data_scope", []))
-        source_lines.append(
-            f'- {ag["name"]} (id: {ag["id"]}, type: {ag["connection_type"]}, endpoint: {ag.get("endpoint_url", "")}): '
-            f'{ag["description"]} — ขอบเขตข้อมูล: {scope}'
-        )
-
-    sources_block = "\n".join(source_lines)
-
-    return f"""\
-คุณคือ Router Agent ที่วิเคราะห์คำถามผู้ใช้แล้วเลือกหน่วยงานที่เกี่ยวข้อง
-สำหรับแต่ละหน่วยงาน ให้สร้าง sub-question ที่เหมาะกับขอบเขตข้อมูลของหน่วยงานนั้น
-
-Available sources:
-{sources_block}
-
-ตอบเป็น JSON เท่านั้น ห้ามมี text อื่น:
-{{
-  "routes": [
-    {{
-      "agency_id": "<uuid>",
-      "agency_name": "<ชื่อหน่วยงาน>",
-      "connection_type": "<A2A|API|MCP>",
-      "endpoint_url": "<endpoint_url>",
-      "sub_question": "<คำถามที่ปรับให้เหมาะกับหน่วยงานนี้>"
-    }}
-  ]
-}}
-
-กฎ:
-- เลือกเฉพาะหน่วยงานที่เกี่ยวข้องจริงๆ อย่าเลือกทุกอัน
-- sub_question ต้องเจาะจงกับ data_scope ของหน่วยงานนั้น
-- ถ้าไม่มีหน่วยงานไหนเกี่ยวข้อง ให้ตอบ {{"routes": []}}"""
-
-
-# ─── Nodes ────────────────────────────────────────────────────────────────────
-
-async def load_agencies(state: AgentState) -> dict:
-    """Node 1: ดึง agency list จาก MCP tool / API"""
-
-    # === Production: call MCP tool หรือ REST API ===
-    # async with httpx.AsyncClient() as client:
-    #     resp = await client.get(AGENCY_LIST_URL)
-    #     data = resp.json()
-    #     return {"agencies": data["data"]}
-
-    agencies = await Agency.filter(status="active").all().values()
-    return {"agencies": agencies}
-
-
-async def route_query(state: AgentState) -> dict:
-    """Node 2: LLM วิเคราะห์ query แล้วเลือก agencies + สร้าง sub-questions"""
-
-    system_prompt = build_router_prompt(state.agencies)
-
-    response = await call_llm([
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": state.query},
-    ])
-
-    # parse JSON จาก LLM response
-    text = response.get("content", "").strip()
-
-    # strip markdown fences ถ้ามี
-    if '<think>' in text:
-        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-
-    parsed = json.loads(text)
-    routes = parsed.get("routes", [])
-
-    # enrich route ด้วย endpoint info
-    agency_map = {ag["id"]: ag for ag in state.agencies}
-    for route in routes:
-        ag = agency_map.get(route["agency_id"], {})
-        route["endpoint_url"] = ag.get("endpoint_url", route.get("endpoint_url", ""))
-        route["expected_payload"] = ag.get("expected_payload", route.get("expected_payload", {}))
-
-    return {"routes": routes}
-
-
-async def dispatch_to_agencies(state: AgentState) -> dict:
-    """Node 3: ส่ง sub-question ไปแต่ละ agency ตาม connection_type"""
-
-    async def call_agency(route: dict) -> dict:
-        """Dispatch ตาม connection_type"""
-        conn = route["connection_type"]
-        sub_q = route['sub_question']
-        name = route["agency_name"]
-
-        try:
-            # ─── A2A Protocol ───
-            if conn == "A2A":
-                async with httpx.AsyncClient(timeout=settings.A2A_DISPATCH_TIMEOUT) as client:
-                    resp = await client.post(
-                        route["endpoint_url"],
-                        json={
-                            # "jsonrpc": "2.0",
-                            # "method": "message/send",
-                            # "params": {"message": {"text": sub_q}},
-                            "session_id": str(uuid.uuid4()),
-                            "query": f"ให้ระบุแหล่งที่มาของข้อมูลในคำตอบด้วยเสมอ\n\nคำถาม: {sub_q}",
-                        },
-                        headers={"Content-Type": "application/json"},
-                    )
-                    return {"agency": name, "response": resp.json(), "status": "ok"}
-                # return {"agency": name, "response": f"[A2A mock] ตอบจาก {name}: {sub_q}", "status": "ok"}
-
-            # ─── REST API ───
-            elif conn == "API":
-                payload = route.get("expected_payload") or {}
-                # แทนที่ placeholder
-                if "query" in payload:
-                    payload = {**payload, "query": sub_q}
-                # async with httpx.AsyncClient(timeout=30) as client:
-                #     resp = await client.post(route["endpoint_url"], json=payload)
-                #     return {"agency": name, "response": resp.json(), "status": "ok"}
-                return {"agency": name, "response": f"[API mock] ตอบจาก {name}: {sub_q}", "status": "ok"}
-
-            # ─── MCP Protocol ───
-            elif conn == "MCP":
-                # MCP call via SDK
-                # result = await mcp_client.call_tool(route["endpoint_url"], {"query": sub_q})
-                # return {"agency": name, "response": result, "status": "ok"}
-                return {"agency": name, "response": f"[MCP mock] ตอบจาก {name}: {sub_q}", "status": "ok"}
-
-            else:
-                return {"agency": name, "response": f"Unknown connection_type: {conn}", "status": "error"}
-
-        except Exception as e:
-            return {"agency": name, "response": str(e), "status": "error"}
-
-    # fire all agencies concurrently
-    tasks = [call_agency(route) for route in state.routes]
-    results = await asyncio.gather(*tasks)
-
-    return {"results": list(results)}
-
-
-async def synthesize(state: AgentState) -> dict:
-    """Node 4: รวมผลลัพธ์จากทุก agency เป็นคำตอบเดียว"""
-
-    if not state.results:
-        return {"final_answer": "ไม่พบหน่วยงานที่เกี่ยวข้องกับคำถามของคุณ"}
-
-    results_text = "\n\n".join(
-        f"### {r['agency']}\n{r['response']}" for r in state.results
-    )
-
-    response = await call_llm([
-        {"role": "system", "content": """\
-คุณคือ AI ผู้ช่วยภาครัฐไทย ทำหน้าที่สังเคราะห์ข้อมูลจากหลายหน่วยงานราชการให้เป็นคำตอบที่ชัดเจน ถูกต้อง และเข้าใจง่ายสำหรับประชาชน
-
-กฎ:
-- ตอบเป็นภาษาไทยเสมอ
-- ใช้ Markdown formatting (หัวข้อ, bullet points, ตัวหนา) ให้อ่านง่าย
-- อ้างอิงชื่อหน่วยงานที่เป็นแหล่งข้อมูลในคำตอบ
-- หากข้อมูลจากหลายหน่วยงานเกี่ยวข้องกัน ให้เชื่อมโยงและสรุปให้เป็นคำตอบเดียวที่สอดคล้องกัน
-- ห้ามเพิ่มข้อมูลที่ไม่มีในแหล่งข้อมูลที่ให้มา
-- จบคำตอบด้วยข้อแนะนำเพิ่มเติมหากเหมาะสม
-- หากมีลิงก์ในข้อมูลที่ได้มา ให้เขียนเป็นข้อความที่แสดงและลิงก์ในรูปแบบ Markdown link เช่น [ข้อความที่แสดง](ลิงก์)
-
-กฎสำหรับวิเคราะห์หมวดหมู่คำถาม:
-- วิเคราะห์คำถามของผู้ใช้และระบุหมวดหมู่ที่ตรงที่สุด 1 หมวด จากนี้: สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
-- **ต้องวาง tag นี้หลังคำตอบหลักเสมอ:**
-
-<category>หมวดหมู่ที่วิเคราะห์ได้</category>
-
-ตัวอย่าง: <category>ขั้นตอนดำเนินการ</category>"""},
-        {"role": "user", "content": f"""\
-คำถามจากประชาชน: {state.query}\n\n
-ข้อมูลที่สืบค้นได้จากหน่วยงานราชการ:\n{results_text}\n\n
-กรุณาสังเคราะห์ข้อมูลข้างต้นเป็นคำตอบที่ครบถ้วนและเข้าใจง่ายสำหรับประชาชน"""},
-    ])
-
-    return {"final_answer": response.get("content", "").strip()}
-
-
-# ─── Conditional Edge ─────────────────────────────────────────────────────────
-
-def should_dispatch(state: AgentState) -> str:
-    """ถ้าไม่มี route เลย ข้ามไป synthesize เลย"""
-    return "dispatch" if state.routes else "synthesize"
-
-
-# ─── Graph ────────────────────────────────────────────────────────────────────
-
-def build_graph() -> StateGraph:
-    graph = StateGraph(AgentState)
-
-    # nodes
-    graph.add_node("load_agencies", load_agencies)
-    graph.add_node("route_query", route_query)
-    graph.add_node("dispatch", dispatch_to_agencies)
-    graph.add_node("synthesize", synthesize)
-
-    # edges
-    graph.add_edge(START, "load_agencies")
-    graph.add_edge("load_agencies", "route_query")
-    graph.add_conditional_edges("route_query", should_dispatch, {
-        "dispatch": "dispatch",
-        "synthesize": "synthesize",
-    })
-    graph.add_edge("dispatch", "synthesize")
-    graph.add_edge("synthesize", END)
-
-    return graph.compile()
-
-
-# ─── Main ─────────────────────────────────────────────────────────────────────
-
-async def main():
-    app = build_graph()
-
-    queries = [
-        # "อยากเปลี่ยนชื่อในบัตรประชาชน ต้องเสียภาษีอะไรเพิ่มไหม",
-        # "ยาพาราเซตามอลตัวไหนผ่าน อย. บ้าง",
-        # "อยากซื้อที่ดิน ต้องตรวจสอบโฉนดยังไง แล้วเสียภาษีอะไรบ้าง",
-        "ขั้นตอนการทำบัตรประชาชนใหม่",
-    ]
-
-    for q in queries:
-        print(f"\n{'='*70}")
-        print(f"Q: {q}")
-        print(f"{'='*70}")
-
-        result = await app.ainvoke({"query": q})
-
-        print(f"\n📌 Routes:")
-        for r in result["routes"]:
-            print(f"  → {r['agency_name']} ({r['connection_type']})")
-            print(f"    sub-question: {r['sub_question']}")
-
-        print(f"\n📋 Results:")
-        for r in result["results"]:
-            print(f"  [{r['status']}] {r['agency']}: {r['response']}")
-
-        print(f"\n✅ Final Answer:\n{result['final_answer']}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# ─── Internal endpoint (LangGraph pipeline) ────────────────────────────────────
 
 @router.post("/internal", summary="Send a query and get a synthesised AI response")
 async def chat_internal(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
@@ -383,7 +51,6 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     if not query:
         return {"success": False, "error": "Missing query"}
 
-    # Check for similar question in cache
     embedding = await generate_embedding(query)
     cached = await find_similar_question(query=query, embedding=embedding)
     if cached:
@@ -404,34 +71,23 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
         }
 
     conversation_id = body.conversation_id or str(generate_uuid())
-
-    app = build_graph()
-
-    result = await app.ainvoke({"query": query, "conversation_id": conversation_id})
-
+    result = await build_graph().ainvoke({"query": query, "conversation_id": conversation_id})
     response_time = int((time.time() - start) * 1000)
-
     answer = result.get("final_answer", "").strip()
 
     references = []
-
-    if '<references>' in answer:
-        # แยกส่วน answer กับ references
-        parts = re.split(r'<references>(.*?)</references>', answer, flags=re.DOTALL)
+    if "<references>" in answer:
+        parts = re.split(r"<references>(.*?)</references>", answer, flags=re.DOTALL)
         if len(parts) == 3:
             answer = parts[0].strip()
             try:
                 references = json.loads(parts[1].strip())
             except json.JSONDecodeError:
                 references = []
-        else:
-            references = []
 
     category = None
-
-    if '<category>' in answer:
-        parts = re.split(r'<category>(.*?)</category>', answer, flags=re.DOTALL)
-        print(f"Answer parts after category split: {parts}")
+    if "<category>" in answer:
+        parts = re.split(r"<category>(.*?)</category>", answer, flags=re.DOTALL)
         if len(parts) == 3:
             category = parts[1].strip()
 
@@ -441,7 +97,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
             title=query[:settings.TITLE_MAX_LENGTH],
             preview=query[:settings.PREVIEW_MAX_LENGTH],
             agencies=[],
-            status='success',
+            status="success",
             message_count=len(answer),
             response_time=response_time,
             user_id=user.id if user else None,
@@ -453,19 +109,18 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 
     query_msg = await Message.create(
         conversation_id=conversation_id,
-        role='user',
+        role="user",
         content=query,
         agent_steps=[],
         sources=[],
         category=category,
     )
 
-    # Schedule embedding generation
-    asyncio.create_task(_store_embedding(str(query_msg.id), query))
+    asyncio.create_task(store_embedding(str(query_msg.id), query))
 
     response_msg = await Message.create(
         conversation_id=conversation_id,
-        role='assistant',
+        role="assistant",
         content=answer,
         agent_steps=[],
         sources=references,
@@ -487,10 +142,12 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
         "responseTime": response_time,
     }
 
+
+# ─── External endpoint (OneChat v3) ────────────────────────────────────────────
+
 @router.post("/external", summary="Send a query and get a synthesised AI response")
 async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     with tracer.start_as_current_span("chat_external_endpoint") as span:
-
         query = body.query.strip()
         conversation_id = body.conversation_id or str(generate_uuid())
 
@@ -502,10 +159,8 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
 
         if not query:
             span.set_status(StatusCode.ERROR, "Missing query")
-            span.set_attributes({"error": "missing query"})
             raise HTTPException(status_code=400, detail="Missing query")
 
-        # Cache applies only on turn 1 (new conversation)
         if not body.conversation_id:
             embedding = await generate_embedding(query)
             cached = await find_similar_question(query=query, embedding=embedding)
@@ -527,8 +182,6 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                     "responseTime": 0,
                 }
         else:
-            # Turn 2+: warm-up via v3 (sync JSON) so OneChat has session context.
-            # v3 and v4 share session state server-side, keyed by session_id.
             try:
                 await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
             except Exception:
@@ -543,20 +196,17 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
 
         if resp.status_code != 200:
             span.set_status(StatusCode.ERROR, f"External chat request failed with status {resp.status_code}")
-            span.set_attributes({"error": "external chat request failed", "status_code": resp.status_code, "response_text": resp.text})
             raise HTTPException(status_code=502, detail="Failed to get response from external chat service")
 
-        response_time = int((end_time_ns - start_time_ns) // 1_000_000)  # ms
-
+        response_time = int((end_time_ns - start_time_ns) // 1_000_000)
         raw_data = resp.json()
         span.set_attributes({"external_response": resp.text})
-        # print(f"External chat response: {raw_data}")
 
         await ConnectionLog.create(
             id=str(generate_uuid()),
             action="query",
             connection_type="external_chat",
-            status="success" if resp.status_code == 200 else "error",
+            status="success",
             latency_ms=response_time,
             detail=f"Query: {query}\n\nAnswer: {raw_data}",
             request_body=json.dumps(payload),
@@ -564,17 +214,14 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         )
 
         data = raw_data.get("data", {})
-
         answer = data.get("answer", "").strip()
         errors = data.get("errors", [])
 
         agency_ids = []
-
-        if "data" in raw_data:
-            if "sections" in raw_data["data"]:
-                for sec in raw_data["data"]["sections"]:
-                    if "agencies" in sec:
-                        agency_ids.extend([ag["id"] for ag in sec["agencies"]])
+        if "data" in raw_data and "sections" in raw_data["data"]:
+            for sec in raw_data["data"]["sections"]:
+                if "agencies" in sec:
+                    agency_ids.extend([ag["id"] for ag in sec["agencies"]])
 
         if not body.conversation_id:
             conv = await Conversation.create(
@@ -582,27 +229,22 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                 title=query[:settings.TITLE_MAX_LENGTH],
                 preview=query[:settings.PREVIEW_MAX_LENGTH],
                 agencies=[],
-                status='success',
+                status="success",
                 message_count=len(answer),
                 response_time=response_time,
                 user_id=user.id if user else None,
-                external_session_id=data.get("session_id", None),
+                external_session_id=data.get("session_id"),
             )
         else:
             conv.message_count += len(answer)
             conv.updated_at = now()
             await conv.save()
 
-        query_msg = await Message.create(
-            conversation_id=conversation_id,
-            role='user',
-            content=query,
-        )
-
+        query_msg = await Message.create(conversation_id=conversation_id, role="user", content=query)
         response_msg = await Message.create(
             parent_id=query_msg.id,
             conversation_id=conversation_id,
-            role='assistant',
+            role="assistant",
             content=answer,
             response_time=response_time,
             errors=errors,
@@ -610,7 +252,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         )
 
         background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
-        background_tasks.add_task(_store_embedding, str(query_msg.id), query)
+        background_tasks.add_task(store_embedding, str(query_msg.id), query)
 
         return {
             "success": True,
@@ -626,7 +268,8 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             "responseTime": response_time,
         }
 
-# ─── v4 SSE Streaming Endpoint ────────────────────────────────────────────────
+
+# ─── Stream endpoint (OneChat v4 SSE) ─────────────────────────────────────────
 
 @router.post("/stream", summary="Send a query and receive SSE streaming response (v4)")
 async def chat_stream(body: ChatRequest, request: Request, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)):
@@ -639,22 +282,19 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
 
         if not query:
             span.set_status(StatusCode.ERROR, "Missing query")
-            span.set_attributes({"error": "missing query"})
             raise HTTPException(status_code=400, detail="Missing query")
 
         span.set_attribute("query", query)
 
-        # Cache applies only on turn 1 (new conversation)
         if not body.conversation_id:
             embedding = await generate_embedding(query)
             cached = await find_similar_question(query=query, embedding=embedding)
             if cached:
                 user_msg, asst_msg, conn_log = cached
+
                 async def cached_stream():
                     await asyncio.sleep(0.01)
                     span.set_attribute("cache_hit", True)
-                    span.set_attribute("cached_message_id", str(asst_msg.id))
-                    span.set_attribute("cached_conversation_id", str(user_msg.conversation_id))
                     await _save_stream_conversation(
                         query=query,
                         conversation_id=conversation_id,
@@ -667,28 +307,23 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                     )
                     yield _sse_event("answer", {"answer": asst_msg.content})
                     yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+
                 return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
         else:
-            # Turn 2+: ensure OneChat has session context from turn 1
             try:
                 conv = await Conversation.get(id=conversation_id)
             except DoesNotExist:
                 span.set_status(StatusCode.ERROR, "Conversation not found for session warm-up")
-                span.set_attributes({"error": "conversation not found for session warm-up", "conversation_id": conversation_id})
                 raise HTTPException(status_code=404, detail="Conversation not found")
-            # Warm-up sends turn 1 to OneChat v3 (synchronous) so it establishes session context.
-            # v3 and v4 share session state server-side, keyed by session_id.
             try:
                 await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
             except Exception:
                 logger.warning("Session warm-up failed for conversation %s", conversation_id)
                 span.set_status(StatusCode.WARNING, "Session warm-up failed")
-                span.set_attributes({"warning": "session warm-up failed", "conversation_id": conversation_id})
 
         payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
         async def event_generator():
-            """Connect to OneChat v4 SSE, parse events, re-emit to client, save on completion."""
             answer_data = None
             session_id = None
             total_ms = None
@@ -705,41 +340,29 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                                 error_msg = f"OneChat v4 returned {resp.status_code}: {error_body.decode()[:200]}"
                             except Exception:
                                 pass
-                            span.set_status(StatusCode.ERROR, f"OneChat v4 returned status {resp.status_code}")
-                            span.set_attributes({"error": "OneChat v4 error", "status_code": resp.status_code})
-                            span.set_attribute("external_response", error_msg)
+                            span.set_status(StatusCode.ERROR, error_msg)
                             yield _sse_event("error", {"message": error_msg, "code": resp.status_code})
                             yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
                             return
 
                         log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
-
                         buffer = ""
                         async for chunk in resp.aiter_text():
                             buffer += chunk
-                            # Split on double newline (SSE event boundary)
                             while "\n\n" in buffer:
                                 event_block, buffer = buffer.split("\n\n", 1)
                                 parsed = _parse_sse_block(event_block)
                                 if not parsed:
                                     continue
-
                                 event_name, event_data = parsed
-
-                                # Capture answer and session data for persistence
                                 if event_name == "answer":
                                     answer_data = event_data
                                 elif event_name == "done":
                                     session_id = event_data.get("session_id")
                                     total_ms = event_data.get("total_ms")
-
-                                with tracer.start_as_current_span("event") as span:
-                                    span.set_attribute("stream_event", event_name)
-                                    span.set_attribute("event_data", json.dumps(event_data)[:500])
-
-                                # Re-emit to client; override session_id in done event so the
-                                # frontend always sees the backend conversation_id, not OneChat's
-                                # internal session_id which may differ.
+                                with tracer.start_as_current_span("event") as event_span:
+                                    event_span.set_attribute("stream_event", event_name)
+                                    event_span.set_attribute("event_data", json.dumps(event_data)[:500])
                                 if event_name == "done":
                                     yield _sse_event(event_name, {**event_data, "session_id": conversation_id})
                                 else:
@@ -747,18 +370,15 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
 
             except httpx.ReadTimeout:
                 span.set_status(StatusCode.ERROR, "OneChat v4 stream read timeout")
-                span.set_attributes({"error": "OneChat v4 stream read timeout"})
                 yield _sse_event("error", {"message": "OneChat v4 connection timed out", "code": 504})
                 yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
                 return
             except Exception as e:
-                span.set_status(StatusCode.ERROR, f"Exception during OneChat v4 streaming: {str(e)}")
-                span.set_attributes({"error": "Exception during OneChat v4 streaming", "exception": str(e)})
+                span.set_status(StatusCode.ERROR, f"Exception during OneChat v4 streaming: {e}")
                 yield _sse_event("error", {"message": str(e), "code": 500})
                 yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
                 return
 
-            # Persist conversation + messages after stream completes
             if answer_data:
                 await _save_stream_conversation(
                     query=query,
@@ -771,23 +391,24 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                     background_tasks=background_tasks,
                 )
 
-        return StreamingResponse(
-            event_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "X-Accel-Buffering": "no",
-            },
-        )
+        return StreamingResponse(event_generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+
+# ─── Default route (delegates to /external) ───────────────────────────────────
+
+@router.post("", summary="Send a query and get a synthesised AI response")
+async def chat(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+    with tracer.start_as_current_span("chat_endpoint"):
+        return await chat_external(body, background_tasks, user)
+
+
+# ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
 def _sse_event(event: str, data: Any) -> str:
-    """Format a single SSE event block."""
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def _parse_sse_block(block: str) -> tuple[str, Any] | None:
-    """Parse an SSE block into (event_name, data_dict)."""
     event_name = "message"
     data_line = None
     for line in block.strip().split("\n"):
@@ -813,8 +434,7 @@ async def _save_stream_conversation(
     latency_ms: int,
     user: User | None,
     background_tasks: BackgroundTasks,
-):
-    """Persist conversation and messages after v4 stream completes."""
+) -> None:
     answer = answer_data.get("answer", "").strip()
     errors = answer_data.get("errors", [])
     sections = answer_data.get("sections", [])
@@ -844,12 +464,7 @@ async def _save_stream_conversation(
             external_session_id=session_id,
         )
 
-    query_msg = await Message.create(
-        conversation_id=conversation_id,
-        role="user",
-        content=query,
-    )
-
+    query_msg = await Message.create(conversation_id=conversation_id, role="user", content=query)
     assistant_msg = await Message.create(
         parent_id=query_msg.id,
         conversation_id=conversation_id,
@@ -874,46 +489,4 @@ async def _save_stream_conversation(
     )
 
     background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
-    background_tasks.add_task(_store_embedding, str(query_msg.id), query)
-
-
-async def _store_embedding(message_id: str, query: str):
-    """Generate embedding for a message and store it in the database."""
-    embedding = await generate_embedding(query)
-    if embedding is not None:
-        encoded = encode_embedding(embedding)
-        await Message.filter(id=message_id).update(embedding=encoded)
-
-
-async def classify_message_category(message_id: str, query: str, answer: str):
-    content = f"""\
-คุณเป็นโมเดลภาษา LLM ที่เชี่ยวชาญด้านการวิเคราะห์ข้อความและการจัดหมวดหมู่คำถามในบริบทของการให้บริการข้อมูลภาครัฐไทย
-โปรดวิเคราะห์คำถามของผู้ใช้และระบุหมวดหมู่ที่ตรงที่สุด 1 หมวด จากนี้: สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
-ตอบเป็นข้อความที่มีเพียงหมวดหมู่ที่วิเคราะห์ได้เท่านั้น เช่น:
-ขั้นตอนดำเนินการ
-
-ถ้าคำถามไม่ชัดเจนหรือไม่สามารถจัดหมวดหมู่ได้ ให้ตอบว่า "ไม่สามารถจัดหมวดหมู่ได้"
-
-คำถาม: {query}
-
-คำตอบ: {answer}
-"""
-
-    url = settings.OPENROUTER_API_URL
-    header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
-    payload = {"model": settings.CLASSIFICATION_MODEL, "messages": [{"role": "user", "content": content}]}
-
-    async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
-        resp = await client.post(url, headers=header, json=payload)
-
-    try:
-        category = resp.json()["choices"][0]["message"]["content"].strip()
-        await Message.filter(id=message_id).update(category=category)
-    except Exception as e:
-        print(f"Error classifying message category: {e}")
-
-
-@router.post("", summary="Send a query and get a synthesised AI response")
-async def chat(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-    with tracer.start_as_current_span("chat_endpoint"):
-        return await chat_external(body, background_tasks, user)
+    background_tasks.add_task(store_embedding, str(query_msg.id), query)
