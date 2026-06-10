@@ -658,7 +658,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                     await _save_stream_conversation(
                         query=query,
                         conversation_id=conversation_id,
-                        answer_data=conn_log.response_body,
+                        answer_data=json.loads(conn_log.response_body),
                         session_id=None,
                         total_ms=0,
                         latency_ms=0,
