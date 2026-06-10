@@ -727,8 +727,13 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                                     span.set_attribute("stream_event", event_name)
                                     span.set_attribute("event_data", json.dumps(event_data)[:500])
 
-                                # Re-emit to client
-                                yield _sse_event(event_name, event_data)
+                                # Re-emit to client; override session_id in done event so the
+                                # frontend always sees the backend conversation_id, not OneChat's
+                                # internal session_id which may differ.
+                                if event_name == "done":
+                                    yield _sse_event(event_name, {**event_data, "session_id": conversation_id})
+                                else:
+                                    yield _sse_event(event_name, event_data)
 
             except httpx.ReadTimeout:
                 span.set_status(StatusCode.ERROR, "OneChat v4 stream read timeout")
