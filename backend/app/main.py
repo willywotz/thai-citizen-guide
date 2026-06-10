@@ -43,6 +43,7 @@ from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, settings as settings_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.models import Agency, ConnectionLog
+from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
 
 mcp_app = mcp.http_app(path="/")
@@ -182,5 +183,3 @@ FastAPIInstrumentor.instrument_app(app, excluded_urls="/health,^/health$,/mcp,^/
 # ---------------------------------------------------------------------------
 # Background scheduler
 # ---------------------------------------------------------------------------
-
-from app.scheduler import start_scheduler, stop_scheduler
