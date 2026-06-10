@@ -31,19 +31,19 @@ def test_build_router_prompt_empty_agencies():
 
 
 @pytest.mark.asyncio
-async def test_call_llm_raises_on_missing_key(monkeypatch):
-    monkeypatch.setenv("PARSE_SPEC_API_KEY", "")
-
+async def test_call_llm_raises_on_missing_key():
     from app.services.chat.llm import call_llm
+    from app.config import settings
 
-    with pytest.raises(ValueError, match="Missing LLM API key"):
-        await call_llm([{"role": "user", "content": "hi"}])
+    with patch.object(settings, "PARSE_SPEC_API_KEY", ""):
+        with pytest.raises(ValueError, match="Missing LLM API key"):
+            await call_llm([{"role": "user", "content": "hi"}])
 
 
 @pytest.mark.asyncio
-async def test_call_llm_returns_message_on_success(monkeypatch):
-    monkeypatch.setenv("PARSE_SPEC_API_KEY", "test-key")
-    monkeypatch.setenv("PARSE_SPEC_URL", "http://fake-llm/v1/chat")
+async def test_call_llm_returns_message_on_success():
+    from app.services.chat.llm import call_llm
+    from app.config import settings
 
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -51,9 +51,8 @@ async def test_call_llm_returns_message_on_success(monkeypatch):
         "choices": [{"message": {"role": "assistant", "content": "hello"}}]
     }
 
-    from app.services.chat.llm import call_llm  # import before patching
-
-    with patch("app.services.chat.llm.httpx.AsyncClient") as MockClient:
+    with patch.object(settings, "PARSE_SPEC_API_KEY", "test-key"), \
+         patch("app.services.chat.llm.httpx.AsyncClient") as MockClient:
         MockClient.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
         result = await call_llm([{"role": "user", "content": "hi"}])
 

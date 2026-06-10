@@ -1,5 +1,4 @@
 import logging
-import os
 
 import httpx
 
@@ -11,19 +10,18 @@ logger = logging.getLogger(__name__)
 
 
 async def call_llm(messages: list[dict]) -> dict:
-    llm_api_key = os.getenv("PARSE_SPEC_API_KEY", "")
-    if not llm_api_key:
+    if not settings.PARSE_SPEC_API_KEY:
         raise ValueError("Missing LLM API key")
 
     async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
         resp = await client.post(
-            os.getenv("PARSE_SPEC_URL", ""),
+            settings.PARSE_SPEC_URL,
             headers={
-                "apikey": llm_api_key,
+                "apikey": settings.PARSE_SPEC_API_KEY,
                 "Content-Type": "application/json",
             },
             json={
-                "model": os.getenv("PARSE_SPEC_LLM_MODEL", "gpt-4o-mini"),
+                "model": settings.PARSE_SPEC_LLM_MODEL,
                 "messages": messages,
             },
         )

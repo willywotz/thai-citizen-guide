@@ -251,7 +251,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             agency_ids=agency_ids,
         )
 
-        background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
+        background_tasks.add_task(classify_message_category, str(query_msg.id), query, answer)
         background_tasks.add_task(store_embedding, str(query_msg.id), query)
 
         return {
@@ -487,5 +487,5 @@ async def _save_stream_conversation(
         assistant_message_id=assistant_msg.id,
     )
 
-    background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
+    background_tasks.add_task(classify_message_category, str(query_msg.id), query, answer)
     background_tasks.add_task(store_embedding, str(query_msg.id), query)
