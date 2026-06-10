@@ -637,132 +637,133 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
     with tracer.start_as_current_span("chat_stream_endpoint") as span:
         span.set_attribute("conversation_id", conversation_id)
 
-    if not query:
-        raise HTTPException(status_code=400, detail="Missing query")
+        if not query:
+            span.set_status(StatusCode.ERROR, "Missing query")
+            span.set_attributes({"error": "missing query"})
+            raise HTTPException(status_code=400, detail="Missing query")
 
-    with tracer.start_as_current_span("chat_stream_endpoint") as span:
         span.set_attribute("query", query)
 
-    # Cache applies only on turn 1 (new conversation)
-    if not body.conversation_id:
-        embedding = await generate_embedding(query)
-        cached = await find_similar_question(query=query, embedding=embedding)
-        if cached:
-            user_msg, asst_msg = cached
-            async def cached_stream():
-                await asyncio.sleep(0.01)
-                with tracer.start_as_current_span("chat_stream_endpoint") as span:
+        # Cache applies only on turn 1 (new conversation)
+        if not body.conversation_id:
+            embedding = await generate_embedding(query)
+            cached = await find_similar_question(query=query, embedding=embedding)
+            if cached:
+                user_msg, asst_msg = cached
+                async def cached_stream():
+                    await asyncio.sleep(0.01)
                     span.set_attribute("cache_hit", True)
                     span.set_attribute("cached_message_id", str(asst_msg.id))
                     span.set_attribute("cached_conversation_id", str(user_msg.conversation_id))
-                yield _sse_event("answer", {"answer": asst_msg.content})
-                yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-            return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-    else:
-        # Turn 2+: ensure OneChat has session context from turn 1
-        try:
-            conv = await Conversation.get(id=conversation_id)
-        except DoesNotExist:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-        # Warm-up sends turn 1 to OneChat v3 (synchronous) so it establishes session context.
-        # v3 and v4 share session state server-side, keyed by session_id.
-        try:
-            await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
-        except Exception:
-            logger.warning("Session warm-up failed for conversation %s", conversation_id)
+                    yield _sse_event("answer", {"answer": asst_msg.content})
+                    yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+                return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+        else:
+            # Turn 2+: ensure OneChat has session context from turn 1
+            try:
+                conv = await Conversation.get(id=conversation_id)
+            except DoesNotExist:
+                span.set_status(StatusCode.ERROR, "Conversation not found for session warm-up")
+                span.set_attributes({"error": "conversation not found for session warm-up", "conversation_id": conversation_id})
+                raise HTTPException(status_code=404, detail="Conversation not found")
+            # Warm-up sends turn 1 to OneChat v3 (synchronous) so it establishes session context.
+            # v3 and v4 share session state server-side, keyed by session_id.
+            try:
+                await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
+            except Exception:
+                logger.warning("Session warm-up failed for conversation %s", conversation_id)
+                span.set_status(StatusCode.WARNING, "Session warm-up failed")
+                span.set_attributes({"warning": "session warm-up failed", "conversation_id": conversation_id})
 
-    payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
+        payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
-    async def event_generator():
-        """Connect to OneChat v4 SSE, parse events, re-emit to client, save on completion."""
-        answer_data = None
-        session_id = None
-        total_ms = None
-        start_ns = time.perf_counter_ns()
-        log_latency_ms = 0
+        async def event_generator():
+            """Connect to OneChat v4 SSE, parse events, re-emit to client, save on completion."""
+            answer_data = None
+            session_id = None
+            total_ms = None
+            start_ns = time.perf_counter_ns()
+            log_latency_ms = 0
 
-        try:
-            async with httpx.AsyncClient(timeout=settings.V4_STREAM_TIMEOUT) as client:
-                async with client.stream("POST", settings.ONECHAT_V4_URL, headers={"Content-Type": "application/json"}, json=payload) as resp:
-                    if resp.status_code != 200:
-                        error_msg = f"OneChat v4 returned {resp.status_code}"
-                        try:
-                            error_body = await resp.aread()
-                            error_msg = f"OneChat v4 returned {resp.status_code}: {error_body.decode()[:200]}"
-                        except Exception:
-                            pass
-                        with tracer.start_as_current_span("chat_stream_endpoint") as span:
+            try:
+                async with httpx.AsyncClient(timeout=settings.V4_STREAM_TIMEOUT) as client:
+                    async with client.stream("POST", settings.ONECHAT_V4_URL, headers={"Content-Type": "application/json"}, json=payload) as resp:
+                        if resp.status_code != 200:
+                            error_msg = f"OneChat v4 returned {resp.status_code}"
+                            try:
+                                error_body = await resp.aread()
+                                error_msg = f"OneChat v4 returned {resp.status_code}: {error_body.decode()[:200]}"
+                            except Exception:
+                                pass
                             span.set_status(StatusCode.ERROR, f"OneChat v4 returned status {resp.status_code}")
                             span.set_attributes({"error": "OneChat v4 error", "status_code": resp.status_code})
                             span.set_attribute("external_response", error_msg)
-                        yield _sse_event("error", {"message": error_msg, "code": resp.status_code})
-                        yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-                        return
+                            yield _sse_event("error", {"message": error_msg, "code": resp.status_code})
+                            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+                            return
 
-                    log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
+                        log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
 
-                    buffer = ""
-                    async for chunk in resp.aiter_text():
-                        buffer += chunk
-                        # Split on double newline (SSE event boundary)
-                        while "\n\n" in buffer:
-                            event_block, buffer = buffer.split("\n\n", 1)
-                            parsed = _parse_sse_block(event_block)
-                            if not parsed:
-                                continue
+                        buffer = ""
+                        async for chunk in resp.aiter_text():
+                            buffer += chunk
+                            # Split on double newline (SSE event boundary)
+                            while "\n\n" in buffer:
+                                event_block, buffer = buffer.split("\n\n", 1)
+                                parsed = _parse_sse_block(event_block)
+                                if not parsed:
+                                    continue
 
-                            event_name, event_data = parsed
+                                event_name, event_data = parsed
 
-                            # Capture answer and session data for persistence
-                            if event_name == "answer":
-                                answer_data = event_data
-                            elif event_name == "done":
-                                session_id = event_data.get("session_id")
-                                total_ms = event_data.get("total_ms")
+                                # Capture answer and session data for persistence
+                                if event_name == "answer":
+                                    answer_data = event_data
+                                elif event_name == "done":
+                                    session_id = event_data.get("session_id")
+                                    total_ms = event_data.get("total_ms")
 
-                            with tracer.start_as_current_span("chat_stream_endpoint") as span:
-                                span.set_attribute("stream_event", event_name)
-                                span.set_attribute("event_data", json.dumps(event_data)[:500])
+                                with tracer.start_as_current_span("event") as span:
+                                    span.set_attribute("stream_event", event_name)
+                                    span.set_attribute("event_data", json.dumps(event_data)[:500])
 
-                            # Re-emit to client
-                            yield _sse_event(event_name, event_data)
+                                # Re-emit to client
+                                yield _sse_event(event_name, event_data)
 
-        except httpx.ReadTimeout:
-            with tracer.start_as_current_span("chat_stream_endpoint") as span:
+            except httpx.ReadTimeout:
                 span.set_status(StatusCode.ERROR, "OneChat v4 stream read timeout")
                 span.set_attributes({"error": "OneChat v4 stream read timeout"})
-            yield _sse_event("error", {"message": "OneChat v4 connection timed out", "code": 504})
-            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-            return
-        except Exception as e:
-            with tracer.start_as_current_span("chat_stream_endpoint") as span:
+                yield _sse_event("error", {"message": "OneChat v4 connection timed out", "code": 504})
+                yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+                return
+            except Exception as e:
                 span.set_status(StatusCode.ERROR, f"Exception during OneChat v4 streaming: {str(e)}")
                 span.set_attributes({"error": "Exception during OneChat v4 streaming", "exception": str(e)})
-            yield _sse_event("error", {"message": str(e), "code": 500})
-            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-            return
+                yield _sse_event("error", {"message": str(e), "code": 500})
+                yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+                return
 
-        # Persist conversation + messages after stream completes
-        if answer_data:
-            await _save_stream_conversation(
-                query=query,
-                conversation_id=conversation_id,
-                answer_data=answer_data,
-                session_id=session_id,
-                total_ms=total_ms,
-                latency_ms=log_latency_ms,
-                user=user,
-                background_tasks=background_tasks,
-            )
+            # Persist conversation + messages after stream completes
+            if answer_data:
+                await _save_stream_conversation(
+                    query=query,
+                    conversation_id=conversation_id,
+                    answer_data=answer_data,
+                    session_id=session_id,
+                    total_ms=total_ms,
+                    latency_ms=log_latency_ms,
+                    user=user,
+                    background_tasks=background_tasks,
+                )
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
 
 def _sse_event(event: str, data: Any) -> str:
