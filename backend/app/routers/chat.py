@@ -655,6 +655,14 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                     span.set_attribute("cache_hit", True)
                     span.set_attribute("cached_message_id", str(asst_msg.id))
                     span.set_attribute("cached_conversation_id", str(user_msg.conversation_id))
+                    await _save_stream_conversation(
+                        query=query,
+                        conversation_id=conversation_id,
+                        answer_data=asst_msg.content,
+                        latency_ms=0,
+                        user=user,
+                        background_tasks=background_tasks,
+                    )
                     yield _sse_event("answer", {"answer": asst_msg.content})
                     yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
                 return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
