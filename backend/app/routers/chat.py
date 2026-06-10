@@ -54,7 +54,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     embedding = await generate_embedding(query)
     cached = await find_similar_question(query=query, embedding=embedding)
     if cached:
-        user_msg, asst_msg = cached
+        user_msg, asst_msg, _ = cached
         return {
             "success": True,
             "data": {
@@ -165,7 +165,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             embedding = await generate_embedding(query)
             cached = await find_similar_question(query=query, embedding=embedding)
             if cached:
-                user_msg, asst_msg = cached
+                user_msg, asst_msg, _ = cached
                 span.set_attribute("cache_hit", True)
                 return {
                     "success": True,
@@ -319,7 +319,6 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                 await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
             except Exception:
                 logger.warning("Session warm-up failed for conversation %s", conversation_id)
-                span.set_status(StatusCode.WARNING, "Session warm-up failed")
 
         payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
 
@@ -454,8 +453,8 @@ async def _save_stream_conversation(
     except Exception:
         await Conversation.create(
             id=conversation_id,
-            title=query[:50],
-            preview=query[:100],
+            title=query[:settings.TITLE_MAX_LENGTH],
+            preview=query[:settings.PREVIEW_MAX_LENGTH],
             agencies=[],
             status="success",
             message_count=len(answer),
