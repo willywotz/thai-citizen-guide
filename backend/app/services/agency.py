@@ -119,12 +119,7 @@ async def parse_spec(spec_text: str) -> dict[str, Any]:
             json=payload,
         )
 
-    if not resp.is_success:
-        try:
-            data = resp.json()
-        except Exception:
-            data = {}
-        raise ValueError(data.get("message", f"HTTP {resp.status_code}"))
+    resp.raise_for_status()  # raises httpx.HTTPStatusError for non-2xx
 
     data = resp.json()
     tool_call = (data.get("choices") or [{}])[0].get("message", {}).get("tool_calls", [{}])[0]
