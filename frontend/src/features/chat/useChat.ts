@@ -282,8 +282,6 @@ export function useChat() {
     };
 
     try {
-      console.log(conversationId ? `Continuing conversation ${conversationId}` : 'Starting new conversation');
-
       // Try SSE first
       const usedSSE = await sendChatQuerySSE(
         { query: question, conversation_id: conversationId || undefined },
