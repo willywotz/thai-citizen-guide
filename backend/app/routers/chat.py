@@ -490,10 +490,10 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 @router.post("/external", summary="Send a query and get a synthesised AI response")
 async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     with tracer.start_as_current_span("chat_external_endpoint") as span:
-        
+
         query = body.query.strip()
         conversation_id = body.conversation_id or str(generate_uuid())
-        
+
         if body.conversation_id:
             try:
                 conv = await Conversation.get(id=conversation_id)
@@ -545,7 +545,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             span.set_status(StatusCode.ERROR, f"External chat request failed with status {resp.status_code}")
             span.set_attributes({"error": "external chat request failed", "status_code": resp.status_code, "response_text": resp.text})
             raise HTTPException(status_code=502, detail="Failed to get response from external chat service")
-            
+
         response_time = int((end_time_ns - start_time_ns) // 1_000_000)  # ms
 
         raw_data = resp.json()
@@ -598,7 +598,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             role='user',
             content=query,
         )
-        
+
         response_msg = await Message.create(
             parent_id=query_msg.id,
             conversation_id=conversation_id,
@@ -625,7 +625,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             "conversation_id": conversation_id,
             "responseTime": response_time,
         }
-    
+
 # ─── v4 SSE Streaming Endpoint ────────────────────────────────────────────────
 
 @router.post("/stream", summary="Send a query and receive SSE streaming response (v4)")
@@ -634,8 +634,14 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
     query = body.query.strip()
     conversation_id = body.conversation_id or str(generate_uuid())
 
+    with tracer.start_as_current_span("chat_stream_endpoint") as span:
+        span.set_attribute("conversation_id", conversation_id)
+
     if not query:
         raise HTTPException(status_code=400, detail="Missing query")
+
+    with tracer.start_as_current_span("chat_stream_endpoint") as span:
+        span.set_attribute("query", query)
 
     # Cache applies only on turn 1 (new conversation)
     if not body.conversation_id:
@@ -645,6 +651,10 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
             user_msg, asst_msg = cached
             async def cached_stream():
                 await asyncio.sleep(0.01)
+                with tracer.start_as_current_span("chat_stream_endpoint") as span:
+                    span.set_attribute("cache_hit", True)
+                    span.set_attribute("cached_message_id", str(asst_msg.id))
+                    span.set_attribute("cached_conversation_id", str(user_msg.conversation_id))
                 yield _sse_event("answer", {"answer": asst_msg.content})
                 yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
             return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -681,6 +691,10 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                             error_msg = f"OneChat v4 returned {resp.status_code}: {error_body.decode()[:200]}"
                         except Exception:
                             pass
+                        with tracer.start_as_current_span("chat_stream_endpoint") as span:
+                            span.set_status(StatusCode.ERROR, f"OneChat v4 returned status {resp.status_code}")
+                            span.set_attributes({"error": "OneChat v4 error", "status_code": resp.status_code})
+                            span.set_attribute("external_response", error_msg)
                         yield _sse_event("error", {"message": error_msg, "code": resp.status_code})
                         yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
                         return
@@ -706,14 +720,24 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                                 session_id = event_data.get("session_id")
                                 total_ms = event_data.get("total_ms")
 
+                            with tracer.start_as_current_span("chat_stream_endpoint") as span:
+                                span.set_attribute("stream_event", event_name)
+                                span.set_attribute("event_data", json.dumps(event_data)[:500])
+
                             # Re-emit to client
                             yield _sse_event(event_name, event_data)
 
         except httpx.ReadTimeout:
+            with tracer.start_as_current_span("chat_stream_endpoint") as span:
+                span.set_status(StatusCode.ERROR, "OneChat v4 stream read timeout")
+                span.set_attributes({"error": "OneChat v4 stream read timeout"})
             yield _sse_event("error", {"message": "OneChat v4 connection timed out", "code": 504})
             yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
             return
         except Exception as e:
+            with tracer.start_as_current_span("chat_stream_endpoint") as span:
+                span.set_status(StatusCode.ERROR, f"Exception during OneChat v4 streaming: {str(e)}")
+                span.set_attributes({"error": "Exception during OneChat v4 streaming", "exception": str(e)})
             yield _sse_event("error", {"message": str(e), "code": 500})
             yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
             return
