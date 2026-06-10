@@ -51,9 +51,10 @@ async def test_call_llm_returns_message_on_success(monkeypatch):
         "choices": [{"message": {"role": "assistant", "content": "hello"}}]
     }
 
-    with patch("httpx.AsyncClient") as MockClient:
+    from app.services.chat.llm import call_llm  # import before patching
+
+    with patch("app.services.chat.llm.httpx.AsyncClient") as MockClient:
         MockClient.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
-        from app.services.chat.llm import call_llm
         result = await call_llm([{"role": "user", "content": "hi"}])
 
     assert result == {"role": "assistant", "content": "hello"}

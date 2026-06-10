@@ -4,6 +4,8 @@ import os
 import httpx
 
 from app.config import settings
+from app.models.conversation import Message
+from app.services.embedding import encode_embedding, generate_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,10 @@ async def call_llm(messages: list[dict]) -> dict:
             },
         )
     if resp.status_code == 200:
-        return resp.json().get("choices", [{}])[0].get("message", {})
+        choices = resp.json().get("choices", [])
+        if not choices:
+            raise ValueError("LLM API returned empty choices")
+        return choices[0].get("message", {})
     raise ValueError(f"LLM API error: {resp.status_code} {resp.text}")
 
 
@@ -92,7 +97,6 @@ async def classify_message_category(message_id: str, query: str, answer: str) ->
             json=payload,
         )
     try:
-        from app.models.conversation import Message
         category = resp.json()["choices"][0]["message"]["content"].strip()
         await Message.filter(id=message_id).update(category=category)
     except Exception as e:
@@ -100,8 +104,6 @@ async def classify_message_category(message_id: str, query: str, answer: str) ->
 
 
 async def store_embedding(message_id: str, query: str) -> None:
-    from app.services.embedding import generate_embedding, encode_embedding
-    from app.models.conversation import Message
     embedding = await generate_embedding(query)
     if embedding is not None:
         encoded = encode_embedding(embedding)
