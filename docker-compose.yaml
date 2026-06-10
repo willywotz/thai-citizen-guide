@@ -92,6 +92,8 @@ services:
       context: ./frontend
       target: production
     restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
     networks:
       - chatbot-network
     healthcheck:

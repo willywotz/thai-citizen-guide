@@ -33,10 +33,14 @@ export const tokenStorage = {
 // Axios instance
 // ---------------------------------------------------------------------------
 
-// const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000';
+var baseURL = import.meta.env.VITE_API_BASE_URL as string | undefined;
+
+if (!baseURL || baseURL.trim() === '') {
+  baseURL = window.location.origin;
+}
 
 const axiosInstance: AxiosInstance = axios.create({
-  // baseURL: BASE_URL,
+  baseURL: baseURL,
   headers: { 'Content-Type': 'application/json' },
 });
 

@@ -77,6 +77,10 @@ export function useChat() {
   // Keep ref in sync
   useEffect(() => {
     streamingRef.current = streamingState;
+
+    if (streamingState.sessionId) {
+      setConversationId(streamingState.sessionId);
+    }
   }, [streamingState]);
 
   useEffect(() => {
@@ -91,11 +95,6 @@ export function useChat() {
   const cancelStream = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
-    // If the done event arrived before cancel, preserve the conversation_id so
-    // the next turn continues the same conversation.
-    if (streamingRef.current.sessionId) {
-      setConversationId(streamingRef.current.sessionId);
-    }
     setIsTyping(false);
     setActiveStepCount(0);
     setStreamingState(INITIAL_STREAMING_STATE);
@@ -283,6 +282,8 @@ export function useChat() {
     };
 
     try {
+      console.log(conversationId ? `Continuing conversation ${conversationId}` : 'Starting new conversation');
+
       // Try SSE first
       const usedSSE = await sendChatQuerySSE(
         { query: question, conversation_id: conversationId || undefined },
