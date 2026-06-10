@@ -649,7 +649,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
             embedding = await generate_embedding(query)
             cached = await find_similar_question(query=query, embedding=embedding)
             if cached:
-                user_msg, asst_msg = cached
+                user_msg, asst_msg, conn_log = cached
                 async def cached_stream():
                     await asyncio.sleep(0.01)
                     span.set_attribute("cache_hit", True)
@@ -658,7 +658,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                     await _save_stream_conversation(
                         query=query,
                         conversation_id=conversation_id,
-                        answer_data=asst_msg.content,
+                        answer_data=conn_log.response_body,
                         session_id=None,
                         total_ms=0,
                         latency_ms=0,
@@ -850,7 +850,7 @@ async def _save_stream_conversation(
         content=query,
     )
 
-    await Message.create(
+    assistant_msg = await Message.create(
         parent_id=query_msg.id,
         conversation_id=conversation_id,
         role="assistant",
@@ -868,7 +868,9 @@ async def _save_stream_conversation(
         latency_ms=latency_ms,
         detail=f"v4 stream query: {query[:100]}",
         request_body=json.dumps({"query": query, "session_id": conversation_id}),
-        response_body=json.dumps(answer_data, ensure_ascii=False)[:settings.CONN_LOG_BODY_MAX],
+        response_body=json.dumps(answer_data, ensure_ascii=False),
+        message_id=query_msg.id,
+        assistant_message_id=assistant_msg.id,
     )
 
     background_tasks.add_task(classify_message_category, query_msg.id, query, answer)

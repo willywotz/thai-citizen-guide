@@ -25,6 +25,8 @@ class ConnectionLog(models.Model):
 
     request_body = fields.TextField(default="", null=True)
     response_body = fields.TextField(default="", null=True)
+    message_id = fields.UUIDField(null=True)  # Link to Message if this log is for a query attempt
+    assistant_message_id = fields.UUIDField(null=True)  # Link to assistant Message for successful queries
 
     class Meta:
         table = "connection_logs"

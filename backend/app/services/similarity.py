@@ -6,6 +6,7 @@ from tortoise import Tortoise
 
 from app.config import settings
 from app.models.conversation import Message, Conversation
+from app.models.connection_log import ConnectionLog
 from app.services.embedding import encode_embedding
 from app.utils import now
 
@@ -15,14 +16,14 @@ logger = logging.getLogger(__name__)
 async def find_similar_question(
     query: str,
     embedding: list[float] | None = None,
-) -> tuple[Message, Message] | None:
+) -> tuple[Message, Message, ConnectionLog] | None:
     """Find a similar question within SIMILARITY_WINDOW_SECONDS.
 
     Uses pgvector cosine similarity if embedding is provided.
     Falls back to text similarity (levenshtein and/or trigram) if embedding is None.
     Controlled by SIMILARITY_FALLBACK setting: "levenshtein", "trigram", or "both".
 
-    Returns (user_message, assistant_message) if a match is found above threshold,
+    Returns (user_message, assistant_message, connection_log) if a match is found above threshold,
     None otherwise.
     """
     threshold = settings.SIMILARITY_THRESHOLD
@@ -56,7 +57,13 @@ async def find_similar_question(
         logger.warning(f"Conversation {match.conversation_id} not found")
         return None
 
-    return (match, assistant_msg)
+    try:
+        conn_log = await ConnectionLog.get(assistant_message_id=assistant_msg.id)
+    except Exception:
+        logger.warning(f"ConnectionLog for message {assistant_msg.id} not found")
+        return None
+
+    return (match, assistant_msg, conn_log)
 
 
 async def _text_fallback_search(
