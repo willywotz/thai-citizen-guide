@@ -659,6 +659,8 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                         query=query,
                         conversation_id=conversation_id,
                         answer_data=asst_msg.content,
+                        session_id=None,
+                        total_ms=0,
                         latency_ms=0,
                         user=user,
                         background_tasks=background_tasks,
