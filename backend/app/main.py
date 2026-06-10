@@ -14,13 +14,7 @@ MCP server:
 REST API is served under /api/v1
 """
 
-import asyncio
-import json
 import logging
-import random
-import time
-
-import httpx
 
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
@@ -42,7 +36,6 @@ from app.database import init_db, close_db
 from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, settings as settings_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
-from app.models import Agency, ConnectionLog
 from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
 
