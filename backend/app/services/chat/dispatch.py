@@ -27,6 +27,10 @@ def _tool_name(tool) -> str:
 
 # ── Pure helpers ─────────────────────────────────────────────────────────────
 
+def _dispatch_timeout(route: dict) -> int:
+    return route.get("dispatch_timeout_s") or settings.AGENCY_CHAT_TIMEOUT
+
+
 def build_api_headers(api_headers: list[dict] | None) -> dict:
     headers: dict[str, str] = {"content-type": "application/json"}
     for h in (api_headers or []):
@@ -145,7 +149,7 @@ async def dispatch_api(route: dict, conversation_id: str) -> dict:
         route["sub_question"],
         conversation_id,
     )
-    async with httpx.AsyncClient(timeout=settings.AGENCY_CHAT_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_dispatch_timeout(route)) as client:
         resp = await client.post(route["endpoint_url"], headers=headers, json=payload)
         if resp.status_code == 200:
             return {"agency": route["agency_name"], "response": resp.json(), "status": "ok"}
