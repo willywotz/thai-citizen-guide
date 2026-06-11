@@ -1,65 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage, AgentStep, StreamingState } from '@/shared/types';
-import type {
-  StepEvent, AgenciesEvent, IntentEvent, RoutingEvent,
-  AgencyStartEvent, AgencyRespondedEvent, AgencyVerifiedEvent,
-  AnswerEvent, DoneEvent, ErrorEvent,
-} from '@/shared/types/chat';
 import { sendChatQuery, sendChatQuerySSE } from '@/features/chat/chatApi';
 import { updateMessageRating } from '@/features/chat/feedbackApi';
 import { mockAgentSteps } from '@/shared/data/mockData';
 import { generateUniqueId } from '@/shared/lib/utils';
-
-const INITIAL_STREAMING_STATE: StreamingState = {
-  pipelineSteps: [],
-  currentStep: null,
-  agencies: [],
-  intent: null,
-  routing: null,
-  agencyStatuses: {},
-  answer: null,
-  sections: [],
-  errors: [],
-  sessionId: null,
-  totalMs: null,
-  done: false,
-};
-
-const STEP_LABELS: Record<string, { icon: string; label: string }> = {
-  discover: { icon: '🔍', label: 'ค้นหาหน่วยงาน' },
-  classify: { icon: '🧠', label: 'วิเคราะห์คำถาม' },
-  invoke: { icon: '🔗', label: 'สืบค้นจากหน่วยงาน' },
-  verify: { icon: '✅', label: 'ตรวจสอบความเกี่ยวข้อง' },
-  synthesize: { icon: '📝', label: 'สังเคราะห์คำตอบ' },
-};
-
-function buildAgentStepsFromStreaming(state: StreamingState): AgentStep[] {
-  const steps: AgentStep[] = [];
-
-  for (const ps of state.pipelineSteps) {
-    const info = STEP_LABELS[ps.name] ?? { icon: '⚙️', label: ps.name };
-    steps.push({
-      icon: info.icon,
-      label: info.label + (ps.ms ? ` (${(ps.ms / 1000).toFixed(1)}s)` : ''),
-      status: ps.status === 'done' ? 'done' : 'active',
-    });
-  }
-
-  const agencyEntries = Object.values(state.agencyStatuses);
-  if (agencyEntries.length > 0) {
-    for (const a of agencyEntries) {
-      const statusIcon = a.status === 'error' ? '❌' : a.status === 'passed' ? '✅' : a.status === 'rejected' ? '⚠️' : a.status === 'ok' ? '⏳' : '🔗';
-      steps.push({
-        icon: statusIcon,
-        label: a.agencyName ?? a.agencyId,
-        detail: a.errorType ?? undefined,
-        status: a.status === 'running' ? 'active' : 'done',
-      });
-    }
-  }
-
-  return steps;
-}
+import {
+  INITIAL_STREAMING_STATE,
+  applyStepEvent,
+  applyAgenciesEvent,
+  applyIntentEvent,
+  applyRoutingEvent,
+  applyAgencyStartEvent,
+  applyAgencyRespondedEvent,
+  applyAgencyVerifiedEvent,
+  applyAnswerEvent,
+  applyDoneEvent,
+  applyErrorEvent,
+  buildAiMessageFromState,
+  buildConnectionLostMessage,
+  buildGenericErrorMessage,
+  formatTimestamp,
+} from './chatHelpers';
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -103,31 +64,12 @@ export function useChat() {
 
   const finalizeStreaming = useCallback(() => {
     const state = streamingRef.current;
-    if (state.answer) {
-      const aiMsg: ChatMessage = {
-        id: generateUniqueId(),
-        role: 'assistant',
-        content: state.answer,
-        timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-        agentSteps: buildAgentStepsFromStreaming(state),
-        sources: state.sections?.flatMap((s) =>
-          s.agencies.map((a) => ({ agency: a.name, url: '', title: s.title }))
-        ),
-        rating: null,
-      };
+    const aiMsg = buildAiMessageFromState(state);
+    if (aiMsg) {
       setMessages((prev) => [...prev, aiMsg]);
     } else if (!state.done) {
       // Stream ended without answer or done — connection lost
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: generateUniqueId(),
-          role: 'assistant',
-          content: 'ขออภัย การเชื่อมต่อถูกตัด โปรดลองอีกครั้ง',
-          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-          rating: null,
-        },
-      ]);
+      setMessages((prev) => [...prev, buildConnectionLostMessage()]);
     }
     if (state.sessionId) {
       setConversationId(state.sessionId);
@@ -144,7 +86,7 @@ export function useChat() {
       id: generateUniqueId(),
       role: 'user',
       content: question,
-      timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: formatTimestamp(),
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
@@ -158,124 +100,81 @@ export function useChat() {
     abortRef.current = abortController;
 
     // Callbacks update state via setStreamingState + streamingRef
-    const onStep = (event: StepEvent) => {
+    const onStep: Parameters<typeof sendChatQuerySSE>[1]['onStep'] = (event) => {
       setStreamingState((prev) => {
-        const steps = [...prev.pipelineSteps];
-        const existingIdx = steps.findIndex((s) => s.name === event.name && s.status === 'running');
-        if (event.status === 'running') {
-          steps.push({ name: event.name, status: 'running', ms: null });
-        } else if (existingIdx >= 0) {
-          steps[existingIdx] = { name: event.name, status: 'done', ms: event.ms };
-        } else {
-          steps.push({ name: event.name, status: 'done', ms: event.ms });
-        }
-        const next = { ...prev, pipelineSteps: steps, currentStep: event.status === 'running' ? event.name : prev.currentStep };
+        const next = applyStepEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onAgencies = (event: AgenciesEvent) => {
+    const onAgencies: Parameters<typeof sendChatQuerySSE>[1]['onAgencies'] = (event) => {
       setStreamingState((prev) => {
-        const next = { ...prev, agencies: event.agencies };
+        const next = applyAgenciesEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onIntent = (event: IntentEvent) => {
+    const onIntent: Parameters<typeof sendChatQuerySSE>[1]['onIntent'] = (event) => {
       setStreamingState((prev) => {
-        const next = { ...prev, intent: event };
+        const next = applyIntentEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onRouting = (event: RoutingEvent) => {
+    const onRouting: Parameters<typeof sendChatQuerySSE>[1]['onRouting'] = (event) => {
       setStreamingState((prev) => {
-        const next = { ...prev, routing: event };
+        const next = applyRoutingEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onAgencyStart = (event: AgencyStartEvent) => {
+    const onAgencyStart: Parameters<typeof sendChatQuerySSE>[1]['onAgencyStart'] = (event) => {
       setStreamingState((prev) => {
-        const statuses = { ...prev.agencyStatuses };
-        statuses[event.agency_id] = {
-          agencyId: event.agency_id,
-          agencyName: event.agency_name,
-          query: event.query,
-          sectionLabel: event.section_label,
-          status: 'running',
-        };
-        const next = { ...prev, agencyStatuses: statuses };
+        const next = applyAgencyStartEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onAgencyResponded = (event: AgencyRespondedEvent) => {
+    const onAgencyResponded: Parameters<typeof sendChatQuerySSE>[1]['onAgencyResponded'] = (event) => {
       setStreamingState((prev) => {
-        const statuses = { ...prev.agencyStatuses };
-        const existing = statuses[event.agency_id] || {
-          agencyId: event.agency_id,
-          agencyName: event.agency_name,
-          query: '',
-          sectionLabel: event.section_label,
-          status: 'pending' as const,
-        };
-        statuses[event.agency_id] = {
-          ...existing,
-          status: event.status === 'ok' ? 'ok' : 'error',
-          errorType: event.error_type,
-        };
-        const next = { ...prev, agencyStatuses: statuses };
+        const next = applyAgencyRespondedEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onAgencyVerified = (event: AgencyVerifiedEvent) => {
+    const onAgencyVerified: Parameters<typeof sendChatQuerySSE>[1]['onAgencyVerified'] = (event) => {
       setStreamingState((prev) => {
-        const statuses = { ...prev.agencyStatuses };
-        const existing = statuses[event.agency_id];
-        if (existing) {
-          statuses[event.agency_id] = {
-            ...existing,
-            status: event.status,
-            relevanceScore: event.relevance_score,
-          };
-        }
-        const next = { ...prev, agencyStatuses: statuses };
+        const next = applyAgencyVerifiedEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onAnswer = (event: AnswerEvent) => {
+    const onAnswer: Parameters<typeof sendChatQuerySSE>[1]['onAnswer'] = (event) => {
       setStreamingState((prev) => {
-        const next = { ...prev, answer: event.answer, sections: event.sections, errors: event.errors };
+        const next = applyAnswerEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onDone = (_event: DoneEvent) => {
+    const onDone: Parameters<typeof sendChatQuerySSE>[1]['onDone'] = (event) => {
       setStreamingState((prev) => {
-        const next = { ...prev, sessionId: _event.session_id, totalMs: _event.total_ms, done: true };
+        const next = applyDoneEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
     };
 
-    const onError = (event: ErrorEvent) => {
+    const onError: Parameters<typeof sendChatQuerySSE>[1]['onError'] = (event) => {
       setStreamingState((prev) => {
-        const next = {
-          ...prev,
-          errors: [...prev.errors, { agency: '', name: '', errorType: 'SSE', message: event.message }],
-          done: true,
-        };
+        const next = applyErrorEvent(prev, event);
         streamingRef.current = next;
         return next;
       });
@@ -309,7 +208,7 @@ export function useChat() {
           id: aiMsgId,
           role: 'assistant',
           content: response.data.answer,
-          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+          timestamp: formatTimestamp(),
           agentSteps: response.data.agentSteps as AgentStep[],
           sources: response.data.references.map((ref) => ({
             agency: ref.agency,
@@ -329,16 +228,7 @@ export function useChat() {
       setCurrentSteps([]);
       setActiveStepCount(0);
       setIsTyping(false);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: generateUniqueId(),
-          role: 'assistant',
-          content: 'ขออภัย ฉันไม่สามารถตอบคำถามได้ในขณะนี้ โปรดลองอีกครั้งในภายหลัง',
-          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-          rating: null,
-        },
-      ]);
+      setMessages((prev) => [...prev, buildGenericErrorMessage()]);
     }
   }, [input, isTyping, conversationId, finalizeStreaming]);
 
