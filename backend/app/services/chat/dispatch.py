@@ -107,15 +107,15 @@ def _coerce(value) -> str:
 def extract_mcp_text(result) -> str:
     """Extract a string response from a fastmcp CallToolResult-like object."""
     data = getattr(result, "data", None)
-    if data:
+    if data is not None:
         return _coerce(data)
 
     structured = getattr(result, "structured_content", None)
-    if structured:
+    if structured is not None:
         return _coerce(structured)
 
     content = getattr(result, "content", None)
-    if content:
+    if content is not None:
         parts = [item.text for item in content if hasattr(item, "text")]
         return "\n".join(parts)
 
@@ -147,13 +147,13 @@ async def dispatch_api(route: dict, conversation_id: str) -> dict:
     )
     async with httpx.AsyncClient(timeout=settings.AGENCY_CHAT_TIMEOUT) as client:
         resp = await client.post(route["endpoint_url"], headers=headers, json=payload)
-    if resp.status_code == 200:
-        return {"agency": route["agency_name"], "response": resp.json(), "status": "ok"}
-    return {
-        "agency": route["agency_name"],
-        "response": f"HTTP {resp.status_code}: {resp.text}",
-        "status": "error",
-    }
+        if resp.status_code == 200:
+            return {"agency": route["agency_name"], "response": resp.json(), "status": "ok"}
+        return {
+            "agency": route["agency_name"],
+            "response": f"HTTP {resp.status_code}: {resp.text}",
+            "status": "error",
+        }
 
 
 async def dispatch_mcp(route: dict, sub_question: str) -> dict:

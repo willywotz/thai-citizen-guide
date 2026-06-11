@@ -464,6 +464,7 @@ async def test_dispatch_mcp_dict_shaped_tool():
 
     assert result["status"] == "ok"
     assert result["response"] == "dict tool response"
+    fake_client.call_tool.assert_called_once_with("ask_question", {"query": "question here"})
 
 
 @pytest.mark.asyncio
@@ -556,3 +557,41 @@ async def test_dispatch_one_exception_becomes_error():
     assert result["status"] == "error"
     assert "refused" in result["response"]
     assert result["agency"] == "MCPAgency"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_a2a_posts_and_returns_ok():
+    from app.services.chat.dispatch import dispatch_a2a
+
+    route = {"connection_type": "A2A", "sub_question": "q", "agency_name": "A", "endpoint_url": "http://x"}
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"answer": "ok"}
+    with patch("app.services.chat.dispatch.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        result = await dispatch_a2a(route, "conv-1")
+    assert result["status"] == "ok"
+    assert result["response"] == {"answer": "ok"}
+    assert result["agency"] == "A"
+    call = mock_client.post.call_args
+    assert call.args[0] == "http://x"
+    assert "q" in call.kwargs["json"]["query"]
+    assert "session_id" in call.kwargs["json"]
+    assert call.kwargs["headers"]["Content-Type"] == "application/json"
+
+
+def test_extract_mcp_text_falsy_data_returned_via_coerce():
+    from app.services.chat.dispatch import extract_mcp_text
+
+    @dataclass
+    class FakeResult:
+        data: Any = 0
+        structured_content: Any = None
+        content: list = field(default_factory=list)
+
+    result = FakeResult()
+    text = extract_mcp_text(result)
+    # data == 0 is not None, so _coerce(0) → "0", not str(result)
+    assert text == "0"
