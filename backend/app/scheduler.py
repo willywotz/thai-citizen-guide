@@ -9,6 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import settings
 from app.models import Agency, ConnectionLog
+from app.services.analytics import regenerate_weekly_brief
 from app.utils import generate_uuid, now
 
 scheduler = AsyncIOScheduler()
@@ -61,11 +62,20 @@ async def agency_chat_test() -> None:
     await asyncio.gather(*[agency_chat_item(ag) for ag in agencies])
 
 
+async def regenerate_brief_job() -> None:
+    try:
+        await regenerate_weekly_brief()
+    except Exception as e:
+        print(f"Error regenerating weekly brief: {e}")
+
+
 async def start_scheduler() -> None:
     global sem
     sem = asyncio.Semaphore(settings.AGENCY_CHAT_CONCURRENCY)
     asyncio.create_task(agency_chat_test())
+    asyncio.create_task(regenerate_brief_job())
     scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES))
+    scheduler.add_job(regenerate_brief_job, IntervalTrigger(hours=settings.BRIEF_REGEN_INTERVAL_HOURS))
     scheduler.start()
 
 

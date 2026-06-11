@@ -123,25 +123,84 @@ async def test_get_executive_summary_smoke():
     conv.filter.return_value = conv
     conv.count = AsyncMock(return_value=0)
 
+    httpx_client = MagicMock()
+
     with (
         patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)),
         patch.object(analytics, "Message", msg),
         patch.object(analytics, "Conversation", conv),
-        patch.object(analytics, "_get_weekly_brief", new=AsyncMock(return_value="brief")),
+        patch.object(analytics, "_latest_brief", new=AsyncMock(return_value="brief")),
+        patch.object(analytics.httpx, "AsyncClient", httpx_client),
     ):
         result = await analytics.get_executive_summary()
 
     assert isinstance(result, ExecutiveData)
     assert result.weeklyBrief == "brief"
+    # GET must read the cached brief from the DB and never call the LLM.
+    httpx_client.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_get_weekly_brief_returns_fallback_on_http_error(monkeypatch):
-    """When the httpx call raises, _get_weekly_brief must return the Thai fallback string."""
+async def test_latest_brief_returns_placeholder_when_table_empty():
+    """With no stored brief, _latest_brief returns the placeholder (never blocks/no LLM)."""
     from app.services import analytics
 
-    # Reset the module-level cache so the function actually makes an HTTP call.
-    monkeypatch.setattr(analytics, "_weekly_brief_cache", "")
+    qs = MagicMock()
+    qs.order_by.return_value = qs
+    qs.first = AsyncMock(return_value=None)
+    brief_model = MagicMock()
+    brief_model.all.return_value = qs
+
+    with patch.object(analytics, "ExecutiveBrief", brief_model):
+        result = await analytics._latest_brief()
+
+    assert result == analytics._BRIEF_PLACEHOLDER
+
+
+@pytest.mark.asyncio
+async def test_regenerate_weekly_brief_persists_ok_row():
+    """A successful LLM call inserts an ExecutiveBrief row with status 'ok'."""
+    from app.services import analytics
+
+    created = MagicMock(content="generated brief", status="ok")
+    brief_model = MagicMock()
+    brief_model.create = AsyncMock(return_value=created)
+
+    resp = MagicMock()
+    resp.json.return_value = {"choices": [{"message": {"content": "  generated brief  "}}]}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return resp
+
+    with (
+        patch.object(analytics, "_compute_executive_metrics", new=AsyncMock(return_value={})),
+        patch.object(analytics, "_build_brief_prompt", return_value="prompt"),
+        patch.object(analytics, "ExecutiveBrief", brief_model),
+        patch("app.services.analytics.httpx.AsyncClient", return_value=_Client()),
+    ):
+        result = await analytics.regenerate_weekly_brief()
+
+    brief_model.create.assert_awaited_once()
+    kwargs = brief_model.create.await_args.kwargs
+    assert kwargs["status"] == "ok"
+    assert kwargs["content"] == "generated brief"
+    assert result is created
+
+
+@pytest.mark.asyncio
+async def test_regenerate_weekly_brief_persists_error_row_on_http_failure():
+    """When the LLM call raises, a row is still inserted with status 'error' and fallback text."""
+    from app.services import analytics
+
+    brief_model = MagicMock()
+    brief_model.create = AsyncMock(return_value=MagicMock())
 
     class _RaisingClient:
         async def __aenter__(self):
@@ -153,10 +212,17 @@ async def test_get_weekly_brief_returns_fallback_on_http_error(monkeypatch):
         async def post(self, *args, **kwargs):
             raise RuntimeError("network error")
 
-    with patch("app.services.analytics.httpx.AsyncClient", return_value=_RaisingClient()):
-        result = await analytics._get_weekly_brief("some content")
+    with (
+        patch.object(analytics, "_compute_executive_metrics", new=AsyncMock(return_value={})),
+        patch.object(analytics, "_build_brief_prompt", return_value="prompt"),
+        patch.object(analytics, "ExecutiveBrief", brief_model),
+        patch("app.services.analytics.httpx.AsyncClient", return_value=_RaisingClient()),
+    ):
+        await analytics.regenerate_weekly_brief()
 
-    assert result == "ไม่สามารถสร้างสรุปประจำสัปดาห์ได้ในขณะนี้"
+    kwargs = brief_model.create.await_args.kwargs
+    assert kwargs["status"] == "error"
+    assert kwargs["content"] == analytics._BRIEF_FALLBACK
 
 
 @pytest.mark.asyncio
@@ -241,7 +307,7 @@ async def test_get_executive_summary_january_month_boundary():
         _patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)),
         _patch.object(analytics, "Message", msg),
         _patch.object(analytics, "Conversation", conv),
-        _patch.object(analytics, "_get_weekly_brief", new=AsyncMock(return_value="brief")),
+        _patch.object(analytics, "_latest_brief", new=AsyncMock(return_value="brief")),
         _patch("app.services.analytics.now", return_value=jan_15),
     ):
         await analytics.get_executive_summary()

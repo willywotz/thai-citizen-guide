@@ -49,3 +49,13 @@ export interface ExecutiveData {
 export async function fetchExecutiveSummary(): Promise<ExecutiveData> {
   return api.get<ExecutiveData>('/api/v1/executive-summary');
 }
+
+export interface RegenerateBriefResult {
+  weeklyBrief: string;
+  status: string;
+  generatedAt: string;
+}
+
+export async function regenerateExecutiveSummary(): Promise<RegenerateBriefResult> {
+  return api.post<RegenerateBriefResult>('/api/v1/executive-summary/regenerate');
+}
