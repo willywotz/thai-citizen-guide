@@ -25,6 +25,7 @@ import ForgotPasswordPage from "@/features/auth/ForgotPasswordPage";
 import ResetPasswordPage from "@/features/auth/ResetPasswordPage";
 import ApiKeysPage from "@/features/api-keys/ApiKeysPage";
 import SettingsPage from "@/features/settings/SettingsPage";
+import UsersPage from "@/features/users/UsersPage";
 import NotFound from "@/shared/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +59,7 @@ const App = () => (
                 <Route path="/architecture" element={<ArchitecturePage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
