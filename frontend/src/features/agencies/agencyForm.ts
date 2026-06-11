@@ -26,6 +26,12 @@ export interface AgencyFormState {
   expectedPayload: string;
   apiSpecRaw: string;
   apiHeaders: ApiHeader[];
+  // Routing
+  priority: string;
+  routerHint: string;
+  dispatchTimeoutS: string;
+  // MCP
+  mcpToolName: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +79,10 @@ export const DEFAULT_FORM_STATE: AgencyFormState = {
   expectedPayload: "",
   apiSpecRaw: "",
   apiHeaders: [],
+  priority: "",
+  routerHint: "",
+  dispatchTimeoutS: "",
+  mcpToolName: "",
 };
 
 // ---------------------------------------------------------------------------
@@ -103,6 +113,10 @@ export function agencyToFormState(agency: Agency): AgencyFormState {
       : "",
     apiSpecRaw: agency.apiSpecRaw ?? "",
     apiHeaders: agency.apiHeaders ?? [],
+    priority: agency.priority != null ? String(agency.priority) : "",
+    routerHint: agency.routerHint ?? "",
+    dispatchTimeoutS: agency.dispatchTimeoutS != null ? String(agency.dispatchTimeoutS) : "",
+    mcpToolName: agency.mcpToolName ?? "",
   };
 }
 
@@ -112,6 +126,47 @@ export function agencyToFormState(agency: Agency): AgencyFormState {
 
 export function isFormValid(state: Pick<AgencyFormState, "name" | "shortName">): boolean {
   return Boolean(state.name.trim() && state.shortName.trim());
+}
+
+// ---------------------------------------------------------------------------
+// Wizard step model
+// ---------------------------------------------------------------------------
+
+export type WizardStepId = "general" | "connection" | "test" | "routing" | "review";
+
+export const WIZARD_STEPS: { id: WizardStepId; label: string }[] = [
+  { id: "general", label: "ข้อมูลทั่วไป" },
+  { id: "connection", label: "การเชื่อมต่อ" },
+  { id: "test", label: "ทดสอบ" },
+  { id: "routing", label: "Routing" },
+  { id: "review", label: "สรุป" },
+];
+
+export function isStepGeneralValid(s: Pick<AgencyFormState, "name" | "shortName">): boolean {
+  return Boolean(s.name.trim() && s.shortName.trim());
+}
+
+export function isStepConnectionValid(
+  s: Pick<AgencyFormState, "connectionType" | "endpointUrl" | "mcpToolName">,
+): boolean {
+  if (!s.endpointUrl.trim()) return false;
+  if (s.connectionType === "MCP") return Boolean(s.mcpToolName.trim());
+  return true;
+}
+
+export function canActivate(s: AgencyFormState): boolean {
+  return isStepGeneralValid(s) && isStepConnectionValid(s);
+}
+
+export function firstIncompleteStep(s: AgencyFormState): WizardStepId {
+  if (!isStepGeneralValid(s)) return "general";
+  if (!isStepConnectionValid(s)) return "connection";
+  return "test";
+}
+
+function parseIntOrNull(raw: string): number | null {
+  const n = raw.trim() ? parseInt(raw, 10) : NaN;
+  return Number.isNaN(n) ? null : n;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +187,10 @@ export function buildSavePayload(
     color: state.color,
     dataScope: state.dataScope,
     status: state.status,
+    priority: parseIntOrNull(state.priority),
+    routerHint: state.routerHint,
+    dispatchTimeoutS: parseIntOrNull(state.dispatchTimeoutS),
+    mcpToolName: state.connectionType === "MCP" ? state.mcpToolName || null : null,
   };
 
   if (state.connectionType === "API") {
@@ -140,7 +199,7 @@ export function buildSavePayload(
       authMethod: state.authMethod,
       authHeader: state.authHeader,
       basePath: state.basePath,
-      rateLimitRpm: (() => { const rpm = state.rateLimitRpm ? parseInt(state.rateLimitRpm, 10) : null; return rpm !== null && !Number.isNaN(rpm) ? rpm : null; })(),
+      rateLimitRpm: parseIntOrNull(state.rateLimitRpm),
       requestFormat: state.requestFormat,
       apiEndpoints: state.apiEndpoints.filter((ep) => ep.path),
       responseSchema: state.responseSchema.filter((f) => f.field),

@@ -2,9 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_FORM_STATE,
   PROTOCOL_INFO,
+  WIZARD_STEPS,
   agencyToFormState,
   buildSavePayload,
+  canActivate,
+  firstIncompleteStep,
   isFormValid,
+  isStepConnectionValid,
+  isStepGeneralValid,
   parseExpectedPayload,
 } from "./agencyForm";
 import type { Agency } from "@/shared/types/agency";
@@ -376,5 +381,81 @@ describe("PROTOCOL_INFO", () => {
 
   it("A2A entry mentions Agent-to-Agent", () => {
     expect(PROTOCOL_INFO.A2A).toContain("Agent-to-Agent");
+  });
+});
+
+describe("wizard step validation", () => {
+  it("defines five steps in order", () => {
+    expect(WIZARD_STEPS.map((s) => s.id)).toEqual([
+      "general",
+      "connection",
+      "test",
+      "routing",
+      "review",
+    ]);
+  });
+
+  it("general step requires name and shortName", () => {
+    expect(isStepGeneralValid({ ...DEFAULT_FORM_STATE })).toBe(false);
+    expect(isStepGeneralValid({ ...DEFAULT_FORM_STATE, name: "กรมที่ดิน", shortName: "DOL" })).toBe(true);
+  });
+
+  it("connection step requires endpoint; MCP also requires a selected tool", () => {
+    const api = { ...DEFAULT_FORM_STATE, connectionType: "API" as const };
+    expect(isStepConnectionValid(api)).toBe(false);
+    expect(isStepConnectionValid({ ...api, endpointUrl: "https://x.example" })).toBe(true);
+
+    const mcp = { ...DEFAULT_FORM_STATE, connectionType: "MCP" as const, endpointUrl: "https://x.example/mcp" };
+    expect(isStepConnectionValid(mcp)).toBe(false);
+    expect(isStepConnectionValid({ ...mcp, mcpToolName: "chat" })).toBe(true);
+  });
+
+  it("canActivate requires general + connection", () => {
+    expect(canActivate(DEFAULT_FORM_STATE)).toBe(false);
+    expect(
+      canActivate({
+        ...DEFAULT_FORM_STATE,
+        name: "กรมที่ดิน",
+        shortName: "DOL",
+        endpointUrl: "https://x.example",
+      }),
+    ).toBe(true);
+  });
+
+  it("firstIncompleteStep walks general → connection → test", () => {
+    expect(firstIncompleteStep(DEFAULT_FORM_STATE)).toBe("general");
+    expect(firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข" })).toBe("connection");
+    expect(
+      firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข", endpointUrl: "https://x.example" }),
+    ).toBe("test");
+  });
+});
+
+describe("buildSavePayload routing fields", () => {
+  it("includes routing fields and parses numerics", () => {
+    const payload = buildSavePayload(
+      {
+        ...DEFAULT_FORM_STATE,
+        name: "ก",
+        shortName: "ข",
+        priority: "2",
+        routerHint: "ภาษี",
+        dispatchTimeoutS: "45",
+        mcpToolName: "chat",
+        connectionType: "MCP",
+        endpointUrl: "https://x.example/mcp",
+      },
+      null,
+    );
+    expect(payload.priority).toBe(2);
+    expect(payload.routerHint).toBe("ภาษี");
+    expect(payload.dispatchTimeoutS).toBe(45);
+    expect(payload.mcpToolName).toBe("chat");
+  });
+
+  it("maps empty numeric inputs to null", () => {
+    const payload = buildSavePayload({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข" }, null);
+    expect(payload.priority).toBeNull();
+    expect(payload.dispatchTimeoutS).toBeNull();
   });
 });
