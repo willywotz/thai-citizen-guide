@@ -22,6 +22,7 @@ import {
   TRANSITION_LABEL,
 } from "../lifecycle";
 import { useAgencies, useUpdateAgencyStatus } from "../useAgencies";
+import { HealthTab } from "./HealthTab";
 import { LogsTab } from "./LogsTab";
 import { OverviewTab } from "./OverviewTab";
 
@@ -132,7 +133,7 @@ export default function AgencyDetailPage() {
           <OverviewTab agency={agency} />
         </TabsContent>
         <TabsContent value="health">
-          <p className="text-sm text-muted-foreground">(Health tab — Task 13)</p>
+          <HealthTab agencyId={agency.id} />
         </TabsContent>
         <TabsContent value="connection">
           <p className="text-sm text-muted-foreground">(Connection tab — Task 14)</p>
