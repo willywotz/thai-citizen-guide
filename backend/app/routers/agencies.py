@@ -175,7 +175,7 @@ async def delete_agency(agency_id: uuid.UUID, _: User = Depends(require_admin)):
     response_model=AgencyResponse,
     summary="Increment agency call counter",
 )
-async def increment_calls(agency_id: uuid.UUID):
+async def increment_calls(agency_id: uuid.UUID, _: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
