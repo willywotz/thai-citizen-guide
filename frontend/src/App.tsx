@@ -10,7 +10,6 @@ import { AppLayout } from "@/shared/components/layout/AppLayout";
 import ChatPage from "@/features/chat/ChatPage";
 import DashboardPage from "@/features/dashboard/DashboardPage";
 import ExecutivePage from "@/features/executive/ExecutivePage";
-// import InsightsPage from "@/features/insights/InsightsPage";
 import HealthPage from "@/features/health/HealthPage";
 import HeatmapPage from "@/features/heatmap/HeatmapPage";
 import AgenciesPage from "@/features/agencies/AgenciesPage";
@@ -50,7 +49,6 @@ const App = () => (
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/executive" element={<ExecutivePage />} />
-                {/* <Route path="/insights" element={<InsightsPage />} /> */}
                 <Route path="/health" element={<HealthPage />} />
                 <Route path="/heatmap" element={<HeatmapPage />} />
                 <Route path="/agencies" element={<AgenciesPage />} />
