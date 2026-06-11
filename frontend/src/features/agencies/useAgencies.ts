@@ -118,7 +118,7 @@ export function useTestConnection() {
     onSuccess: (_data, variables) => {
       // Refresh the connection-logs list for this ag ency so the log panel
       // shows the new entry without a manual reload.
-      qc.invalidateQueries({ queryKey: ['connection-logs', variables.agencyId] });
+      qc.invalidateQueries({ queryKey: ['connection-logs', variables.agencyId] }); // matches ['connection-logs', agencyId, ...rest]
     },
   });
 }

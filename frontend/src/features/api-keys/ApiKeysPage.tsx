@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
@@ -21,12 +21,20 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Label } from "@/shared/components/ui/label";
-import { Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, Eye, EyeOff, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { listAPIKeys, createAPIKey, updateAPIKey, deleteAPIKey, type APIKey } from "@/features/api-keys/apiKeyApi";
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
+  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+  const toggleReveal = useCallback((id: string) => {
+    setRevealedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
   const { data: keys = [], isLoading } = useQuery({
     queryKey: ["apiKeys"],
@@ -115,8 +123,15 @@ export default function ApiKeysPage() {
                     <p className="text-sm font-medium text-foreground truncate">{k.name}</p>
                     <div className="flex items-center gap-1.5 mt-1">
                       <code className="text-xs text-muted-foreground font-mono truncate">
-                        {/* {maskKey(k.key)} */ k.key}
+                        {revealedKeys.has(k.id) ? k.key : maskKey(k.key)}
                       </code>
+                      <button
+                        onClick={() => toggleReveal(k.id)}
+                        className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        aria-label={revealedKeys.has(k.id) ? "ซ่อน" : "แสดง"}
+                      >
+                        {revealedKeys.has(k.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      </button>
                       <button
                         onClick={() => copyKey(k.key)}
                         className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"

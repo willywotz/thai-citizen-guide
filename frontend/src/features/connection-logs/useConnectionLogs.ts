@@ -34,7 +34,7 @@ async function fetchConnectionLogs(params: ConnectionLogParams = {}): Promise<Co
 
 export function useConnectionLogs(params: ConnectionLogParams = {}) {
   return useQuery({
-    queryKey: ['connection-logs', params],
+    queryKey: ['connection-logs', params.agencyId ?? null, params.page ?? null, params.limit ?? null, params.search ?? null],
     queryFn: () => fetchConnectionLogs(params),
     refetchInterval: 30_000,
     placeholderData: (prev) => prev,

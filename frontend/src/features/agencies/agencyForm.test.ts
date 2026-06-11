@@ -313,6 +313,39 @@ describe("buildSavePayload", () => {
 });
 
 // ---------------------------------------------------------------------------
+// buildSavePayload — rateLimitRpm edge cases (S2)
+// ---------------------------------------------------------------------------
+
+describe("buildSavePayload — rateLimitRpm parsing", () => {
+  const base = {
+    ...DEFAULT_FORM_STATE,
+    name: "X",
+    shortName: "X",
+    connectionType: "API" as const,
+  };
+
+  it("non-numeric string 'abc' → null", () => {
+    const payload = buildSavePayload({ ...base, rateLimitRpm: "abc" }, null);
+    expect(payload.rateLimitRpm).toBeNull();
+  });
+
+  it("octal-looking '0100' parsed as decimal → 100", () => {
+    const payload = buildSavePayload({ ...base, rateLimitRpm: "0100" }, null);
+    expect(payload.rateLimitRpm).toBe(100);
+  });
+
+  it("'60' → 60", () => {
+    const payload = buildSavePayload({ ...base, rateLimitRpm: "60" }, null);
+    expect(payload.rateLimitRpm).toBe(60);
+  });
+
+  it("empty string '' → null", () => {
+    const payload = buildSavePayload({ ...base, rateLimitRpm: "" }, null);
+    expect(payload.rateLimitRpm).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // PROTOCOL_INFO
 // ---------------------------------------------------------------------------
 
