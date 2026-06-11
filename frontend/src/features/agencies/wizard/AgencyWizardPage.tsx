@@ -8,6 +8,7 @@ import { Button } from "@/shared/components/ui/button";
 import {
   agencyToFormState,
   buildSavePayload,
+  canActivate,
   DEFAULT_FORM_STATE,
   firstIncompleteStep,
   isStepConnectionValid,
@@ -17,9 +18,11 @@ import {
   type AgencyFormState,
   type WizardStepId,
 } from "../agencyForm";
-import { useAgencies, useCreateAgency, useUpdateAgency } from "../useAgencies";
+import { useAgencies, useCreateAgency, useUpdateAgency, useUpdateAgencyStatus } from "../useAgencies";
 import { StepConnection } from "./StepConnection";
 import { StepGeneral } from "./StepGeneral";
+import { StepReview } from "./StepReview";
+import { StepRouting } from "./StepRouting";
 import { StepTest } from "./StepTest";
 
 function stepIndex(id: WizardStepId): number {
@@ -32,6 +35,7 @@ export default function AgencyWizardPage() {
   const { data: agencies = [], isLoading } = useAgencies();
   const createMutation = useCreateAgency();
   const updateMutation = useUpdateAgency();
+  const statusMutation = useUpdateAgencyStatus();
 
   const [form, setForm] = useState<AgencyFormState>(DEFAULT_FORM_STATE);
   const [step, setStep] = useState<WizardStepId>("general");
@@ -55,7 +59,7 @@ export default function AgencyWizardPage() {
     }
   }, [routeId, agencies, isLoading, loaded, navigate]);
 
-  const saving = createMutation.isPending || updateMutation.isPending;
+  const saving = createMutation.isPending || updateMutation.isPending || statusMutation.isPending;
 
   const patch = (p: Partial<AgencyFormState>) => setForm((f) => ({ ...f, ...p }));
 
@@ -99,6 +103,17 @@ export default function AgencyWizardPage() {
     const idx = stepIndex(step);
     if (idx === 0) navigate("/agencies");
     else setStep(WIZARD_STEPS[idx - 1].id);
+  };
+
+  const finish = async (activate: boolean) => {
+    try {
+      const id = await persistDraft();
+      if (activate && form.status !== "active") await statusMutation.mutateAsync({ id, status: "active" });
+      toast.success(activate ? "เปิดใช้งานหน่วยงานสำเร็จ" : "บันทึกเป็น Draft สำเร็จ");
+      navigate(`/agencies/${id}`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+    }
   };
 
   const saveDraftAndExit = async () => {
@@ -145,8 +160,8 @@ export default function AgencyWizardPage() {
           {step === "general" && <StepGeneral form={form} patch={patch} />}
           {step === "connection" && <StepConnection form={form} patch={patch} />}
           {step === "test" && agencyId && <StepTest agencyId={agencyId} />}
-          {step === "routing" && <p className="text-sm text-muted-foreground">(routing step — Task 11)</p>}
-          {step === "review" && <p className="text-sm text-muted-foreground">(review step — Task 11)</p>}
+          {step === "routing" && <StepRouting form={form} patch={patch} />}
+          {step === "review" && <StepReview form={form} />}
 
           <div className="flex items-center justify-between mt-8 max-w-lg">
             <Button variant="ghost" onClick={goBack}>
@@ -162,6 +177,16 @@ export default function AgencyWizardPage() {
                 <Button onClick={goNext} disabled={!stepValid[step] || saving}>
                   ถัดไป
                 </Button>
+              )}
+              {step === "review" && (
+                <>
+                  <Button variant="outline" onClick={() => finish(false)} disabled={saving}>
+                    บันทึกเป็น Draft
+                  </Button>
+                  <Button onClick={() => finish(true)} disabled={!canActivate(form) || saving}>
+                    เปิดใช้งาน
+                  </Button>
+                </>
               )}
             </div>
           </div>
