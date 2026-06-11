@@ -86,8 +86,8 @@ export const handlers = [
       protocol: agency.connection_type,
       version: "1.0",
       steps: [
-        { name: "DNS lookup", status: "ok", detail: agency.endpoint_url },
-        { name: "Handshake", status: "ok", detail: "200 OK" },
+        { step: 1, label: "DNS lookup", status: "done", time: 12 },
+        { step: 2, label: "Handshake", status: "done", time: 120 },
       ],
       latency: "320ms",
     });

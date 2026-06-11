@@ -20,6 +20,7 @@ import {
 import { useAgencies, useCreateAgency, useUpdateAgency } from "../useAgencies";
 import { StepConnection } from "./StepConnection";
 import { StepGeneral } from "./StepGeneral";
+import { StepTest } from "./StepTest";
 
 function stepIndex(id: WizardStepId): number {
   return WIZARD_STEPS.findIndex((s) => s.id === id);
@@ -143,7 +144,7 @@ export default function AgencyWizardPage() {
         <div className="flex-1 min-w-0">
           {step === "general" && <StepGeneral form={form} patch={patch} />}
           {step === "connection" && <StepConnection form={form} patch={patch} />}
-          {step === "test" && <p className="text-sm text-muted-foreground">(test step — Task 10)</p>}
+          {step === "test" && agencyId && <StepTest agencyId={agencyId} />}
           {step === "routing" && <p className="text-sm text-muted-foreground">(routing step — Task 11)</p>}
           {step === "review" && <p className="text-sm text-muted-foreground">(review step — Task 11)</p>}
 
