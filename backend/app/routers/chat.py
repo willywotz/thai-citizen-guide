@@ -91,13 +91,13 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
             preview=query[:settings.PREVIEW_MAX_LENGTH],
             agencies=[],
             status="success",
-            message_count=len(answer),
+            message_count=2,  # 1 user + 1 assistant message per turn
             response_time=response_time,
             user_id=user.id if user else None,
         )
     else:
         conv = await Conversation.get(id=conversation_id)
-        conv.message_count += len(answer)
+        conv.message_count += 2  # 1 user + 1 assistant message per turn
         await conv.save()
 
     query_msg = await Message.create(
@@ -195,17 +195,6 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         raw_data = resp.json()
         span.set_attributes({"external_response": resp.text})
 
-        await ConnectionLog.create(
-            id=str(generate_uuid()),
-            action="query",
-            connection_type="external_chat",
-            status="success",
-            latency_ms=response_time,
-            detail=f"Query: {query}\n\nAnswer: {raw_data}",
-            request_body=json.dumps(payload),
-            response_body=json.dumps(raw_data),
-        )
-
         data = raw_data.get("data", {})
         answer = data.get("answer", "").strip()
         errors = data.get("errors", [])
@@ -223,13 +212,13 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                 preview=query[:settings.PREVIEW_MAX_LENGTH],
                 agencies=[],
                 status="success",
-                message_count=len(answer),
+                message_count=2,  # 1 user + 1 assistant message per turn
                 response_time=response_time,
                 user_id=user.id if user else None,
                 external_session_id=data.get("session_id"),
             )
         else:
-            conv.message_count += len(answer)
+            conv.message_count += 2  # 1 user + 1 assistant message per turn
             conv.updated_at = now()
             await conv.save()
 
@@ -242,6 +231,21 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             response_time=response_time,
             errors=errors,
             agency_ids=agency_ids,
+        )
+
+        # Create ConnectionLog after messages so assistant_message_id can be set (enables v3 cache).
+        # The logged detail/bodies are the raw upstream values, unchanged.
+        await ConnectionLog.create(
+            id=str(generate_uuid()),
+            action="query",
+            connection_type="external_chat",
+            status="success",
+            latency_ms=response_time,
+            detail=f"Query: {query}\n\nAnswer: {raw_data}",
+            request_body=json.dumps(payload),
+            response_body=json.dumps(raw_data),
+            message_id=query_msg.id,
+            assistant_message_id=response_msg.id,
         )
 
         background_tasks.add_task(classify_message_category, str(query_msg.id), query, answer)
@@ -288,10 +292,14 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                 async def cached_stream():
                     await asyncio.sleep(0.01)
                     span.set_attribute("cache_hit", True)
+                    try:
+                        answer_data = json.loads(conn_log.response_body)
+                    except Exception:
+                        answer_data = {"answer": asst_msg.content}
                     await _save_stream_conversation(
                         query=query,
                         conversation_id=conversation_id,
-                        answer_data=json.loads(conn_log.response_body),
+                        answer_data=answer_data,
                         session_id=None,
                         total_ms=0,
                         latency_ms=0,
@@ -440,7 +448,7 @@ async def _save_stream_conversation(
 
     try:
         conv = await Conversation.get(id=conversation_id)
-        conv.message_count += len(answer)
+        conv.message_count += 2  # 1 user + 1 assistant message per turn
         conv.updated_at = now()
         await conv.save()
     except Exception:
@@ -450,7 +458,7 @@ async def _save_stream_conversation(
             preview=query[:settings.PREVIEW_MAX_LENGTH],
             agencies=[],
             status="success",
-            message_count=len(answer),
+            message_count=2,  # 1 user + 1 assistant message per turn
             response_time=response_time,
             user_id=user.id if user else None,
             external_session_id=session_id,

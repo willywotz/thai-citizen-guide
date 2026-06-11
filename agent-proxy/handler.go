@@ -126,11 +126,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	span.SetAttributes(attribute.String("proxy.response_body", responseBody.String()))
 
-	if err := incrementTotalCalls(ctx, h.pool, agencyID); err != nil {
-		span.SetStatus(codes.Error, "error updating total_calls: "+err.Error())
-		slog.Error("Error updating total_calls", slog.Any("error", err))
-	}
-
 	var raw struct {
 		Query string `json:"query"`
 	}
@@ -141,6 +136,15 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		status = "error"
 	}
+
+	// only count successful calls
+	if status == "success" {
+		if err := incrementTotalCalls(ctx, h.pool, agencyID); err != nil {
+			span.SetStatus(codes.Error, "error updating total_calls: "+err.Error())
+			slog.Error("Error updating total_calls", slog.Any("error", err))
+		}
+	}
+
 	_ = h.addConnectionLog(ctx, agencyID, status, latency, detail, body.String(), responseBody.String())
 
 	if resp.StatusCode >= 500 {

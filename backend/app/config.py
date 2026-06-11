@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     MIN_PASSWORD_LENGTH: int = 6
     RESET_TOKEN_EXPIRE_HOURS: int = 1
     RESET_TOKEN_BYTES: int = 32
+    EXPOSE_PASSWORD_RESET_TOKEN: bool = True  # Set False in production; deliver token by email instead
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
@@ -114,7 +115,7 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
     "App": ["APP_NAME", "APP_VERSION", "DEBUG", "TIMEZONE", "USER_AGENT_PREFIX"],
     "Database": ["DATABASE_URL"],
     "CORS": ["CORS_ORIGINS"],
-    "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES"],
+    "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES", "EXPOSE_PASSWORD_RESET_TOKEN"],
     "LLM / OpenRouter": ["OPENROUTER_API_KEY", "OPENROUTER_API_URL", "CLASSIFICATION_MODEL", "LLM_CALL_TIMEOUT"],
     "Parse spec": ["PARSE_SPEC_URL", "PARSE_SPEC_API_KEY", "PARSE_SPEC_TIMEOUT", "PARSE_SPEC_LLM_MODEL"],
     "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "MCP_ENDPOINT_URL"],
