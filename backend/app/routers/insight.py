@@ -71,7 +71,7 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
                     hourlyByAgency[agency_id]["data"][int(entry["hour"])] += entry["cnt"]
 
         for index, agency in hourlyByAgency.items():
-            hourlyByAgency[index]["data"] = agency["data"].values()
+            hourlyByAgency[index]["data"] = list(agency["data"].values())
 
         hourlyByAgency = list(hourlyByAgency.values())
 
@@ -96,10 +96,10 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
         business_hours_count = 0
 
         for index, entry in dayHourMatrix.items():
-            data = entry["data"].values()
+            data = list(entry["data"].values())
             dayHourMatrix[index]["data"] = data
 
-            business_hours_count += sum([int(x) for x in list(data)[settings.BUSINESS_HOURS_START:settings.BUSINESS_HOURS_END]])
+            business_hours_count += sum([int(x) for x in data[settings.BUSINESS_HOURS_START:settings.BUSINESS_HOURS_END]])
 
         dayHourMatrix = list(dayHourMatrix.values())
 
