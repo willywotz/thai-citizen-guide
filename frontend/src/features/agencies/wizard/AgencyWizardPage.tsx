@@ -4,8 +4,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
 
 import {
   agencyToFormState,
@@ -20,6 +18,7 @@ import {
   type WizardStepId,
 } from "../agencyForm";
 import { useAgencies, useCreateAgency, useUpdateAgency } from "../useAgencies";
+import { StepConnection } from "./StepConnection";
 import { StepGeneral } from "./StepGeneral";
 
 function stepIndex(id: WizardStepId): number {
@@ -143,18 +142,7 @@ export default function AgencyWizardPage() {
 
         <div className="flex-1 min-w-0">
           {step === "general" && <StepGeneral form={form} patch={patch} />}
-          {step === "connection" && (
-            <div className="space-y-4 max-w-lg">
-              <div className="space-y-1.5">
-                <Label htmlFor="wiz-endpoint">Endpoint URL</Label>
-                <Input
-                  id="wiz-endpoint"
-                  value={form.endpointUrl}
-                  onChange={(e) => patch({ endpointUrl: e.target.value })}
-                />
-              </div>
-            </div>
-          )}
+          {step === "connection" && <StepConnection form={form} patch={patch} />}
           {step === "test" && <p className="text-sm text-muted-foreground">(test step — Task 10)</p>}
           {step === "routing" && <p className="text-sm text-muted-foreground">(routing step — Task 11)</p>}
           {step === "review" && <p className="text-sm text-muted-foreground">(review step — Task 11)</p>}
