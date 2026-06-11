@@ -1,0 +1,84 @@
+import { useState } from 'react';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/shared/components/ui/table';
+import { Button } from '@/shared/components/ui/button';
+import { Input } from '@/shared/components/ui/input';
+import { Badge } from '@/shared/components/ui/badge';
+import { UserPlus } from 'lucide-react';
+import { useUsers } from './useUsers';
+import type { ManagedUser } from './userApi';
+import { UserFormDialog } from './UserFormDialog';
+import { DeactivateUserDialog } from './DeactivateUserDialog';
+
+export default function UsersPage() {
+  const [search, setSearch] = useState('');
+  const { data: users = [], isLoading } = useUsers({ search: search || undefined, status: 'all' });
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<ManagedUser | null>(null);
+  const [toggling, setToggling] = useState<ManagedUser | null>(null);
+
+  function openCreate() { setEditing(null); setFormOpen(true); }
+  function openEdit(u: ManagedUser) { setEditing(u); setFormOpen(true); }
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">จัดการผู้ใช้</h1>
+        <Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>
+      </div>
+
+      <Input
+        placeholder="ค้นหาอีเมลหรือชื่อ..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="max-w-sm"
+      />
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>อีเมล</TableHead>
+            <TableHead>ชื่อที่แสดง</TableHead>
+            <TableHead>บทบาท</TableHead>
+            <TableHead>สถานะ</TableHead>
+            <TableHead className="text-right">การจัดการ</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isLoading && (
+            <TableRow><TableCell colSpan={5}>กำลังโหลด...</TableCell></TableRow>
+          )}
+          {!isLoading && users.length === 0 && (
+            <TableRow><TableCell colSpan={5}>ไม่พบผู้ใช้</TableCell></TableRow>
+          )}
+          {users.map((u) => (
+            <TableRow key={u.id}>
+              <TableCell>{u.email}</TableCell>
+              <TableCell>{u.displayName}</TableCell>
+              <TableCell>
+                <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
+                  {u.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้'}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant={u.isActive ? 'default' : 'outline'}>
+                  {u.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right space-x-2">
+                <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>แก้ไข</Button>
+                <Button variant="ghost" size="sm" onClick={() => setToggling(u)}>
+                  {u.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <UserFormDialog open={formOpen} onOpenChange={setFormOpen} user={editing} />
+      <DeactivateUserDialog user={toggling} onOpenChange={(open) => { if (!open) setToggling(null); }} />
+    </div>
+  );
+}
