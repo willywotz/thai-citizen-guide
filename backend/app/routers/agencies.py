@@ -30,12 +30,28 @@ from app.models.connection_log import ConnectionLog
 from app.services.agency import parse_spec, test_connection
 from app.schemas.agency import (
     AgencyCreate,
+    AgencyHealthEmbed,
     AgencyListResponse,
     AgencyResponse,
     AgencyUpdate,
+    HealthHistoryBucket,
+    HealthHistoryResponse,
+    McpDiscoverRequest,
+    McpDiscoverResponse,
+    McpToolInfo,
+    StatusUpdateRequest,
 )
+from app.services.agency_health import embedded_health, health_history
+from app.services.mcp_discovery import discover_tools
+from app.services.agency_lifecycle import is_legal_transition
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
+
+
+async def _with_health(agency: Agency) -> AgencyResponse:
+    resp = AgencyResponse.model_validate(agency)
+    resp.health = AgencyHealthEmbed(**(await embedded_health(agency.id)))
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -44,7 +60,7 @@ router = APIRouter(prefix="/agencies", tags=["Agencies"])
 
 @router.get("", response_model=AgencyListResponse, summary="List agencies")
 async def list_agencies(
-    status_filter: Literal["active", "inactive", "all"] = Query(
+    status_filter: Literal["active", "inactive", "draft", "maintenance", "disabled", "all"] = Query(
         "all", alias="status", description="Filter by agency status"
     ),
     connection_type: str | None = Query(None, description="Filter by connection type: MCP, API, A2A"),
@@ -64,10 +80,26 @@ async def list_agencies(
     agencies = await qs
     total = await qs.count()
 
-    return AgencyListResponse(
-        data=[AgencyResponse.model_validate(a) for a in agencies],
-        total=total,
-    )
+    data = [await _with_health(a) for a in agencies]
+    return AgencyListResponse(data=data, total=total)
+
+
+# ---------------------------------------------------------------------------
+# MCP tool discovery
+#
+# NOTE: must be registered BEFORE any "/{agency_id}" route, otherwise FastAPI
+# matches "mcp" as an agency_id UUID path parameter.
+# ---------------------------------------------------------------------------
+
+@router.post("/mcp/discover", response_model=McpDiscoverResponse, summary="Discover MCP tools at an endpoint")
+async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin)):
+    if not body.endpoint_url.strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="endpoint_url is required")
+    try:
+        tools = await discover_tools(body.endpoint_url)
+    except Exception as exc:  # noqa: BLE001 — surface any MCP/connection failure to the client
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"MCP discovery failed: {exc}")
+    return McpDiscoverResponse(tools=[McpToolInfo(**t) for t in tools])
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +112,41 @@ async def get_agency(agency_id: uuid.UUID):
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    return AgencyResponse.model_validate(agency)
+    return await _with_health(agency)
+
+
+# ---------------------------------------------------------------------------
+# Health history
+# ---------------------------------------------------------------------------
+
+@router.get("/{agency_id}/health/history", response_model=HealthHistoryResponse, summary="Agency health history")
+async def agency_health_history(agency_id: uuid.UUID, window: str = "24h"):
+    try:
+        await Agency.get(id=agency_id)
+    except DoesNotExist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    buckets = await health_history(agency_id, window)
+    return HealthHistoryResponse(data=[HealthHistoryBucket(**b) for b in buckets])
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle status transition
+# ---------------------------------------------------------------------------
+
+@router.patch("/{agency_id}/status", response_model=AgencyResponse, summary="Transition agency lifecycle status")
+async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, _: User = Depends(require_admin)):
+    try:
+        agency = await Agency.get(id=agency_id)
+    except DoesNotExist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    if not is_legal_transition(agency.status.value, body.status):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Illegal status transition: {agency.status.value} → {body.status}",
+        )
+    agency.status = body.status
+    await agency.save(update_fields=["status", "updated_at"])
+    return await _with_health(agency)
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +163,7 @@ async def create_agency(body: AgencyCreate, _: User = Depends(require_admin)):
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
 
     agency = await Agency.create(**data)
-    return AgencyResponse.model_validate(agency)
+    return await _with_health(agency)
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +182,7 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, _: User = Dep
     data["response_schema"] = [f.model_dump() for f in body.response_schema]
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
     await agency.update_from_dict(data).save()
-    return AgencyResponse.model_validate(agency)
+    return await _with_health(agency)
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +216,7 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, _: User = Depe
         ]
 
     await agency.update_from_dict(update_data).save()
-    return AgencyResponse.model_validate(agency)
+    return await _with_health(agency)
 
 
 # ---------------------------------------------------------------------------

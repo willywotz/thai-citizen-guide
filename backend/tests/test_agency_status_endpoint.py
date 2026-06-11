@@ -1,0 +1,38 @@
+import pytest
+from fastapi import HTTPException
+
+from app.models import Agency
+from app.models.user import User
+from app.routers import agencies as r
+from app.schemas.agency import StatusUpdateRequest
+
+
+async def _admin():
+    return await User.create(email="a@e.com", hashed_password="x", role="admin", is_active=True)
+
+
+@pytest.mark.asyncio
+async def test_status_legal_transition(db):
+    admin = await _admin()
+    ag = await Agency.create(name="A", short_name="A", connection_type="API", status="active")
+    res = await r.update_agency_status(ag.id, StatusUpdateRequest(status="maintenance"), _=admin)
+    assert res.status == "maintenance"
+
+
+@pytest.mark.asyncio
+async def test_status_illegal_transition_422(db):
+    admin = await _admin()
+    ag = await Agency.create(name="A", short_name="A", connection_type="API", status="active")
+    with pytest.raises(HTTPException) as exc:
+        await r.update_agency_status(ag.id, StatusUpdateRequest(status="draft"), _=admin)
+    assert exc.value.status_code == 422
+    assert "transition" in exc.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_status_404(db):
+    import uuid
+    admin = await _admin()
+    with pytest.raises(HTTPException) as exc:
+        await r.update_agency_status(uuid.uuid4(), StatusUpdateRequest(status="active"), _=admin)
+    assert exc.value.status_code == 404

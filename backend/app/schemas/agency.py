@@ -33,6 +33,13 @@ class ApiHeader(BaseModel):
 # Agency schemas
 # ---------------------------------------------------------------------------
 
+class AgencyHealthEmbed(BaseModel):
+    state: str  # up | degraded | down | unknown
+    uptime_24h: float | None = None
+    avg_latency_ms_24h: int | None = None
+    last_check_at: datetime | None = None
+
+
 class AgencyBase(BaseModel):
     name: str
     short_name: str | None = None
@@ -58,6 +65,12 @@ class AgencyBase(BaseModel):
     api_spec_raw: str | None = None
     expected_payload: dict[str, Any] | None = None
     api_headers: list[ApiHeader] | None = None
+
+    # Routing controls
+    priority: int | None = None
+    router_hint: str = ""
+    dispatch_timeout_s: int | None = None
+    mcp_tool_name: str | None = None
 
 
 class AgencyCreate(AgencyBase):
@@ -87,6 +100,10 @@ class AgencyUpdate(BaseModel):
     api_spec_raw: str | None = None
     expected_payload: dict[str, Any] | None = None
     api_headers: list[ApiHeader] | None = None
+    priority: int | None = None
+    router_hint: str | None = None
+    dispatch_timeout_s: int | None = None
+    mcp_tool_name: str | None = None
 
 
 class AgencyResponse(AgencyBase):
@@ -95,6 +112,9 @@ class AgencyResponse(AgencyBase):
     total_calls: int
     created_at: datetime
     updated_at: datetime
+    rating_up: int = 0
+    rating_down: int = 0
+    health: AgencyHealthEmbed | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -103,6 +123,36 @@ class AgencyListResponse(BaseModel):
     """Paginated list of agencies."""
     data: list[AgencyResponse]
     total: int
+
+
+class HealthHistoryBucket(BaseModel):
+    bucket_start: datetime
+    uptime_pct: float
+    avg_latency_ms: int
+    checks: int
+    failures: int
+
+
+class HealthHistoryResponse(BaseModel):
+    data: list[HealthHistoryBucket]
+
+
+class StatusUpdateRequest(BaseModel):
+    status: str
+
+
+class McpDiscoverRequest(BaseModel):
+    endpoint_url: str
+
+
+class McpToolInfo(BaseModel):
+    name: str
+    description: str = ""
+    input_schema: dict[str, Any] = Field(default_factory=dict)
+
+
+class McpDiscoverResponse(BaseModel):
+    tools: list[McpToolInfo]
 
 
 # ---------------------------------------------------------------------------

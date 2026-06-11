@@ -51,11 +51,15 @@ def build_router_prompt(agencies: list[dict]) -> str:
     source_lines = []
     for ag in agencies:
         scope = ", ".join(ag.get("data_scope", []))
-        source_lines.append(
+        line = (
             f'- {ag["name"]} (id: {ag["id"]}, type: {ag["connection_type"]}, '
             f'endpoint: {ag.get("endpoint_url", "")}): '
             f'{ag["description"]} — ขอบเขตข้อมูล: {scope}'
         )
+        hint = ag.get("router_hint")
+        if hint:
+            line += f' — คำแนะนำ routing: {hint}'
+        source_lines.append(line)
 
     sources_block = "\n".join(source_lines)
 
