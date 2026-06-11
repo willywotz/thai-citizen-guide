@@ -30,12 +30,20 @@ from app.models.connection_log import ConnectionLog
 from app.services.agency import parse_spec, test_connection
 from app.schemas.agency import (
     AgencyCreate,
+    AgencyHealthEmbed,
     AgencyListResponse,
     AgencyResponse,
     AgencyUpdate,
 )
+from app.services.agency_health import embedded_health
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
+
+
+async def _with_health(agency: Agency) -> AgencyResponse:
+    resp = AgencyResponse.model_validate(agency)
+    resp.health = AgencyHealthEmbed(**(await embedded_health(agency.id)))
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -44,7 +52,7 @@ router = APIRouter(prefix="/agencies", tags=["Agencies"])
 
 @router.get("", response_model=AgencyListResponse, summary="List agencies")
 async def list_agencies(
-    status_filter: Literal["active", "inactive", "all"] = Query(
+    status_filter: Literal["active", "inactive", "draft", "maintenance", "disabled", "all"] = Query(
         "all", alias="status", description="Filter by agency status"
     ),
     connection_type: str | None = Query(None, description="Filter by connection type: MCP, API, A2A"),
@@ -64,10 +72,8 @@ async def list_agencies(
     agencies = await qs
     total = await qs.count()
 
-    return AgencyListResponse(
-        data=[AgencyResponse.model_validate(a) for a in agencies],
-        total=total,
-    )
+    data = [await _with_health(a) for a in agencies]
+    return AgencyListResponse(data=data, total=total)
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +86,7 @@ async def get_agency(agency_id: uuid.UUID):
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    return AgencyResponse.model_validate(agency)
+    return await _with_health(agency)
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +103,7 @@ async def create_agency(body: AgencyCreate, _: User = Depends(require_admin)):
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
 
     agency = await Agency.create(**data)
-    return AgencyResponse.model_validate(agency)
+    return await _with_health(agency)
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +122,7 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, _: User = Dep
     data["response_schema"] = [f.model_dump() for f in body.response_schema]
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
     await agency.update_from_dict(data).save()
-    return AgencyResponse.model_validate(agency)
+    return await _with_health(agency)
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +156,7 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, _: User = Depe
         ]
 
     await agency.update_from_dict(update_data).save()
-    return AgencyResponse.model_validate(agency)
+    return await _with_health(agency)
 
 
 # ---------------------------------------------------------------------------
