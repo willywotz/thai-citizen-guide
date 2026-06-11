@@ -1,5 +1,4 @@
 from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 
 
@@ -54,6 +53,8 @@ async def test_route_query_strips_think_and_fences_and_enriches():
     assert len(routes) == 1
     assert routes[0]["endpoint_url"] == "http://x"
     assert routes[0]["expected_payload"] == {"q": "__query__"}
+    assert routes[0]["sub_question"] == "ค่าธรรมเนียม"
+    assert routes[0]["agency_name"] == "กรมขนส่ง"
 
 
 @pytest.mark.asyncio
@@ -78,6 +79,10 @@ async def test_dispatch_a2a_posts_and_returns_ok():
     assert res["status"] == "ok"
     assert res["response"] == {"answer": "ok"}
     assert res["agency"] == "A"
+    call = mock_client.post.call_args
+    assert call.args[0] == "http://x"
+    assert "q" in call.kwargs["json"]["query"]
+    assert call.kwargs["headers"]["Content-Type"] == "application/json"
 
 
 @pytest.mark.asyncio
