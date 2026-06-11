@@ -133,3 +133,77 @@ async def test_get_executive_summary_smoke():
 
     assert isinstance(result, ExecutiveData)
     assert result.weeklyBrief == "brief"
+
+
+@pytest.mark.asyncio
+async def test_get_weekly_brief_returns_fallback_on_http_error(monkeypatch):
+    """When the httpx call raises, _get_weekly_brief must return the Thai fallback string."""
+    from app.services import analytics
+
+    # Reset the module-level cache so the function actually makes an HTTP call.
+    monkeypatch.setattr(analytics, "_weekly_brief_cache", "")
+
+    class _RaisingClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, *args, **kwargs):
+            raise RuntimeError("network error")
+
+    with patch("app.services.analytics.httpx.AsyncClient", return_value=_RaisingClient()):
+        result = await analytics._get_weekly_brief("some content")
+
+    assert result == "ไม่สามารถสร้างสรุปประจำสัปดาห์ได้ในขณะนี้"
+
+
+@pytest.mark.asyncio
+async def test_get_executive_summary_january_month_boundary():
+    """prev_month must be 12 in January, not 0."""
+    from app.services import analytics
+    from unittest.mock import patch as _patch
+    from app.utils import now as _now
+    import datetime
+
+    # Freeze time to January 15.
+    jan_15 = datetime.datetime(2026, 1, 15, tzinfo=datetime.timezone.utc)
+
+    conn = MagicMock()
+    conn.execute_query = AsyncMock()
+
+    msg = MagicMock()
+    msg.filter.return_value = msg
+    msg.annotate.return_value = msg
+    msg.group_by.return_value = msg
+    msg.count = AsyncMock(return_value=0)
+    msg.values = AsyncMock(return_value=[])
+
+    conv = MagicMock()
+    conv.filter.return_value = conv
+    conv.count = AsyncMock(return_value=0)
+
+    # Capture the month keyword arg passed to Message.filter for lastMonthQuestions.
+    captured_months = []
+    original_filter = msg.filter
+
+    def _capturing_filter(**kwargs):
+        if "created_at__month" in kwargs:
+            captured_months.append(kwargs["created_at__month"])
+        return msg
+
+    msg.filter.side_effect = _capturing_filter
+
+    with (
+        _patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)),
+        _patch.object(analytics, "Message", msg),
+        _patch.object(analytics, "Conversation", conv),
+        _patch.object(analytics, "_get_weekly_brief", new=AsyncMock(return_value="brief")),
+        _patch("app.services.analytics.now", return_value=jan_15),
+    ):
+        await analytics.get_executive_summary()
+
+    # All captured month values must be valid (1-12); 0 must never appear.
+    assert 0 not in captured_months, f"Invalid month 0 found in filter calls: {captured_months}"
+    assert 12 in captured_months, f"Expected December (12) for prev_month in January, got: {captured_months}"
