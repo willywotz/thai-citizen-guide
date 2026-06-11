@@ -167,12 +167,11 @@ async def forgot_password(body: ForgotPasswordRequest) -> dict:
     user.reset_token_expires = reset_token_expiry()
     await user.save(update_fields=["reset_token", "reset_token_expires"])
 
-    # In production — send the token by email.
-    # For now, return it directly so the frontend can use it.
-    return {
-        "message": "สร้าง token รีเซ็ตรหัสผ่านเรียบร้อยแล้ว",
-        "reset_token": token,   # ← remove / email this in production
-    }
+    # Production: set EXPOSE_PASSWORD_RESET_TOKEN=False and deliver token by email instead.
+    response: dict = {"message": "สร้าง token รีเซ็ตรหัสผ่านเรียบร้อยแล้ว"}
+    if settings.EXPOSE_PASSWORD_RESET_TOKEN:
+        response["reset_token"] = token
+    return response
 
 
 # ---------------------------------------------------------------------------
