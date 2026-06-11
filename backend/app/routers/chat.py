@@ -12,7 +12,6 @@ Endpoints
 import asyncio
 import json
 import logging
-import re
 import time
 from typing import Any
 
@@ -30,7 +29,7 @@ from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat.graph import build_graph
-from app.services.chat.llm import classify_message_category, store_embedding
+from app.services.chat.llm import classify_message_category, extract_tag, store_embedding
 from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
 from app.services.session import ensure_session_warmed
@@ -76,20 +75,14 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     answer = result.get("final_answer", "").strip()
 
     references = []
-    if "<references>" in answer:
-        parts = re.split(r"<references>(.*?)</references>", answer, flags=re.DOTALL)
-        if len(parts) == 3:
-            answer = parts[0].strip()
-            try:
-                references = json.loads(parts[1].strip())
-            except json.JSONDecodeError:
-                references = []
+    answer, refs_raw = extract_tag(answer, "references")
+    if refs_raw is not None:
+        try:
+            references = json.loads(refs_raw)
+        except json.JSONDecodeError:
+            references = []
 
-    category = None
-    if "<category>" in answer:
-        parts = re.split(r"<category>(.*?)</category>", answer, flags=re.DOTALL)
-        if len(parts) == 3:
-            category = parts[1].strip()
+    answer, category = extract_tag(answer, "category")
 
     if not body.conversation_id:
         conv = await Conversation.create(
