@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useAgencies, useCreateAgency, useUpdateAgency, useDeleteAgency, useTestConnection } from "@/features/agencies/useAgencies";
 import { AgencyFormDialog } from "@/features/agencies/AgencyFormDialog";
 import { DeleteAgencyDialog } from "@/features/agencies/DeleteAgencyDialog";
-import { ConnectionTestResult } from "@/features/agencies/ConnectionTestResult";
+import { ConnectionTestResult, type TestResult } from "@/features/agencies/ConnectionTestResult";
 import { toast } from "sonner";
 import type { Agency } from "@/shared/types";
 
@@ -30,7 +30,7 @@ export default function AgenciesPage() {
   const [editAgency, setEditAgency] = useState<Agency | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Agency | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, any>>({});
+  const [testResults, setTestResults] = useState<Record<string, TestResult | null>>({});
 
   const handleCreate = () => { setEditAgency(null); setFormOpen(true); };
   const handleEdit = (a: Agency) => { setEditAgency(a); setFormOpen(true); };
@@ -45,8 +45,8 @@ export default function AgenciesPage() {
         toast.success("เพิ่มหน่วยงานสำเร็จ");
       }
       setFormOpen(false);
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาด");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     }
   };
 
@@ -56,8 +56,8 @@ export default function AgenciesPage() {
       await deleteMutation.mutateAsync(deleteTarget.id);
       toast.success("ลบหน่วยงานสำเร็จ");
       setDeleteTarget(null);
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาด");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     }
   };
 
