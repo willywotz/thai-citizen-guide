@@ -16,10 +16,10 @@ interface AgentCardInfo {
 
 export interface TestResult {
   success: boolean;
-  protocol: string;
-  version: string;
-  steps: TestStep[];
-  latency: string;
+  protocol?: string;
+  version?: string;
+  steps?: TestStep[];
+  latency?: string;
   error?: string;
 
   // REST-only
@@ -95,7 +95,7 @@ export function ConnectionTestResult({ result, loading }: Props) {
 
       {result && !loading && (
         <div className="pl-6 text-xs text-muted-foreground space-y-1">
-          <p>Latency: <span className="font-medium text-foreground">{result.latency}</span></p>
+          <p>Latency: <span className="font-medium text-foreground">{result.latency ?? "-"}</span></p>
           {result.status_code && (
             <p>Status: <span className="font-medium text-foreground">{result.status_code} {result.status_text}</span></p>
           )}

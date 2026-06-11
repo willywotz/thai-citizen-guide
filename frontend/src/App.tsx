@@ -14,7 +14,8 @@ import ExecutivePage from "@/features/executive/ExecutivePage";
 import HealthPage from "@/features/health/HealthPage";
 import HeatmapPage from "@/features/heatmap/HeatmapPage";
 import AgenciesPage from "@/features/agencies/AgenciesPage";
-import AgencyDetailPage from "@/features/agencies/AgencyDetailPage";
+import AgencyDetailPage from "@/features/agencies/detail/AgencyDetailPage";
+import AgencyWizardPage from "@/features/agencies/wizard/AgencyWizardPage";
 import HistoryPage from "@/features/history/HistoryPage";
 import ArchitecturePage from "@/features/architecture/ArchitecturePage";
 import ConnectionLogsPage from "@/features/connection-logs/ConnectionLogsPage";
@@ -53,6 +54,8 @@ const App = () => (
                 <Route path="/health" element={<HealthPage />} />
                 <Route path="/heatmap" element={<HeatmapPage />} />
                 <Route path="/agencies" element={<AgenciesPage />} />
+                <Route path="/agencies/new" element={<AgencyWizardPage />} />
+                <Route path="/agencies/:id/setup" element={<AgencyWizardPage />} />
                 <Route path="/agencies/:id" element={<AgencyDetailPage />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/connection-logs" element={<ConnectionLogsPage />} />

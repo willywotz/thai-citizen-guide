@@ -1,4 +1,4 @@
-import type { Agency, ApiEndpoint, ResponseField, ApiHeader } from "@/shared/types/agency";
+import type { Agency, AgencyLifecycleStatus, ApiEndpoint, ResponseField, ApiHeader } from "@/shared/types/agency";
 
 // ---------------------------------------------------------------------------
 // Form state shape
@@ -14,7 +14,7 @@ export interface AgencyFormState {
   color: string;
   scopeInput: string;
   dataScope: string[];
-  status: "active" | "inactive";
+  status: AgencyLifecycleStatus;
   // API-specific
   authMethod: string;
   authHeader: string;
@@ -26,26 +26,12 @@ export interface AgencyFormState {
   expectedPayload: string;
   apiSpecRaw: string;
   apiHeaders: ApiHeader[];
-}
-
-// ---------------------------------------------------------------------------
-// Parse-spec API response types
-// ---------------------------------------------------------------------------
-
-export interface ParsedSpec {
-  auth_method?: string;
-  auth_header?: string;
-  base_path?: string;
-  rate_limit_rpm?: number;
-  request_format?: string;
-  endpoints?: ApiEndpoint[];
-  response_schema?: ResponseField[];
-  expected_payload?: Record<string, unknown>;
-}
-
-export interface ParseSpecResponse {
-  success: boolean;
-  data?: ParsedSpec;
+  // Routing
+  priority: string;
+  routerHint: string;
+  dispatchTimeoutS: string;
+  // MCP
+  mcpToolName: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +48,7 @@ export const DEFAULT_FORM_STATE: AgencyFormState = {
   color: "hsl(213 70% 45%)",
   scopeInput: "",
   dataScope: [],
-  status: "active",
+  status: "draft",
   authMethod: "api_key",
   authHeader: "",
   basePath: "",
@@ -73,6 +59,10 @@ export const DEFAULT_FORM_STATE: AgencyFormState = {
   expectedPayload: "",
   apiSpecRaw: "",
   apiHeaders: [],
+  priority: "",
+  routerHint: "",
+  dispatchTimeoutS: "",
+  mcpToolName: "",
 };
 
 // ---------------------------------------------------------------------------
@@ -103,15 +93,52 @@ export function agencyToFormState(agency: Agency): AgencyFormState {
       : "",
     apiSpecRaw: agency.apiSpecRaw ?? "",
     apiHeaders: agency.apiHeaders ?? [],
+    priority: agency.priority != null ? String(agency.priority) : "",
+    routerHint: agency.routerHint ?? "",
+    dispatchTimeoutS: agency.dispatchTimeoutS != null ? String(agency.dispatchTimeoutS) : "",
+    mcpToolName: agency.mcpToolName ?? "",
   };
 }
 
 // ---------------------------------------------------------------------------
-// Validate form (returns true if valid)
+// Wizard step model
 // ---------------------------------------------------------------------------
 
-export function isFormValid(state: Pick<AgencyFormState, "name" | "shortName">): boolean {
-  return Boolean(state.name.trim() && state.shortName.trim());
+export type WizardStepId = "general" | "connection" | "test" | "routing" | "review";
+
+export const WIZARD_STEPS: { id: WizardStepId; label: string }[] = [
+  { id: "general", label: "ข้อมูลทั่วไป" },
+  { id: "connection", label: "การเชื่อมต่อ" },
+  { id: "test", label: "ทดสอบ" },
+  { id: "routing", label: "Routing" },
+  { id: "review", label: "สรุป" },
+];
+
+export function isStepGeneralValid(s: Pick<AgencyFormState, "name" | "shortName">): boolean {
+  return Boolean(s.name.trim() && s.shortName.trim());
+}
+
+export function isStepConnectionValid(
+  s: Pick<AgencyFormState, "connectionType" | "endpointUrl" | "mcpToolName">,
+): boolean {
+  if (!s.endpointUrl.trim()) return false;
+  if (s.connectionType === "MCP") return Boolean(s.mcpToolName.trim());
+  return true;
+}
+
+export function canActivate(s: AgencyFormState): boolean {
+  return isStepGeneralValid(s) && isStepConnectionValid(s);
+}
+
+export function firstIncompleteStep(s: AgencyFormState): WizardStepId {
+  if (!isStepGeneralValid(s)) return "general";
+  if (!isStepConnectionValid(s)) return "connection";
+  return "test";
+}
+
+export function parseIntOrNull(raw: string): number | null {
+  const n = raw.trim() ? parseInt(raw, 10) : NaN;
+  return Number.isNaN(n) ? null : n;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +159,11 @@ export function buildSavePayload(
     color: state.color,
     dataScope: state.dataScope,
     status: state.status,
+    priority: parseIntOrNull(state.priority),
+    routerHint: state.routerHint,
+    dispatchTimeoutS: parseIntOrNull(state.dispatchTimeoutS),
+    mcpToolName: state.connectionType === "MCP" ? state.mcpToolName || null : null,
+    rateLimitRpm: parseIntOrNull(state.rateLimitRpm),
   };
 
   if (state.connectionType === "API") {
@@ -140,7 +172,6 @@ export function buildSavePayload(
       authMethod: state.authMethod,
       authHeader: state.authHeader,
       basePath: state.basePath,
-      rateLimitRpm: (() => { const rpm = state.rateLimitRpm ? parseInt(state.rateLimitRpm, 10) : null; return rpm !== null && !Number.isNaN(rpm) ? rpm : null; })(),
       requestFormat: state.requestFormat,
       apiEndpoints: state.apiEndpoints.filter((ep) => ep.path),
       responseSchema: state.responseSchema.filter((f) => f.field),

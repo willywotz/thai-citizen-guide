@@ -2,9 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_FORM_STATE,
   PROTOCOL_INFO,
+  WIZARD_STEPS,
   agencyToFormState,
   buildSavePayload,
-  isFormValid,
+  canActivate,
+  firstIncompleteStep,
+  isStepConnectionValid,
+  isStepGeneralValid,
   parseExpectedPayload,
 } from "./agencyForm";
 import type { Agency } from "@/shared/types/agency";
@@ -35,6 +39,13 @@ const API_AGENCY: Agency = {
   expectedPayload: { query: "test", limit: 10 },
   apiSpecRaw: "openapi: 3.0.0",
   apiHeaders: [{ name: "X-Source", value: "portal" }],
+  priority: null,
+  routerHint: "",
+  dispatchTimeoutS: null,
+  mcpToolName: null,
+  ratingUp: 0,
+  ratingDown: 0,
+  health: { state: "unknown", uptime24h: null, avgLatencyMs24h: null, lastCheckAt: null },
 };
 
 const MCP_AGENCY: Agency = {
@@ -44,11 +55,18 @@ const MCP_AGENCY: Agency = {
   logo: "🤖",
   description: "An MCP agency",
   connectionType: "MCP",
-  status: "inactive",
+  status: "disabled",
   dataScope: [],
   totalCalls: 0,
   color: "hsl(140 60% 45%)",
   endpointUrl: "https://mcp.test.go.th",
+  priority: null,
+  routerHint: "",
+  dispatchTimeoutS: null,
+  mcpToolName: null,
+  ratingUp: 0,
+  ratingDown: 0,
+  health: { state: "unknown", uptime24h: null, avgLatencyMs24h: null, lastCheckAt: null },
 };
 
 // ---------------------------------------------------------------------------
@@ -60,7 +78,7 @@ describe("DEFAULT_FORM_STATE", () => {
     expect(DEFAULT_FORM_STATE.name).toBe("");
     expect(DEFAULT_FORM_STATE.logo).toBe("🏢");
     expect(DEFAULT_FORM_STATE.connectionType).toBe("API");
-    expect(DEFAULT_FORM_STATE.status).toBe("active");
+    expect(DEFAULT_FORM_STATE.status).toBe("draft");
     expect(DEFAULT_FORM_STATE.authMethod).toBe("api_key");
     expect(DEFAULT_FORM_STATE.requestFormat).toBe("json");
     expect(DEFAULT_FORM_STATE.dataScope).toEqual([]);
@@ -125,7 +143,7 @@ describe("agencyToFormState", () => {
   it("maps MCP agency correctly", () => {
     const s = agencyToFormState(MCP_AGENCY);
     expect(s.connectionType).toBe("MCP");
-    expect(s.status).toBe("inactive");
+    expect(s.status).toBe("disabled");
     expect(s.dataScope).toEqual([]);
     expect(s.apiEndpoints).toEqual([]);
   });
@@ -133,33 +151,6 @@ describe("agencyToFormState", () => {
   it("maps rateLimitRpm=0 to '0' (falsy number edge case)", () => {
     const agency: Agency = { ...API_AGENCY, rateLimitRpm: 0 };
     expect(agencyToFormState(agency).rateLimitRpm).toBe("0");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// isFormValid
-// ---------------------------------------------------------------------------
-
-describe("isFormValid", () => {
-  it("returns true when both name and shortName are non-empty", () => {
-    expect(isFormValid({ name: "Test", shortName: "T" })).toBe(true);
-  });
-
-  it("returns false when name is empty", () => {
-    expect(isFormValid({ name: "", shortName: "T" })).toBe(false);
-  });
-
-  it("returns false when shortName is empty", () => {
-    expect(isFormValid({ name: "Test", shortName: "" })).toBe(false);
-  });
-
-  it("returns false when both are empty", () => {
-    expect(isFormValid({ name: "", shortName: "" })).toBe(false);
-  });
-
-  it("trims whitespace before validation", () => {
-    expect(isFormValid({ name: "  ", shortName: "T" })).toBe(false);
-    expect(isFormValid({ name: "Test", shortName: "  " })).toBe(false);
   });
 });
 
@@ -290,7 +281,8 @@ describe("buildSavePayload", () => {
     expect(payload.authMethod).toBeUndefined();
     expect(payload.authHeader).toBeUndefined();
     expect(payload.apiEndpoints).toBeUndefined();
-    expect(payload.rateLimitRpm).toBeUndefined();
+    // rateLimitRpm is a routing field (base), so it persists for non-API types too.
+    expect(payload.rateLimitRpm).toBe(60);
   });
 
   it("excludes API-specific fields for A2A connectionType", () => {
@@ -362,5 +354,81 @@ describe("PROTOCOL_INFO", () => {
 
   it("A2A entry mentions Agent-to-Agent", () => {
     expect(PROTOCOL_INFO.A2A).toContain("Agent-to-Agent");
+  });
+});
+
+describe("wizard step validation", () => {
+  it("defines five steps in order", () => {
+    expect(WIZARD_STEPS.map((s) => s.id)).toEqual([
+      "general",
+      "connection",
+      "test",
+      "routing",
+      "review",
+    ]);
+  });
+
+  it("general step requires name and shortName", () => {
+    expect(isStepGeneralValid({ ...DEFAULT_FORM_STATE })).toBe(false);
+    expect(isStepGeneralValid({ ...DEFAULT_FORM_STATE, name: "กรมที่ดิน", shortName: "DOL" })).toBe(true);
+  });
+
+  it("connection step requires endpoint; MCP also requires a selected tool", () => {
+    const api = { ...DEFAULT_FORM_STATE, connectionType: "API" as const };
+    expect(isStepConnectionValid(api)).toBe(false);
+    expect(isStepConnectionValid({ ...api, endpointUrl: "https://x.example" })).toBe(true);
+
+    const mcp = { ...DEFAULT_FORM_STATE, connectionType: "MCP" as const, endpointUrl: "https://x.example/mcp" };
+    expect(isStepConnectionValid(mcp)).toBe(false);
+    expect(isStepConnectionValid({ ...mcp, mcpToolName: "chat" })).toBe(true);
+  });
+
+  it("canActivate requires general + connection", () => {
+    expect(canActivate(DEFAULT_FORM_STATE)).toBe(false);
+    expect(
+      canActivate({
+        ...DEFAULT_FORM_STATE,
+        name: "กรมที่ดิน",
+        shortName: "DOL",
+        endpointUrl: "https://x.example",
+      }),
+    ).toBe(true);
+  });
+
+  it("firstIncompleteStep walks general → connection → test", () => {
+    expect(firstIncompleteStep(DEFAULT_FORM_STATE)).toBe("general");
+    expect(firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข" })).toBe("connection");
+    expect(
+      firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข", endpointUrl: "https://x.example" }),
+    ).toBe("test");
+  });
+});
+
+describe("buildSavePayload routing fields", () => {
+  it("includes routing fields and parses numerics", () => {
+    const payload = buildSavePayload(
+      {
+        ...DEFAULT_FORM_STATE,
+        name: "ก",
+        shortName: "ข",
+        priority: "2",
+        routerHint: "ภาษี",
+        dispatchTimeoutS: "45",
+        mcpToolName: "chat",
+        connectionType: "MCP",
+        endpointUrl: "https://x.example/mcp",
+      },
+      null,
+    );
+    expect(payload.priority).toBe(2);
+    expect(payload.routerHint).toBe("ภาษี");
+    expect(payload.dispatchTimeoutS).toBe(45);
+    expect(payload.mcpToolName).toBe("chat");
+  });
+
+  it("maps empty numeric inputs to null", () => {
+    const payload = buildSavePayload({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข" }, null);
+    expect(payload.priority).toBeNull();
+    expect(payload.dispatchTimeoutS).toBeNull();
   });
 });

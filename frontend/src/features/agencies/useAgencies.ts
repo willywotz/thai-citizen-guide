@@ -2,8 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/shared/lib/apiClient';
 // import { agencies as mockAgencies } from '@/shared/data/mockData';
 import type { Agency } from '@/shared/types';
-import type { AgencyRow } from '@/shared/types/agency';
-import { mapRowToAgency } from '@/shared/types/agency';
+import type {
+  AgencyLifecycleStatus,
+  AgencyRow,
+  HealthHistoryBucket,
+  HealthHistoryBucketRow,
+  HealthWindow,
+  McpTool,
+} from '@/shared/types/agency';
+import { mapBucketRow, mapRowToAgency } from '@/shared/types/agency';
 import type { TestResult } from '@/features/agencies/ConnectionTestResult';
 
 // ---------------------------------------------------------------------------
@@ -40,7 +47,7 @@ export function useCreateAgency() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (agency: Partial<Agency>) => {
-      return api.post('/api/v1/agencies', {
+      const row = await api.post<AgencyRow>('/api/v1/agencies', {
         name: agency.name,
         short_name: agency.shortName,
         logo: agency.logo,
@@ -61,7 +68,12 @@ export function useCreateAgency() {
         api_spec_raw: agency.apiSpecRaw,
         expected_payload: agency.expectedPayload ?? null,
         api_headers: agency.apiHeaders ?? [],
+        priority: agency.priority,
+        router_hint: agency.routerHint,
+        dispatch_timeout_s: agency.dispatchTimeoutS,
+        mcp_tool_name: agency.mcpToolName,
       });
+      return mapRowToAgency(row);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
@@ -71,7 +83,7 @@ export function useUpdateAgency() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (agency: Partial<Agency> & { id: string }) => {
-      return api.patch(`/api/v1/agencies/${agency.id}`, {
+      const row = await api.patch<AgencyRow>(`/api/v1/agencies/${agency.id}`, {
         name: agency.name,
         short_name: agency.shortName,
         logo: agency.logo,
@@ -92,7 +104,12 @@ export function useUpdateAgency() {
         api_spec_raw: agency.apiSpecRaw,
         expected_payload: agency.expectedPayload,
         api_headers: agency.apiHeaders,
+        priority: agency.priority,
+        router_hint: agency.routerHint,
+        dispatch_timeout_s: agency.dispatchTimeoutS,
+        mcp_tool_name: agency.mcpToolName,
       });
+      return mapRowToAgency(row);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
@@ -119,6 +136,52 @@ export function useTestConnection() {
       // Refresh the connection-logs list for this ag ency so the log panel
       // shows the new entry without a manual reload.
       qc.invalidateQueries({ queryKey: ['connection-logs', variables.agencyId] }); // matches ['connection-logs', agencyId, ...rest]
+    },
+  });
+}
+
+export function useHealthHistory(agencyId: string | undefined, healthWindow: HealthWindow) {
+  return useQuery({
+    queryKey: ['agency-health-history', agencyId, healthWindow],
+    queryFn: async (): Promise<HealthHistoryBucket[]> => {
+      const res = await api.get<{ data: HealthHistoryBucketRow[] }>(
+        `/api/v1/agencies/${agencyId}/health/history`,
+        { window: healthWindow },
+      );
+      return res.data.map(mapBucketRow);
+    },
+    enabled: Boolean(agencyId),
+  });
+}
+
+export function useUpdateAgencyStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: AgencyLifecycleStatus }) => {
+      const row = await api.patch<AgencyRow>(`/api/v1/agencies/${id}/status`, { status });
+      return mapRowToAgency(row);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
+  });
+}
+
+interface McpToolRow {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+}
+
+export function useDiscoverMcpTools() {
+  return useMutation({
+    mutationFn: async ({ endpointUrl }: { endpointUrl: string }): Promise<McpTool[]> => {
+      const res = await api.post<{ tools: McpToolRow[] }>('/api/v1/agencies/mcp/discover', {
+        endpoint_url: endpointUrl,
+      });
+      return res.tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.input_schema,
+      }));
     },
   });
 }
