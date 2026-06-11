@@ -35,7 +35,7 @@ export default function AgencyWizardPage() {
 
   const [form, setForm] = useState<AgencyFormState>(DEFAULT_FORM_STATE);
   const [step, setStep] = useState<WizardStepId>("general");
-  const [agencyId, setAgencyId] = useState<string | null>(routeId ?? null);
+  const [agencyId, setAgencyId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   // Resume mode: hydrate form from the existing draft, jump to first incomplete step.
@@ -46,9 +46,16 @@ export default function AgencyWizardPage() {
       const state = agencyToFormState(agency);
       setForm(state);
       setStep(firstIncompleteStep(state));
+      setAgencyId(agency.id);
       setLoaded(true);
+    } else {
+      toast.error("ไม่พบหน่วยงาน");
+      setLoaded(true);
+      navigate("/agencies");
     }
-  }, [routeId, agencies, isLoading, loaded]);
+  }, [routeId, agencies, isLoading, loaded, navigate]);
+
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   const patch = (p: Partial<AgencyFormState>) => setForm((f) => ({ ...f, ...p }));
 
@@ -158,12 +165,12 @@ export default function AgencyWizardPage() {
             </Button>
             <div className="flex gap-2">
               {currentIdx >= stepIndex("connection") && step !== "review" && (
-                <Button variant="outline" onClick={saveDraftAndExit} disabled={!stepValid.general}>
+                <Button variant="outline" onClick={saveDraftAndExit} disabled={!stepValid.general || saving}>
                   บันทึก Draft
                 </Button>
               )}
               {step !== "review" && (
-                <Button onClick={goNext} disabled={!stepValid[step]}>
+                <Button onClick={goNext} disabled={!stepValid[step] || saving}>
                   ถัดไป
                 </Button>
               )}
