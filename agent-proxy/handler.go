@@ -25,6 +25,11 @@ var (
 	uuidRegexp = regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
 )
 
+// upstreamTimeout mirrors the backend's AGENCY_CHAT_TIMEOUT.
+const upstreamTimeout = 180 * time.Second
+
+var httpClient = &http.Client{Timeout: upstreamTimeout}
+
 type handler struct {
 	pool   *pgxpool.Pool
 	tracer trace.Tracer
@@ -97,7 +102,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	startTime := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	latency := time.Since(startTime).Milliseconds()
 	if err != nil {
 		_ = h.addConnectionLog(ctx, agencyID, "error", latency, "error forwarding request: "+err.Error(), body.String(), "")
@@ -138,7 +143,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = h.addConnectionLog(ctx, agencyID, status, latency, detail, body.String(), responseBody.String())
 
-	span.SetStatus(codes.Ok, "request handled successfully")
+	if resp.StatusCode >= 500 {
+		span.SetStatus(codes.Error, fmt.Sprintf("upstream returned %d", resp.StatusCode))
+	} else {
+		span.SetStatus(codes.Ok, "request handled successfully")
+	}
 }
 
 func (h *handler) addConnectionLog(ctx context.Context, agencyID, status string, latency int64, detail, requestBody, responseBody string) error {

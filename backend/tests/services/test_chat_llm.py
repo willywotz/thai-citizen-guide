@@ -57,3 +57,56 @@ async def test_call_llm_returns_message_on_success():
         result = await call_llm([{"role": "user", "content": "hi"}])
 
     assert result == {"role": "assistant", "content": "hello"}
+
+
+# ─── extract_tag tests (F6) ───────────────────────────────────────────────────
+
+def test_extract_tag_present_strips_and_returns_value():
+    from app.services.chat.llm import extract_tag
+
+    text = "Hello <category>taxation</category> world"
+    cleaned, value = extract_tag(text, "category")
+
+    assert value == "taxation"
+    assert "<category>" not in cleaned
+    assert "Hello" in cleaned
+    assert "world" in cleaned
+
+
+def test_extract_tag_absent_returns_original_and_none():
+    from app.services.chat.llm import extract_tag
+
+    text = "No tag here at all"
+    cleaned, value = extract_tag(text, "category")
+
+    assert value is None
+    assert cleaned == text
+
+
+def test_extract_tag_multiline_content():
+    from app.services.chat.llm import extract_tag
+
+    text = "Before\n<category>\nline one\nline two\n</category>\nAfter"
+    cleaned, value = extract_tag(text, "category")
+
+    assert value == "line one\nline two"
+    assert "<category>" not in cleaned
+    assert "Before" in cleaned
+    assert "After" in cleaned
+
+
+def test_extract_tag_leaves_other_tags_intact():
+    from app.services.chat.llm import extract_tag
+
+    text = "Intro <references>[1,2]</references> body <category>tax</category> end"
+    # Strip references first, then category (as chat_internal does).
+    after_refs, refs_val = extract_tag(text, "references")
+    after_cat, cat_val = extract_tag(after_refs, "category")
+
+    assert refs_val == "[1,2]"
+    assert cat_val == "tax"
+    assert "<references>" not in after_cat
+    assert "<category>" not in after_cat
+    assert "Intro" in after_cat
+    assert "body" in after_cat
+    assert "end" in after_cat

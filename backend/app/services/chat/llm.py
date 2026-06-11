@@ -1,4 +1,5 @@
 import logging
+import re
 
 import httpx
 
@@ -7,6 +8,19 @@ from app.models.conversation import Message
 from app.services.embedding import encode_embedding, generate_embedding
 
 logger = logging.getLogger(__name__)
+
+
+def extract_tag(text: str, tag: str) -> tuple[str, str | None]:
+    """Return (text_with_tag_removed, tag_inner_value_or_None).
+
+    Splits on the first occurrence of <tag>...</tag> (DOTALL).  If the tag is
+    absent the original text is returned unchanged with None as the value.
+    """
+    parts = re.split(rf"<{tag}>(.*?)</{tag}>", text, maxsplit=1, flags=re.DOTALL)
+    if len(parts) == 3:
+        cleaned = (parts[0] + parts[2]).strip()
+        return cleaned, parts[1].strip()
+    return text, None
 
 
 async def call_llm(messages: list[dict]) -> dict:
