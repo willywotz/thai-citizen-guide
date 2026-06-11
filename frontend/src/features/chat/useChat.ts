@@ -31,6 +31,8 @@ export function useChat() {
   const [streamingState, setStreamingState] = useState<StreamingState>(INITIAL_STREAMING_STATE);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  // B2: ref always holds the latest conversationId to avoid stale closure in handleSend
+  const conversationIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   // Ref to always have latest streaming state in closures
   const streamingRef = useRef<StreamingState>(INITIAL_STREAMING_STATE);
@@ -41,16 +43,37 @@ export function useChat() {
 
     if (streamingState.sessionId) {
       setConversationId(streamingState.sessionId);
+      conversationIdRef.current = streamingState.sessionId;
     }
   }, [streamingState]);
+
+  // B2: safety-net sync for direct setConversationId calls
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  // B7: abort in-flight SSE on unmount to prevent state updates after unmount
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeStepCount, streamingState.currentStep]);
 
-  const handleRate = useCallback((id: string, rating: 'up' | 'down', feedbackText?: string) => {
-    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, rating } : m)));
-    updateMessageRating(id, rating, feedbackText);
+  // B6: optimistic update with rollback on API failure
+  const handleRate = useCallback(async (id: string, rating: 'up' | 'down', feedbackText?: string) => {
+    let previousRating: 'up' | 'down' | null | undefined;
+    setMessages((prev) => {
+      const msg = prev.find((m) => m.id === id);
+      previousRating = msg?.rating;
+      return prev.map((m) => (m.id === id ? { ...m, rating } : m));
+    });
+    const ok = await updateMessageRating(id, rating, feedbackText);
+    if (!ok) {
+      // Roll back to previous rating
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, rating: previousRating ?? null } : m))
+      );
+    }
   }, []);
 
   const cancelStream = useCallback(() => {
@@ -67,12 +90,16 @@ export function useChat() {
     const aiMsg = buildAiMessageFromState(state);
     if (aiMsg) {
       setMessages((prev) => [...prev, aiMsg]);
+    } else if (state.done && state.errors.length > 0) {
+      // B8/S1: SSE error event set done=true with no answer — surface an error bubble
+      setMessages((prev) => [...prev, buildGenericErrorMessage()]);
     } else if (!state.done) {
       // Stream ended without answer or done — connection lost
       setMessages((prev) => [...prev, buildConnectionLostMessage()]);
     }
     if (state.sessionId) {
       setConversationId(state.sessionId);
+      conversationIdRef.current = state.sessionId;
     }
     setIsTyping(false);
     setActiveStepCount(0);
@@ -181,9 +208,9 @@ export function useChat() {
     };
 
     try {
-      // Try SSE first
+      // Try SSE first; B2: read conversationIdRef.current instead of stale closed-over state
       const usedSSE = await sendChatQuerySSE(
-        { query: question, conversation_id: conversationId || undefined },
+        { query: question, conversation_id: conversationIdRef.current || undefined },
         { onStep, onAgencies, onIntent, onRouting, onAgencyStart, onAgencyResponded, onAgencyVerified, onAnswer, onDone, onError },
         abortController.signal,
       );
@@ -195,11 +222,12 @@ export function useChat() {
         return;
       }
 
-      // Fallback: regular JSON POST
-      const response = await sendChatQuery({ query: question, conversation_id: conversationId || undefined });
+      // Fallback: regular JSON POST; B2: read conversationIdRef.current for consistency
+      const response = await sendChatQuery({ query: question, conversation_id: conversationIdRef.current || undefined });
 
       if (response.success) {
         setConversationId(response.conversation_id);
+        conversationIdRef.current = response.conversation_id;
         setCurrentSteps(response.data.agentSteps as AgentStep[]);
         setActiveStepCount(response.data.agentSteps.length);
 
@@ -228,9 +256,12 @@ export function useChat() {
       setCurrentSteps([]);
       setActiveStepCount(0);
       setIsTyping(false);
+      // B8: reset stale streaming state so pipeline steps don't leak into the next send
+      setStreamingState(INITIAL_STREAMING_STATE);
+      streamingRef.current = INITIAL_STREAMING_STATE;
       setMessages((prev) => [...prev, buildGenericErrorMessage()]);
     }
-  }, [input, isTyping, conversationId, finalizeStreaming]);
+  }, [input, isTyping, finalizeStreaming]);
 
   const reset = useCallback(() => {
     setMessages([]);
@@ -239,6 +270,7 @@ export function useChat() {
     setInput('');
     setCurrentSteps(mockAgentSteps);
     setConversationId(null);
+    conversationIdRef.current = null;
     setStreamingState(INITIAL_STREAMING_STATE);
     streamingRef.current = INITIAL_STREAMING_STATE;
     abortRef.current?.abort();
