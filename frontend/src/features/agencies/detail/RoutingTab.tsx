@@ -47,20 +47,26 @@ export function RoutingTab({ agency }: { agency: Agency }) {
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="rt-hint">Router hint</Label>
-        <Textarea id="rt-hint" rows={3} value={routerHint} onChange={(e) => setRouterHint(e.target.value)} />
+        <Textarea
+          id="rt-hint"
+          rows={3}
+          placeholder="อธิบายว่าหน่วยงานนี้ตอบคำถามแบบใด เพื่อช่วย LLM router ตัดสินใจ"
+          value={routerHint}
+          onChange={(e) => setRouterHint(e.target.value)}
+        />
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="rt-priority">Priority</Label>
-          <Input id="rt-priority" type="number" min={1} value={priority} onChange={(e) => setPriority(e.target.value)} />
+          <Input id="rt-priority" type="number" min={1} placeholder="เช่น 1" value={priority} onChange={(e) => setPriority(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="rt-timeout">Timeout (วินาที)</Label>
-          <Input id="rt-timeout" type="number" min={1} value={timeoutS} onChange={(e) => setTimeoutS(e.target.value)} />
+          <Input id="rt-timeout" type="number" min={1} placeholder="ค่าเริ่มต้นระบบ" value={timeoutS} onChange={(e) => setTimeoutS(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="rt-rpm">Rate limit (rpm)</Label>
-          <Input id="rt-rpm" type="number" min={1} value={rateLimit} onChange={(e) => setRateLimit(e.target.value)} />
+          <Input id="rt-rpm" type="number" min={1} placeholder="ไม่จำกัด" value={rateLimit} onChange={(e) => setRateLimit(e.target.value)} />
         </div>
       </div>
       <Button onClick={save} disabled={updateMutation.isPending}>
