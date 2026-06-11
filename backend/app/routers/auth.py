@@ -30,6 +30,7 @@ from app.auth.security import (
     reset_token_expiry,
     verify_password,
 )
+from app.services.email import send_password_reset_email
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -167,9 +168,10 @@ async def forgot_password(body: ForgotPasswordRequest) -> dict:
     user.reset_token_expires = reset_token_expiry()
     await user.save(update_fields=["reset_token", "reset_token_expires"])
 
-    # Production: set EXPOSE_PASSWORD_RESET_TOKEN=False and deliver token by email instead.
-    response: dict = {"message": "สร้าง token รีเซ็ตรหัสผ่านเรียบร้อยแล้ว"}
-    if settings.EXPOSE_PASSWORD_RESET_TOKEN:
+    emailed = await send_password_reset_email(user.email, token)
+
+    response: dict = {"message": "สร้าง token รีเซ็ตรหัสผ่านเรียบร้อยแล้ว", "email_sent": emailed}
+    if not emailed and settings.EXPOSE_PASSWORD_RESET_TOKEN:
         response["reset_token"] = token
     return response
 
