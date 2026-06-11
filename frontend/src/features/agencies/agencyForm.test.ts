@@ -1,0 +1,333 @@
+import { describe, it, expect } from "vitest";
+import {
+  DEFAULT_FORM_STATE,
+  PROTOCOL_INFO,
+  agencyToFormState,
+  buildSavePayload,
+  isFormValid,
+  parseExpectedPayload,
+} from "./agencyForm";
+import type { Agency } from "@/shared/types/agency";
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+const API_AGENCY: Agency = {
+  id: "1",
+  name: "Test Agency",
+  shortName: "TA",
+  logo: "🏛️",
+  description: "A test agency",
+  connectionType: "API",
+  status: "active",
+  dataScope: ["citizens", "tax"],
+  totalCalls: 42,
+  color: "hsl(200 60% 50%)",
+  endpointUrl: "https://api.test.go.th/v1",
+  authMethod: "oauth2",
+  authHeader: "Authorization",
+  basePath: "/api/v1",
+  rateLimitRpm: 120,
+  requestFormat: "json",
+  apiEndpoints: [{ method: "GET", path: "/citizens", description: "List citizens" }],
+  responseSchema: [{ field: "id", type: "string", description: "Citizen ID" }],
+  expectedPayload: { query: "test", limit: 10 },
+  apiSpecRaw: "openapi: 3.0.0",
+  apiHeaders: [{ name: "X-Source", value: "portal" }],
+};
+
+const MCP_AGENCY: Agency = {
+  id: "2",
+  name: "MCP Agency",
+  shortName: "MA",
+  logo: "🤖",
+  description: "An MCP agency",
+  connectionType: "MCP",
+  status: "inactive",
+  dataScope: [],
+  totalCalls: 0,
+  color: "hsl(140 60% 45%)",
+  endpointUrl: "https://mcp.test.go.th",
+};
+
+// ---------------------------------------------------------------------------
+// DEFAULT_FORM_STATE
+// ---------------------------------------------------------------------------
+
+describe("DEFAULT_FORM_STATE", () => {
+  it("has expected baseline values", () => {
+    expect(DEFAULT_FORM_STATE.name).toBe("");
+    expect(DEFAULT_FORM_STATE.logo).toBe("🏢");
+    expect(DEFAULT_FORM_STATE.connectionType).toBe("API");
+    expect(DEFAULT_FORM_STATE.status).toBe("active");
+    expect(DEFAULT_FORM_STATE.authMethod).toBe("api_key");
+    expect(DEFAULT_FORM_STATE.requestFormat).toBe("json");
+    expect(DEFAULT_FORM_STATE.dataScope).toEqual([]);
+    expect(DEFAULT_FORM_STATE.apiEndpoints).toEqual([]);
+    expect(DEFAULT_FORM_STATE.responseSchema).toEqual([]);
+    expect(DEFAULT_FORM_STATE.apiHeaders).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// agencyToFormState
+// ---------------------------------------------------------------------------
+
+describe("agencyToFormState", () => {
+  it("maps all Agency fields to form state for API agency", () => {
+    const s = agencyToFormState(API_AGENCY);
+    expect(s.name).toBe("Test Agency");
+    expect(s.shortName).toBe("TA");
+    expect(s.logo).toBe("🏛️");
+    expect(s.description).toBe("A test agency");
+    expect(s.connectionType).toBe("API");
+    expect(s.status).toBe("active");
+    expect(s.endpointUrl).toBe("https://api.test.go.th/v1");
+    expect(s.color).toBe("hsl(200 60% 50%)");
+    expect(s.dataScope).toEqual(["citizens", "tax"]);
+    expect(s.authMethod).toBe("oauth2");
+    expect(s.authHeader).toBe("Authorization");
+    expect(s.basePath).toBe("/api/v1");
+    expect(s.rateLimitRpm).toBe("120");
+    expect(s.requestFormat).toBe("json");
+    expect(s.apiEndpoints).toEqual([{ method: "GET", path: "/citizens", description: "List citizens" }]);
+    expect(s.responseSchema).toEqual([{ field: "id", type: "string", description: "Citizen ID" }]);
+    expect(s.apiHeaders).toEqual([{ name: "X-Source", value: "portal" }]);
+    expect(s.apiSpecRaw).toBe("openapi: 3.0.0");
+    expect(s.scopeInput).toBe(""); // always empty — not persisted
+  });
+
+  it("serialises expectedPayload to formatted JSON string", () => {
+    const s = agencyToFormState(API_AGENCY);
+    expect(s.expectedPayload).toBe(JSON.stringify({ query: "test", limit: 10 }, null, 2));
+  });
+
+  it("produces empty expectedPayload when agency.expectedPayload is null", () => {
+    const agency: Agency = { ...API_AGENCY, expectedPayload: null };
+    expect(agencyToFormState(agency).expectedPayload).toBe("");
+  });
+
+  it("produces empty expectedPayload when agency.expectedPayload is undefined", () => {
+    const agency: Agency = { ...API_AGENCY, expectedPayload: undefined };
+    expect(agencyToFormState(agency).expectedPayload).toBe("");
+  });
+
+  it("defaults optional API fields when undefined", () => {
+    const bare: Agency = { ...API_AGENCY, authMethod: undefined, authHeader: undefined, basePath: undefined, rateLimitRpm: undefined };
+    const s = agencyToFormState(bare);
+    expect(s.authMethod).toBe("api_key");
+    expect(s.authHeader).toBe("");
+    expect(s.basePath).toBe("");
+    expect(s.rateLimitRpm).toBe("");
+  });
+
+  it("maps MCP agency correctly", () => {
+    const s = agencyToFormState(MCP_AGENCY);
+    expect(s.connectionType).toBe("MCP");
+    expect(s.status).toBe("inactive");
+    expect(s.dataScope).toEqual([]);
+    expect(s.apiEndpoints).toEqual([]);
+  });
+
+  it("maps rateLimitRpm=0 to '0' (falsy number edge case)", () => {
+    const agency: Agency = { ...API_AGENCY, rateLimitRpm: 0 };
+    expect(agencyToFormState(agency).rateLimitRpm).toBe("0");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isFormValid
+// ---------------------------------------------------------------------------
+
+describe("isFormValid", () => {
+  it("returns true when both name and shortName are non-empty", () => {
+    expect(isFormValid({ name: "Test", shortName: "T" })).toBe(true);
+  });
+
+  it("returns false when name is empty", () => {
+    expect(isFormValid({ name: "", shortName: "T" })).toBe(false);
+  });
+
+  it("returns false when shortName is empty", () => {
+    expect(isFormValid({ name: "Test", shortName: "" })).toBe(false);
+  });
+
+  it("returns false when both are empty", () => {
+    expect(isFormValid({ name: "", shortName: "" })).toBe(false);
+  });
+
+  it("trims whitespace before validation", () => {
+    expect(isFormValid({ name: "  ", shortName: "T" })).toBe(false);
+    expect(isFormValid({ name: "Test", shortName: "  " })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseExpectedPayload
+// ---------------------------------------------------------------------------
+
+describe("parseExpectedPayload", () => {
+  it("parses valid JSON object", () => {
+    const { value, error } = parseExpectedPayload('{"query":"test","limit":10}');
+    expect(value).toEqual({ query: "test", limit: 10 });
+    expect(error).toBe(false);
+  });
+
+  it("returns null/false for empty string", () => {
+    const { value, error } = parseExpectedPayload("");
+    expect(value).toBeNull();
+    expect(error).toBe(false);
+  });
+
+  it("returns null/false for whitespace-only string", () => {
+    const { value, error } = parseExpectedPayload("   ");
+    expect(value).toBeNull();
+    expect(error).toBe(false);
+  });
+
+  it("returns null/true for invalid JSON", () => {
+    const { value, error } = parseExpectedPayload("{bad json}");
+    expect(value).toBeNull();
+    expect(error).toBe(true);
+  });
+
+  it("handles nested objects", () => {
+    const { value, error } = parseExpectedPayload('{"a":{"b":1}}');
+    expect(value).toEqual({ a: { b: 1 } });
+    expect(error).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildSavePayload
+// ---------------------------------------------------------------------------
+
+describe("buildSavePayload", () => {
+  const baseState = {
+    ...DEFAULT_FORM_STATE,
+    name: "Test Agency",
+    shortName: "TA",
+    logo: "🏛️",
+    description: "desc",
+    connectionType: "API" as const,
+    endpointUrl: "https://api.test.go.th",
+    color: "hsl(200 60% 50%)",
+    dataScope: ["citizens"],
+    status: "active" as const,
+    authMethod: "api_key",
+    authHeader: "X-API-Key",
+    basePath: "/v1",
+    rateLimitRpm: "60",
+    requestFormat: "json",
+    apiEndpoints: [
+      { method: "GET", path: "/users", description: "Get users" },
+      { method: "POST", path: "", description: "Empty path — filtered out" },
+    ],
+    responseSchema: [
+      { field: "id", type: "string", description: "User ID" },
+      { field: "", type: "string", description: "Blank field — filtered out" },
+    ],
+    apiHeaders: [
+      { name: "X-Source", value: "portal" },
+      { name: "", value: "missing-name" },
+      { name: "X-Env", value: "" },
+    ],
+    apiSpecRaw: "openapi: 3.0.0",
+  };
+
+  it("includes base fields in payload", () => {
+    const payload = buildSavePayload(baseState, null);
+    expect(payload.name).toBe("Test Agency");
+    expect(payload.shortName).toBe("TA");
+    expect(payload.logo).toBe("🏛️");
+    expect(payload.connectionType).toBe("API");
+    expect(payload.status).toBe("active");
+    expect(payload.dataScope).toEqual(["citizens"]);
+  });
+
+  it("includes API-specific fields when connectionType is API", () => {
+    const parsedPayload = { query: "test" };
+    const payload = buildSavePayload(baseState, parsedPayload);
+    expect(payload.authMethod).toBe("api_key");
+    expect(payload.authHeader).toBe("X-API-Key");
+    expect(payload.basePath).toBe("/v1");
+    expect(payload.rateLimitRpm).toBe(60);
+    expect(payload.requestFormat).toBe("json");
+    expect(payload.expectedPayload).toEqual({ query: "test" });
+    expect(payload.apiSpecRaw).toBe("openapi: 3.0.0");
+  });
+
+  it("filters out endpoints with empty path", () => {
+    const payload = buildSavePayload(baseState, null);
+    expect(payload.apiEndpoints).toEqual([{ method: "GET", path: "/users", description: "Get users" }]);
+  });
+
+  it("filters out response schema fields with empty field name", () => {
+    const payload = buildSavePayload(baseState, null);
+    expect(payload.responseSchema).toEqual([{ field: "id", type: "string", description: "User ID" }]);
+  });
+
+  it("filters out headers where name or value is empty", () => {
+    const payload = buildSavePayload(baseState, null);
+    expect(payload.apiHeaders).toEqual([{ name: "X-Source", value: "portal" }]);
+  });
+
+  it("converts rateLimitRpm string to number", () => {
+    const payload = buildSavePayload(baseState, null);
+    expect(payload.rateLimitRpm).toBe(60);
+  });
+
+  it("sets rateLimitRpm to null when empty", () => {
+    const state = { ...baseState, rateLimitRpm: "" };
+    const payload = buildSavePayload(state, null);
+    expect(payload.rateLimitRpm).toBeNull();
+  });
+
+  it("excludes API-specific fields for MCP connectionType", () => {
+    const mcpState = { ...baseState, connectionType: "MCP" as const };
+    const payload = buildSavePayload(mcpState, null);
+    expect(payload.authMethod).toBeUndefined();
+    expect(payload.authHeader).toBeUndefined();
+    expect(payload.apiEndpoints).toBeUndefined();
+    expect(payload.rateLimitRpm).toBeUndefined();
+  });
+
+  it("excludes API-specific fields for A2A connectionType", () => {
+    const a2aState = { ...baseState, connectionType: "A2A" as const };
+    const payload = buildSavePayload(a2aState, null);
+    expect(payload.authMethod).toBeUndefined();
+    expect(payload.apiEndpoints).toBeUndefined();
+  });
+
+  it("passes parsedPayload through as expectedPayload for API type", () => {
+    const parsed = { key: "value", nested: { a: 1 } };
+    const payload = buildSavePayload(baseState, parsed);
+    expect(payload.expectedPayload).toEqual(parsed);
+  });
+
+  it("passes null parsedPayload through for API type", () => {
+    const payload = buildSavePayload(baseState, null);
+    expect(payload.expectedPayload).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PROTOCOL_INFO
+// ---------------------------------------------------------------------------
+
+describe("PROTOCOL_INFO", () => {
+  it("has entries for all three connection types", () => {
+    expect(PROTOCOL_INFO).toHaveProperty("MCP");
+    expect(PROTOCOL_INFO).toHaveProperty("A2A");
+    expect(PROTOCOL_INFO).toHaveProperty("API");
+  });
+
+  it("MCP entry mentions the protocol name", () => {
+    expect(PROTOCOL_INFO.MCP).toContain("Model Context Protocol");
+  });
+
+  it("A2A entry mentions Agent-to-Agent", () => {
+    expect(PROTOCOL_INFO.A2A).toContain("Agent-to-Agent");
+  });
+});

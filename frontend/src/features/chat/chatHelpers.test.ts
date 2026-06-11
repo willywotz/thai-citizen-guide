@@ -1,0 +1,472 @@
+import { describe, it, expect } from 'vitest';
+import {
+  INITIAL_STREAMING_STATE,
+  STEP_LABELS,
+  buildAgentStepsFromStreaming,
+  applyStepEvent,
+  applyAgenciesEvent,
+  applyIntentEvent,
+  applyRoutingEvent,
+  applyAgencyStartEvent,
+  applyAgencyRespondedEvent,
+  applyAgencyVerifiedEvent,
+  applyAnswerEvent,
+  applyDoneEvent,
+  applyErrorEvent,
+  buildAiMessageFromState,
+  buildConnectionLostMessage,
+  buildGenericErrorMessage,
+} from './chatHelpers';
+import type { StreamingState } from '@/shared/types';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function baseState(): StreamingState {
+  return { ...INITIAL_STREAMING_STATE };
+}
+
+// ---------------------------------------------------------------------------
+// STEP_LABELS
+// ---------------------------------------------------------------------------
+
+describe('STEP_LABELS', () => {
+  it('has entries for all five pipeline steps', () => {
+    const steps = ['discover', 'classify', 'invoke', 'verify', 'synthesize'];
+    for (const step of steps) {
+      expect(STEP_LABELS[step]).toBeDefined();
+      expect(STEP_LABELS[step].icon).toBeTruthy();
+      expect(STEP_LABELS[step].label).toBeTruthy();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildAgentStepsFromStreaming
+// ---------------------------------------------------------------------------
+
+describe('buildAgentStepsFromStreaming', () => {
+  it('returns empty array for empty state', () => {
+    expect(buildAgentStepsFromStreaming(baseState())).toEqual([]);
+  });
+
+  it('maps a running pipeline step to active status', () => {
+    const state: StreamingState = {
+      ...baseState(),
+      pipelineSteps: [{ name: 'discover', status: 'running', ms: null }],
+    };
+    const steps = buildAgentStepsFromStreaming(state);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].status).toBe('active');
+    expect(steps[0].icon).toBe(STEP_LABELS.discover.icon);
+  });
+
+  it('maps a done pipeline step and includes duration', () => {
+    const state: StreamingState = {
+      ...baseState(),
+      pipelineSteps: [{ name: 'classify', status: 'done', ms: 1500 }],
+    };
+    const [step] = buildAgentStepsFromStreaming(state);
+    expect(step.status).toBe('done');
+    expect(step.label).toContain('1.5s');
+  });
+
+  it('falls back to gear icon and raw name for unknown step', () => {
+    const state: StreamingState = {
+      ...baseState(),
+      // Cast to satisfy the type while still testing unknown names
+      pipelineSteps: [{ name: 'unknown_step' as 'discover', status: 'done', ms: null }],
+    };
+    const [step] = buildAgentStepsFromStreaming(state);
+    expect(step.icon).toBe('⚙️');
+    expect(step.label).toContain('unknown_step');
+  });
+
+  it('appends agency statuses as steps', () => {
+    const state: StreamingState = {
+      ...baseState(),
+      agencyStatuses: {
+        dbd: {
+          agencyId: 'dbd',
+          agencyName: 'DBD',
+          query: 'test',
+          sectionLabel: null,
+          status: 'passed',
+        },
+      },
+    };
+    const steps = buildAgentStepsFromStreaming(state);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].label).toBe('DBD');
+    expect(steps[0].icon).toBe('✅');
+    expect(steps[0].status).toBe('done');
+  });
+
+  it('uses agencyId as label fallback when agencyName is null', () => {
+    const state: StreamingState = {
+      ...baseState(),
+      agencyStatuses: {
+        rd: {
+          agencyId: 'rd',
+          agencyName: null,
+          query: '',
+          sectionLabel: null,
+          status: 'running',
+        },
+      },
+    };
+    const [step] = buildAgentStepsFromStreaming(state);
+    expect(step.label).toBe('rd');
+    expect(step.status).toBe('active');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyStepEvent
+// ---------------------------------------------------------------------------
+
+describe('applyStepEvent', () => {
+  it('adds a new running step', () => {
+    const next = applyStepEvent(baseState(), { name: 'discover', status: 'running', ms: null });
+    expect(next.pipelineSteps).toHaveLength(1);
+    expect(next.pipelineSteps[0]).toEqual({ name: 'discover', status: 'running', ms: null });
+    expect(next.currentStep).toBe('discover');
+  });
+
+  it('updates existing running step to done', () => {
+    const state = applyStepEvent(baseState(), { name: 'discover', status: 'running', ms: null });
+    const next = applyStepEvent(state, { name: 'discover', status: 'done', ms: 800 });
+    expect(next.pipelineSteps).toHaveLength(1);
+    expect(next.pipelineSteps[0]).toEqual({ name: 'discover', status: 'done', ms: 800 });
+    // currentStep stays as previous value when not running
+    expect(next.currentStep).toBe('discover');
+  });
+
+  it('adds a done step directly when no matching running step exists', () => {
+    const next = applyStepEvent(baseState(), { name: 'classify', status: 'done', ms: 200 });
+    expect(next.pipelineSteps).toHaveLength(1);
+    expect(next.pipelineSteps[0].status).toBe('done');
+  });
+
+  it('does not mutate the previous state', () => {
+    const prev = baseState();
+    applyStepEvent(prev, { name: 'discover', status: 'running', ms: null });
+    expect(prev.pipelineSteps).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyAgenciesEvent
+// ---------------------------------------------------------------------------
+
+describe('applyAgenciesEvent', () => {
+  it('sets the agencies list', () => {
+    const agencies = [{ id: 'dbd', name: 'DBD', description: null, data_scope: [] }];
+    const next = applyAgenciesEvent(baseState(), { agencies, count: 1 });
+    expect(next.agencies).toEqual(agencies);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyIntentEvent
+// ---------------------------------------------------------------------------
+
+describe('applyIntentEvent', () => {
+  it('stores the intent event', () => {
+    const event = { intent: 'search' as const, normalized_query: 'tax', reasoning: null };
+    const next = applyIntentEvent(baseState(), event);
+    expect(next.intent).toEqual(event);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyRoutingEvent
+// ---------------------------------------------------------------------------
+
+describe('applyRoutingEvent', () => {
+  it('stores the routing event', () => {
+    const event = { sub_questions: [] };
+    const next = applyRoutingEvent(baseState(), event);
+    expect(next.routing).toEqual(event);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyAgencyStartEvent
+// ---------------------------------------------------------------------------
+
+describe('applyAgencyStartEvent', () => {
+  it('adds agency with running status', () => {
+    const event = {
+      agency_id: 'rd',
+      agency_name: 'Revenue Dept',
+      query: 'tax refund',
+      section_label: 'Tax',
+    };
+    const next = applyAgencyStartEvent(baseState(), event);
+    expect(next.agencyStatuses['rd']).toMatchObject({
+      agencyId: 'rd',
+      agencyName: 'Revenue Dept',
+      status: 'running',
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyAgencyRespondedEvent
+// ---------------------------------------------------------------------------
+
+describe('applyAgencyRespondedEvent', () => {
+  it('updates existing agency status to ok', () => {
+    const start = applyAgencyStartEvent(baseState(), {
+      agency_id: 'dbd',
+      agency_name: 'DBD',
+      query: 'business',
+      section_label: null,
+    });
+    const next = applyAgencyRespondedEvent(start, {
+      agency_id: 'dbd',
+      agency_name: 'DBD',
+      status: 'ok',
+      section_label: null,
+      error_type: null,
+    });
+    expect(next.agencyStatuses['dbd'].status).toBe('ok');
+  });
+
+  it('sets status to error for error response', () => {
+    const next = applyAgencyRespondedEvent(baseState(), {
+      agency_id: 'rd',
+      agency_name: null,
+      status: 'error',
+      section_label: null,
+      error_type: 'timeout',
+    });
+    expect(next.agencyStatuses['rd'].status).toBe('error');
+    expect(next.agencyStatuses['rd'].errorType).toBe('timeout');
+  });
+
+  it('creates an entry from scratch when agency_start was not received', () => {
+    const next = applyAgencyRespondedEvent(baseState(), {
+      agency_id: 'new',
+      agency_name: 'New Agency',
+      status: 'ok',
+      section_label: null,
+      error_type: null,
+    });
+    expect(next.agencyStatuses['new']).toBeDefined();
+    expect(next.agencyStatuses['new'].status).toBe('ok');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyAgencyVerifiedEvent
+// ---------------------------------------------------------------------------
+
+describe('applyAgencyVerifiedEvent', () => {
+  it('updates agency to passed with relevance score', () => {
+    const state = applyAgencyStartEvent(baseState(), {
+      agency_id: 'dbd',
+      agency_name: 'DBD',
+      query: '',
+      section_label: null,
+    });
+    const next = applyAgencyVerifiedEvent(state, {
+      agency_id: 'dbd',
+      agency_name: 'DBD',
+      status: 'passed',
+      relevance_score: 0.9,
+      section_label: null,
+    });
+    expect(next.agencyStatuses['dbd'].status).toBe('passed');
+    expect(next.agencyStatuses['dbd'].relevanceScore).toBe(0.9);
+  });
+
+  it('is a no-op when agency does not exist in state', () => {
+    const next = applyAgencyVerifiedEvent(baseState(), {
+      agency_id: 'missing',
+      agency_name: null,
+      status: 'rejected',
+      relevance_score: null,
+      section_label: null,
+    });
+    expect(next.agencyStatuses['missing']).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyAnswerEvent
+// ---------------------------------------------------------------------------
+
+describe('applyAnswerEvent', () => {
+  it('stores answer, sections, and errors', () => {
+    const event = {
+      answer: 'Here is your answer.',
+      sections: [{ title: 'Tax', agencies: [{ id: 'rd', name: 'RD', query: 'q', content: 'c' }] }],
+      errors: [],
+      debug: null,
+    };
+    const next = applyAnswerEvent(baseState(), event);
+    expect(next.answer).toBe('Here is your answer.');
+    expect(next.sections).toHaveLength(1);
+    expect(next.errors).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyDoneEvent
+// ---------------------------------------------------------------------------
+
+describe('applyDoneEvent', () => {
+  it('marks state as done and stores session_id + total_ms', () => {
+    const next = applyDoneEvent(baseState(), { session_id: 'sess-123', total_ms: 4200 });
+    expect(next.done).toBe(true);
+    expect(next.sessionId).toBe('sess-123');
+    expect(next.totalMs).toBe(4200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyErrorEvent
+// ---------------------------------------------------------------------------
+
+describe('applyErrorEvent', () => {
+  it('appends an SSE error and marks done', () => {
+    const next = applyErrorEvent(baseState(), { message: 'stream failed', code: 500 });
+    expect(next.done).toBe(true);
+    expect(next.errors).toHaveLength(1);
+    expect(next.errors[0].errorType).toBe('SSE');
+    expect(next.errors[0].message).toBe('stream failed');
+  });
+
+  it('accumulates multiple errors', () => {
+    const s1 = applyErrorEvent(baseState(), { message: 'err1', code: 500 });
+    const s2 = applyErrorEvent(s1, { message: 'err2', code: 503 });
+    expect(s2.errors).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildAiMessageFromState
+// ---------------------------------------------------------------------------
+
+describe('buildAiMessageFromState', () => {
+  it('returns null when there is no answer', () => {
+    expect(buildAiMessageFromState(baseState())).toBeNull();
+  });
+
+  it('builds a ChatMessage from a complete state', () => {
+    const state = applyAnswerEvent(
+      applyDoneEvent(
+        applyStepEvent(baseState(), { name: 'synthesize', status: 'done', ms: 500 }),
+        { session_id: 'sess-1', total_ms: 1000 },
+      ),
+      {
+        answer: 'The answer is 42.',
+        sections: [{ title: 'General', agencies: [{ id: 'nso', name: 'NSO', query: 'q', content: 'c' }] }],
+        errors: [],
+        debug: null,
+      },
+    );
+    const msg = buildAiMessageFromState(state);
+    expect(msg).not.toBeNull();
+    expect(msg!.role).toBe('assistant');
+    expect(msg!.content).toBe('The answer is 42.');
+    expect(msg!.agentSteps).toHaveLength(1);
+    // sources are derived from sections
+    expect(msg!.sources).toHaveLength(1);
+    expect(msg!.sources![0].agency).toBe('NSO');
+    expect(msg!.sources![0].title).toBe('General');
+    expect(msg!.rating).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildConnectionLostMessage / buildGenericErrorMessage
+// ---------------------------------------------------------------------------
+
+describe('buildConnectionLostMessage', () => {
+  it('returns an assistant message with the connection-lost text', () => {
+    const msg = buildConnectionLostMessage();
+    expect(msg.role).toBe('assistant');
+    expect(msg.content).toContain('การเชื่อมต่อถูกตัด');
+    expect(msg.rating).toBeNull();
+  });
+});
+
+describe('buildGenericErrorMessage', () => {
+  it('returns an assistant message with the generic error text', () => {
+    const msg = buildGenericErrorMessage();
+    expect(msg.role).toBe('assistant');
+    expect(msg.content).toContain('ไม่สามารถตอบคำถาม');
+    expect(msg.rating).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Full pipeline simulation
+// ---------------------------------------------------------------------------
+
+describe('full pipeline state simulation', () => {
+  it('processes a realistic SSE event sequence end-to-end', () => {
+    let state = baseState();
+
+    // step: discover running
+    state = applyStepEvent(state, { name: 'discover', status: 'running', ms: null });
+    expect(state.currentStep).toBe('discover');
+
+    // agencies found
+    state = applyAgenciesEvent(state, {
+      agencies: [{ id: 'dbd', name: 'DBD', description: null, data_scope: [] }],
+      count: 1,
+    });
+    expect(state.agencies).toHaveLength(1);
+
+    // step: discover done
+    state = applyStepEvent(state, { name: 'discover', status: 'done', ms: 300 });
+    expect(state.pipelineSteps[0].status).toBe('done');
+
+    // intent
+    state = applyIntentEvent(state, { intent: 'search', normalized_query: 'company registration', reasoning: null });
+    expect(state.intent?.intent).toBe('search');
+
+    // routing
+    state = applyRoutingEvent(state, {
+      sub_questions: [{ section_label: 'Registration', broadcast: false, agencies: [{ id: 'dbd', name: 'DBD', query: 'reg' }] }],
+    });
+    expect(state.routing?.sub_questions).toHaveLength(1);
+
+    // agency start
+    state = applyAgencyStartEvent(state, { agency_id: 'dbd', agency_name: 'DBD', query: 'reg', section_label: 'Registration' });
+    expect(state.agencyStatuses['dbd'].status).toBe('running');
+
+    // agency responded ok
+    state = applyAgencyRespondedEvent(state, { agency_id: 'dbd', agency_name: 'DBD', status: 'ok', section_label: null, error_type: null });
+    expect(state.agencyStatuses['dbd'].status).toBe('ok');
+
+    // agency verified passed
+    state = applyAgencyVerifiedEvent(state, { agency_id: 'dbd', agency_name: 'DBD', status: 'passed', relevance_score: 0.95, section_label: null });
+    expect(state.agencyStatuses['dbd'].status).toBe('passed');
+
+    // answer
+    state = applyAnswerEvent(state, {
+      answer: 'You can register a company at DBD.',
+      sections: [{ title: 'Registration', agencies: [{ id: 'dbd', name: 'DBD', query: 'reg', content: 'details' }] }],
+      errors: [],
+      debug: null,
+    });
+    expect(state.answer).toBeTruthy();
+
+    // done
+    state = applyDoneEvent(state, { session_id: 'sess-abc', total_ms: 2500 });
+    expect(state.done).toBe(true);
+    expect(state.sessionId).toBe('sess-abc');
+
+    // build final message
+    const msg = buildAiMessageFromState(state);
+    expect(msg).not.toBeNull();
+    expect(msg!.content).toBe('You can register a company at DBD.');
+    expect(msg!.agentSteps!.length).toBeGreaterThan(0);
+  });
+});
