@@ -37,17 +37,17 @@ export async function listUsers(params: UserListParams): Promise<ManagedUser[]> 
 }
 
 export async function createUser(payload: CreateUserPayload): Promise<{ user: ManagedUser; email_sent?: boolean; reset_token?: string }> {
-  return api.post('/api/v1/users', payload);
+  return api.post<{ user: ManagedUser; email_sent?: boolean; reset_token?: string }>('/api/v1/users', payload);
 }
 
 export async function updateUser(id: string, payload: UpdateUserPayload): Promise<ManagedUser> {
-  return api.patch(`/api/v1/users/${id}`, payload);
+  return api.patch<ManagedUser>(`/api/v1/users/${id}`, payload);
 }
 
 export async function deactivateUser(id: string): Promise<ManagedUser> {
-  return api.post(`/api/v1/users/${id}/deactivate`);
+  return api.post<ManagedUser>(`/api/v1/users/${id}/deactivate`);
 }
 
 export async function activateUser(id: string): Promise<ManagedUser> {
-  return api.post(`/api/v1/users/${id}/activate`);
+  return api.post<ManagedUser>(`/api/v1/users/${id}/activate`);
 }

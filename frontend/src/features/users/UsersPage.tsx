@@ -13,7 +13,7 @@ import { DeactivateUserDialog } from './DeactivateUserDialog';
 
 export default function UsersPage() {
   const [search, setSearch] = useState('');
-  const { data: users = [], isLoading } = useUsers({ search: search || undefined, status: 'all' });
+  const { data: users = [], isLoading, isError } = useUsers({ search: search || undefined, status: 'all' });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [toggling, setToggling] = useState<ManagedUser | null>(null);
@@ -42,15 +42,19 @@ export default function UsersPage() {
             <TableHead>ชื่อที่แสดง</TableHead>
             <TableHead>บทบาท</TableHead>
             <TableHead>สถานะ</TableHead>
+            <TableHead>สร้างเมื่อ</TableHead>
             <TableHead className="text-right">การจัดการ</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading && (
-            <TableRow><TableCell colSpan={5}>กำลังโหลด...</TableCell></TableRow>
+            <TableRow><TableCell colSpan={6}>กำลังโหลด...</TableCell></TableRow>
           )}
-          {!isLoading && users.length === 0 && (
-            <TableRow><TableCell colSpan={5}>ไม่พบผู้ใช้</TableCell></TableRow>
+          {isError && !isLoading && (
+            <TableRow><TableCell colSpan={6}>เกิดข้อผิดพลาดในการโหลดข้อมูล</TableCell></TableRow>
+          )}
+          {!isLoading && !isError && users.length === 0 && (
+            <TableRow><TableCell colSpan={6}>ไม่พบผู้ใช้</TableCell></TableRow>
           )}
           {users.map((u) => (
             <TableRow key={u.id}>
@@ -66,6 +70,7 @@ export default function UsersPage() {
                   {u.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
                 </Badge>
               </TableCell>
+              <TableCell>{new Date(u.createdAt).toLocaleDateString('th-TH')}</TableCell>
               <TableCell className="text-right space-x-2">
                 <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>แก้ไข</Button>
                 <Button variant="ghost" size="sm" onClick={() => setToggling(u)}>
