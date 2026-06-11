@@ -37,6 +37,7 @@ export default function AgencyDetailPage() {
   }, [logs]);
 
   const hourlyData = useMemo(() => {
+    if (!logs) return [] as { time: string; count: number }[];
     const buckets: Record<string, number> = {};
     logs.items.forEach((l) => {
       const hour = format(new Date(l.created_at), "MM/dd HH:00");

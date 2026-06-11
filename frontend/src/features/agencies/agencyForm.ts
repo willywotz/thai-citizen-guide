@@ -140,7 +140,7 @@ export function buildSavePayload(
       authMethod: state.authMethod,
       authHeader: state.authHeader,
       basePath: state.basePath,
-      rateLimitRpm: state.rateLimitRpm ? parseInt(state.rateLimitRpm) : null,
+      rateLimitRpm: (() => { const rpm = state.rateLimitRpm ? parseInt(state.rateLimitRpm, 10) : null; return rpm !== null && !Number.isNaN(rpm) ? rpm : null; })(),
       requestFormat: state.requestFormat,
       apiEndpoints: state.apiEndpoints.filter((ep) => ep.path),
       responseSchema: state.responseSchema.filter((f) => f.field),
