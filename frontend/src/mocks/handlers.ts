@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { LEGAL_TRANSITIONS } from "@/features/agencies/lifecycle";
 import type { AgencyLifecycleStatus, AgencyRow, HealthWindow } from "@/shared/types/agency";
 
-import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies } from "./fixtures";
+import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies, row } from "./fixtures";
 
 function findAgency(id: string): AgencyRow | undefined {
   return mockAgencies.find((a) => a.id === id);
@@ -19,6 +19,9 @@ export const handlers = [
     if (!agency) return HttpResponse.json({ detail: "Agency not found" }, { status: 404 });
     const url = new URL(request.url);
     const window = (url.searchParams.get("window") ?? "24h") as HealthWindow;
+    if (!["24h", "7d", "30d"].includes(window)) {
+      return HttpResponse.json({ detail: "invalid window" }, { status: 422 });
+    }
     return HttpResponse.json({ data: makeHistory(agency.id, window) });
   }),
 
@@ -47,29 +50,15 @@ export const handlers = [
 
   http.post("*/api/v1/agencies", async ({ request }) => {
     const body = (await request.json()) as Partial<AgencyRow>;
-    const created: AgencyRow = {
-      ...mockAgencies[0],
-      api_endpoints: [],
-      response_schema: [],
-      api_headers: [],
-      data_scope: [],
-      expected_payload: null,
-      total_calls: 0,
-      rating_up: 0,
-      rating_down: 0,
-      priority: null,
-      router_hint: "",
-      dispatch_timeout_s: null,
-      mcp_tool_name: null,
-      endpoint_url: "",
-      description: "",
-      health: null,
+    const created = row({
       ...body,
       id: crypto.randomUUID(),
+      name: body.name ?? "",
+      short_name: body.short_name ?? "",
       status: body.status ?? "draft",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
+    });
     mockAgencies.push(created);
     return HttpResponse.json(created, { status: 201 });
   }),

@@ -80,5 +80,19 @@ describe("agency mock handlers", () => {
     expect(body.id).toBeTruthy();
     expect(body.status).toBe("draft");
     expect(body.health).toBeNull();
+    expect(body.name).toBe("กรมใหม่");
+    expect(body.logo).toBe("🏢");
+    expect(body.connection_type).toBe("API");
+  });
+
+  it("POST preserves explicitly provided fields", async () => {
+    const res = await fetch(`${BASE}/api/v1/agencies`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "x", short_name: "X", logo: "🚀", connection_type: "MCP" }),
+    });
+    const body = await res.json();
+    expect(body.logo).toBe("🚀");
+    expect(body.connection_type).toBe("MCP");
   });
 });

@@ -1,6 +1,6 @@
 import type { AgencyRow, HealthHistoryBucketRow, HealthWindow } from "@/shared/types/agency";
 
-function row(partial: Partial<AgencyRow> & Pick<AgencyRow, "id" | "name" | "short_name">): AgencyRow {
+export function row(partial: Partial<AgencyRow> & Pick<AgencyRow, "id" | "name" | "short_name">): AgencyRow {
   return {
     logo: "🏢",
     connection_type: "API",
