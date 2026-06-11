@@ -83,7 +83,7 @@ export function useUpdateAgency() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (agency: Partial<Agency> & { id: string }) => {
-      return api.patch(`/api/v1/agencies/${agency.id}`, {
+      const row = await api.patch<AgencyRow>(`/api/v1/agencies/${agency.id}`, {
         name: agency.name,
         short_name: agency.shortName,
         logo: agency.logo,
@@ -109,6 +109,7 @@ export function useUpdateAgency() {
         dispatch_timeout_s: agency.dispatchTimeoutS,
         mcp_tool_name: agency.mcpToolName,
       });
+      return mapRowToAgency(row);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
@@ -139,13 +140,13 @@ export function useTestConnection() {
   });
 }
 
-export function useHealthHistory(agencyId: string | undefined, window: HealthWindow) {
+export function useHealthHistory(agencyId: string | undefined, healthWindow: HealthWindow) {
   return useQuery({
-    queryKey: ['agency-health-history', agencyId, window],
+    queryKey: ['agency-health-history', agencyId, healthWindow],
     queryFn: async (): Promise<HealthHistoryBucket[]> => {
       const res = await api.get<{ data: HealthHistoryBucketRow[] }>(
         `/api/v1/agencies/${agencyId}/health/history`,
-        { window },
+        { window: healthWindow },
       );
       return res.data.map(mapBucketRow);
     },
