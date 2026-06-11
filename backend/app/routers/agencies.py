@@ -34,8 +34,12 @@ from app.schemas.agency import (
     AgencyListResponse,
     AgencyResponse,
     AgencyUpdate,
+    HealthHistoryBucket,
+    HealthHistoryResponse,
+    StatusUpdateRequest,
 )
-from app.services.agency_health import embedded_health
+from app.services.agency_health import embedded_health, health_history
+from app.services.agency_lifecycle import is_legal_transition
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
 
@@ -86,6 +90,40 @@ async def get_agency(agency_id: uuid.UUID):
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    return await _with_health(agency)
+
+
+# ---------------------------------------------------------------------------
+# Health history
+# ---------------------------------------------------------------------------
+
+@router.get("/{agency_id}/health/history", response_model=HealthHistoryResponse, summary="Agency health history")
+async def agency_health_history(agency_id: uuid.UUID, window: str = "24h"):
+    try:
+        await Agency.get(id=agency_id)
+    except DoesNotExist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    buckets = await health_history(agency_id, window)
+    return HealthHistoryResponse(data=[HealthHistoryBucket(**b) for b in buckets])
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle status transition
+# ---------------------------------------------------------------------------
+
+@router.patch("/{agency_id}/status", response_model=AgencyResponse, summary="Transition agency lifecycle status")
+async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, _: User = Depends(require_admin)):
+    try:
+        agency = await Agency.get(id=agency_id)
+    except DoesNotExist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    if not is_legal_transition(agency.status.value, body.status):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Illegal status transition: {agency.status.value} → {body.status}",
+        )
+    agency.status = body.status
+    await agency.save(update_fields=["status", "updated_at"])
     return await _with_health(agency)
 
 
