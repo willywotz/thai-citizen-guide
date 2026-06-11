@@ -1,7 +1,6 @@
-from datetime import datetime, timezone
+from datetime import datetime
 import uuid
 from .uuid7 import generate_uuid7
-from tortoise.timezone import now as tortoise_now
 import pytz
 from app.config import settings
 
@@ -15,8 +14,3 @@ def generate_uuid() -> uuid.UUID:
 
 def now() -> datetime:
     return datetime.now(get_tz())
-
-def to_bangkok_time(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(get_tz())

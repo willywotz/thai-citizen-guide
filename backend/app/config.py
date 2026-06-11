@@ -8,7 +8,6 @@ class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────────
     APP_NAME: str = "AI Chatbot Portal API"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = False
     TIMEZONE: str = "Asia/Bangkok"
     USER_AGENT_PREFIX: str = "AI-Chatbot-Portal/1.0"
 
@@ -67,7 +66,6 @@ class Settings(BaseSettings):
     EXTERNAL_CHAT_TIMEOUT: float = 180.0
     TITLE_MAX_LENGTH: int = 50
     PREVIEW_MAX_LENGTH: int = 100
-    CONN_LOG_BODY_MAX: int = 5000
     SPEC_TEXT_MAX_CHARS: int = 30000
 
     # ── Agency health / scheduler ────────────────────────────────────────────
@@ -125,7 +123,7 @@ def _deserialize(raw: str, annotation: type):
 
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
-    "App": ["APP_NAME", "APP_VERSION", "DEBUG", "TIMEZONE", "USER_AGENT_PREFIX"],
+    "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX"],
     "Database": ["DATABASE_URL"],
     "CORS": ["CORS_ORIGINS"],
     "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES", "EXPOSE_PASSWORD_RESET_TOKEN"],
@@ -134,7 +132,7 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
     "Parse spec": ["PARSE_SPEC_URL", "PARSE_SPEC_API_KEY", "PARSE_SPEC_TIMEOUT", "PARSE_SPEC_LLM_MODEL"],
     "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "MCP_ENDPOINT_URL"],
     "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
-    "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "CONN_LOG_BODY_MAX", "SPEC_TEXT_MAX_CHARS"],
+    "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS"],
     "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT"],
     "Executive summary": ["BRIEF_REGEN_INTERVAL_HOURS", "WEEKLY_BRIEF_TIMEOUT"],
     "Analytics": ["AVG_LATENCY_WINDOW_DAYS", "FEEDBACK_TREND_DAYS", "BUSINESS_HOURS_START", "BUSINESS_HOURS_END"],
