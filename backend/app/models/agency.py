@@ -12,8 +12,11 @@ class ConnectionType(str, Enum):
 
 
 class AgencyStatus(str, Enum):
+    draft = "draft"
     active = "active"
-    inactive = "inactive"
+    maintenance = "maintenance"
+    disabled = "disabled"
+    inactive = "inactive"  # legacy; retained so pre-redesign rows still load
 
 
 class Agency(Model):
