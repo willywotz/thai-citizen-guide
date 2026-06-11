@@ -1,4 +1,5 @@
-import { useExecutiveSummary } from "./useExecutive";
+import { useExecutiveSummary, useRegenerateExecutiveSummary } from "./useExecutive";
+import { useAuth } from "@/features/auth/useAuth";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Skeleton } from "@/shared/components/ui/skeleton";
@@ -9,6 +10,8 @@ import { ExecutiveWeeklyBrief } from "./ExecutiveWeeklyBrief";
 
 export default function ExecutivePage() {
   const { data, isLoading, error, refetch } = useExecutiveSummary();
+  const { isAdmin } = useAuth();
+  const regenerate = useRegenerateExecutiveSummary();
 
   if (isLoading) {
     return (
@@ -50,7 +53,12 @@ export default function ExecutivePage() {
       </div>
       <ExecutiveKpiGrid kpis={kpis} />
       <ExecutiveTrendChart monthlyTrend={monthlyTrend} />
-      <ExecutiveWeeklyBrief weeklyBrief={weeklyBrief} />
+      <ExecutiveWeeklyBrief
+        weeklyBrief={weeklyBrief}
+        canRegenerate={isAdmin}
+        isRegenerating={regenerate.isPending}
+        onRegenerate={() => regenerate.mutate()}
+      />
     </div>
   );
 }

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import timedelta
 
@@ -9,7 +8,7 @@ from tortoise.transactions import in_transaction
 
 from app.config import settings
 from app.utils import now
-from app.models import Agency, Conversation, Message, ConnectionLog
+from app.models import Agency, Conversation, ExecutiveBrief, Message, ConnectionLog
 from app.schemas.insight import AgencyHealthData, Agency as AgencyHealth
 from app.schemas.executive_summary import ExecutiveData, ExecutiveKPIs
 
@@ -168,38 +167,47 @@ async def get_agency_health() -> AgencyHealthData:
     )
 
 
-_weekly_brief_lock = asyncio.Lock()
-_weekly_brief_cache = ""
-_weekly_brief_cache_time = now()
+# Shown on the executive page until a brief has been generated (GET never blocks on the LLM).
+_BRIEF_PLACEHOLDER = "ยังไม่มีรายงานสรุปประจำสัปดาห์ กรุณารอการสร้างอัตโนมัติหรือกดสร้างใหม่"
+# Stored as the brief content when the LLM call fails.
+_BRIEF_FALLBACK = "ไม่สามารถสร้างสรุปประจำสัปดาห์ได้ในขณะนี้"
 
 
-async def _get_weekly_brief(content: str) -> str:
-    async with _weekly_brief_lock:
-        global _weekly_brief_cache, _weekly_brief_cache_time
+async def _generate_brief_content(prompt: str) -> tuple[str, str]:
+    """Call the LLM for the brief. Returns (content, status) where status is 'ok' | 'error'."""
+    try:
+        url = settings.OPENROUTER_API_URL
+        header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
+        payload = {"model": settings.CLASSIFICATION_MODEL, "messages": [{"role": "user", "content": prompt}]}
 
-        if _weekly_brief_cache and _weekly_brief_cache_time and now() - _weekly_brief_cache_time < timedelta(minutes=settings.WEEKLY_BRIEF_CACHE_TTL_MINUTES):
-            return _weekly_brief_cache
+        async with httpx.AsyncClient(timeout=settings.WEEKLY_BRIEF_TIMEOUT) as client:
+            resp = await client.post(url, headers=header, json=payload)
 
-        try:
-            url = settings.OPENROUTER_API_URL
-            header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
-            payload = {"model": settings.CLASSIFICATION_MODEL, "messages": [{"role": "user", "content": content}]}
-
-            async with httpx.AsyncClient(timeout=settings.WEEKLY_BRIEF_TIMEOUT) as client:
-                resp = await client.post(url, headers=header, json=payload)
-
-            weekly_brief = resp.json()["choices"][0]["message"]["content"].strip()
-        except Exception as e:
-            logger.error("Error generating weekly brief: %s", e)
-            weekly_brief = "ไม่สามารถสร้างสรุปประจำสัปดาห์ได้ในขณะนี้"
-
-        _weekly_brief_cache = weekly_brief
-        _weekly_brief_cache_time = now()
-
-        return weekly_brief
+        return resp.json()["choices"][0]["message"]["content"].strip(), "ok"
+    except Exception as e:
+        logger.error("Error generating weekly brief: %s", e)
+        return _BRIEF_FALLBACK, "error"
 
 
-async def get_executive_summary() -> ExecutiveData:
+async def regenerate_weekly_brief() -> ExecutiveBrief:
+    """Compute metrics, generate the brief via the LLM, and persist it as a new row.
+
+    Called by the daily scheduler job and the admin force-regenerate endpoint.
+    """
+    metrics = await _compute_executive_metrics()
+    prompt = _build_brief_prompt(metrics)
+    content, status = await _generate_brief_content(prompt)
+    return await ExecutiveBrief.create(content=content, status=status)
+
+
+async def _latest_brief() -> str:
+    """Return the most recent stored brief, or a placeholder if none exists yet."""
+    row = await ExecutiveBrief.all().order_by("-generated_at").first()
+    return row.content if row else _BRIEF_PLACEHOLDER
+
+
+async def _compute_executive_metrics() -> dict:
+    """Compute the executive KPIs and monthly trend. Shared by the GET path and regen."""
     async with in_transaction() as conn:
         await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
 
@@ -236,50 +244,72 @@ async def get_executive_summary() -> ExecutiveData:
             satisfaction = (entry["rating_up"] / (entry["rating_up"] + entry["rating_down"]) * 100) if (entry["rating_up"] + entry["rating_down"]) > 0 else 0.0
             monthlyTrend[index]["satisfaction"] = round(satisfaction, 2)
 
-        content = f"""
+        return {
+            "thisMonthQuestions": thisMonthQuestions,
+            "lastMonthQuestions": lastMonthQuestions,
+            "thisYearQuestions": thisYearQuestions,
+            "lastYearQuestions": lastYearQuestions,
+            "momGrowthQuestions": momGrowthQuestions,
+            "yoyGrowthQuestions": yoyGrowthQuestions,
+            "thisMonthCitizens": thisMonthCitizens,
+            "lastMonthCitizens": lastMonthCitizens,
+            "thisYearCitizens": thisYearCitizens,
+            "lastYearCitizens": lastYearCitizens,
+            "momGrowthCitizens": momGrowthCitizens,
+            "yoyGrowthCitizens": yoyGrowthCitizens,
+            "monthlyTrend": monthlyTrend,
+        }
+
+
+def _build_brief_prompt(m: dict) -> str:
+    """Build the Thai LLM prompt for the weekly brief from computed metrics."""
+    return f"""
         คุณเป็นนักวิเคราะห์ข้อมูลให้ผู้บริหารระดับสูงของรัฐบาลไทย กรุณาสรุปข้อมูลการใช้งาน AI Portal ในสัปดาห์นี้เป็นภาษาไทย ความยาว 3-4 ย่อหน้า เน้น insights เชิงกลยุทธ์และข้อเสนอแนะเชิงนโยบาย
     ข้อมูล:
-    - คำถามรวมเดือนนี้: {thisMonthQuestions} (เพิ่มขึ้น {momGrowthQuestions:.2f}% จากเดือนก่อน, เพิ่มขึ้น {yoyGrowthQuestions:.2f}% จากปีก่อน)
-    - ประชาชนที่ได้รับบริการเดือนนี้: {thisMonthCitizens} คน (เพิ่มขึ้น {momGrowthCitizens:.2f}% จากเดือนก่อน, เพิ่มขึ้น {yoyGrowthCitizens:.2f}% จากปีก่อน)
-    - แนวโน้มรายเดือน: {monthlyTrend}
+    - คำถามรวมเดือนนี้: {m['thisMonthQuestions']} (เพิ่มขึ้น {m['momGrowthQuestions']:.2f}% จากเดือนก่อน, เพิ่มขึ้น {m['yoyGrowthQuestions']:.2f}% จากปีก่อน)
+    - ประชาชนที่ได้รับบริการเดือนนี้: {m['thisMonthCitizens']} คน (เพิ่มขึ้น {m['momGrowthCitizens']:.2f}% จากเดือนก่อน, เพิ่มขึ้น {m['yoyGrowthCitizens']:.2f}% จากปีก่อน)
+    - แนวโน้มรายเดือน: {m['monthlyTrend']}
     โครงสร้าง:
     1. ภาพรวมและไฮไลท์สัปดาห์
     2. แนวโน้มที่น่าสนใจและสาเหตุที่เป็นไปได้
     3. ข้อเสนอแนะเชิงนโยบายสำหรับผู้บริหาร
     ใช้ภาษาทางการ กระชับ ชัดเจน มี emoji ประกอบเล็กน้อย"""
 
-        weeklyBrief = await _get_weekly_brief(content)
 
-        return ExecutiveData(
-            kpis=ExecutiveKPIs(
-                totalQuestions=thisYearQuestions,
-                momGrowth=float(f"{momGrowthQuestions:.2f}"),
-                yoyGrowth=float(f"{yoyGrowthQuestions:.2f}"),
-                uniqueCitizens=0,
-                totalHoursSaved=0.0,
-                costSaved=0.0,
-                healthScore=0.0,
-                uptime=0.0,
-                satisfaction=0.0,
-                avgResponseTime=0.0,
+async def get_executive_summary() -> ExecutiveData:
+    m = await _compute_executive_metrics()
+    weeklyBrief = await _latest_brief()
 
-                thisMonthQuestions=thisMonthQuestions,
-                lastMonthQuestions=lastMonthQuestions,
-                thisYearQuestions=thisYearQuestions,
-                lastYearQuestions=lastYearQuestions,
-                momGrowthQuestions=float(f"{momGrowthQuestions:.2f}"),
-                yoyGrowthQuestions=float(f"{yoyGrowthQuestions:.2f}"),
+    return ExecutiveData(
+        kpis=ExecutiveKPIs(
+            totalQuestions=m["thisYearQuestions"],
+            momGrowth=float(f"{m['momGrowthQuestions']:.2f}"),
+            yoyGrowth=float(f"{m['yoyGrowthQuestions']:.2f}"),
+            uniqueCitizens=0,
+            totalHoursSaved=0.0,
+            costSaved=0.0,
+            healthScore=0.0,
+            uptime=0.0,
+            satisfaction=0.0,
+            avgResponseTime=0.0,
 
-                thisMonthCitizens=thisMonthCitizens,
-                lastMonthCitizens=lastMonthCitizens,
-                thisYearCitizens=thisYearCitizens,
-                lastYearCitizens=lastYearCitizens,
-                momGrowthCitizens=float(f"{momGrowthCitizens:.2f}"),
-                yoyGrowthCitizens=float(f"{yoyGrowthCitizens:.2f}")
-            ),
-            agencyScorecard=[],
-            monthlyTrend=monthlyTrend,
-            topIssues=[],
-            weeklyBrief=weeklyBrief,
-            generatedAt=now()
-        )
+            thisMonthQuestions=m["thisMonthQuestions"],
+            lastMonthQuestions=m["lastMonthQuestions"],
+            thisYearQuestions=m["thisYearQuestions"],
+            lastYearQuestions=m["lastYearQuestions"],
+            momGrowthQuestions=float(f"{m['momGrowthQuestions']:.2f}"),
+            yoyGrowthQuestions=float(f"{m['yoyGrowthQuestions']:.2f}"),
+
+            thisMonthCitizens=m["thisMonthCitizens"],
+            lastMonthCitizens=m["lastMonthCitizens"],
+            thisYearCitizens=m["thisYearCitizens"],
+            lastYearCitizens=m["lastYearCitizens"],
+            momGrowthCitizens=float(f"{m['momGrowthCitizens']:.2f}"),
+            yoyGrowthCitizens=float(f"{m['yoyGrowthCitizens']:.2f}")
+        ),
+        agencyScorecard=[],
+        monthlyTrend=m["monthlyTrend"],
+        topIssues=[],
+        weeklyBrief=weeklyBrief,
+        generatedAt=now()
+    )
