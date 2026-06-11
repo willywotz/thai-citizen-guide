@@ -60,6 +60,12 @@ class Agency(Model):
     expected_payload = fields.JSONField(null=True)
     api_headers = fields.JSONField(null=True, default=list)              # list[ApiHeader]
 
+    # Routing controls
+    priority = fields.IntField(null=True)
+    router_hint = fields.TextField(default="")
+    dispatch_timeout_s = fields.IntField(null=True)
+    mcp_tool_name = fields.CharField(max_length=255, null=True)
+
     # Metrics
     total_calls = fields.IntField(default=0)
     rating_up = fields.IntField(default=0)
