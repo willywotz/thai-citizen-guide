@@ -34,7 +34,7 @@ from starlette.responses import Response
 from app.config import settings, load_settings_from_db
 from app.database import init_db, close_db
 from app.mcp.server import mcp
-from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, settings as settings_router
+from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, users, settings as settings_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
@@ -114,6 +114,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
 # app.include_router(seed.router, prefix="/api/v1")
 app.include_router(agencies.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
