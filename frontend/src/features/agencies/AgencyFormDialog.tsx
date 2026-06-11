@@ -9,7 +9,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { X } from "lucide-react";
 import { api } from "@/shared/lib/apiClient";
 import { toast } from "sonner";
-import type { Agency, ApiEndpoint, ResponseField, ApiHeader } from "@/shared/types/agency";
+import type { Agency, AgencyLifecycleStatus, ApiEndpoint, ResponseField, ApiHeader } from "@/shared/types/agency";
 import { AgencyApiFields } from "./AgencyApiFields";
 import { AgencyHeadersEditor } from "./AgencyHeadersEditor";
 import {
@@ -40,7 +40,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
   const [color, setColor] = useState("hsl(213 70% 45%)");
   const [scopeInput, setScopeInput] = useState("");
   const [dataScope, setDataScope] = useState<string[]>([]);
-  const [status, setStatus] = useState<"active" | "inactive">("active");
+  const [status, setStatus] = useState<AgencyLifecycleStatus>("active");
 
   // API-specific fields
   const [authMethod, setAuthMethod] = useState("api_key");
@@ -213,11 +213,11 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
             </div>
             <div className="space-y-2">
               <Label>สถานะ</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as "active" | "inactive")}>
+              <Select value={status} onValueChange={(v) => setStatus(v as AgencyLifecycleStatus)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="disabled">Disabled</SelectItem>
                 </SelectContent>
               </Select>
             </div>

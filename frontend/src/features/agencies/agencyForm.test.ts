@@ -35,6 +35,13 @@ const API_AGENCY: Agency = {
   expectedPayload: { query: "test", limit: 10 },
   apiSpecRaw: "openapi: 3.0.0",
   apiHeaders: [{ name: "X-Source", value: "portal" }],
+  priority: null,
+  routerHint: "",
+  dispatchTimeoutS: null,
+  mcpToolName: null,
+  ratingUp: 0,
+  ratingDown: 0,
+  health: { state: "unknown", uptime24h: null, avgLatencyMs24h: null, lastCheckAt: null },
 };
 
 const MCP_AGENCY: Agency = {
@@ -44,11 +51,18 @@ const MCP_AGENCY: Agency = {
   logo: "🤖",
   description: "An MCP agency",
   connectionType: "MCP",
-  status: "inactive",
+  status: "disabled",
   dataScope: [],
   totalCalls: 0,
   color: "hsl(140 60% 45%)",
   endpointUrl: "https://mcp.test.go.th",
+  priority: null,
+  routerHint: "",
+  dispatchTimeoutS: null,
+  mcpToolName: null,
+  ratingUp: 0,
+  ratingDown: 0,
+  health: { state: "unknown", uptime24h: null, avgLatencyMs24h: null, lastCheckAt: null },
 };
 
 // ---------------------------------------------------------------------------
@@ -60,7 +74,7 @@ describe("DEFAULT_FORM_STATE", () => {
     expect(DEFAULT_FORM_STATE.name).toBe("");
     expect(DEFAULT_FORM_STATE.logo).toBe("🏢");
     expect(DEFAULT_FORM_STATE.connectionType).toBe("API");
-    expect(DEFAULT_FORM_STATE.status).toBe("active");
+    expect(DEFAULT_FORM_STATE.status).toBe("draft");
     expect(DEFAULT_FORM_STATE.authMethod).toBe("api_key");
     expect(DEFAULT_FORM_STATE.requestFormat).toBe("json");
     expect(DEFAULT_FORM_STATE.dataScope).toEqual([]);
@@ -125,7 +139,7 @@ describe("agencyToFormState", () => {
   it("maps MCP agency correctly", () => {
     const s = agencyToFormState(MCP_AGENCY);
     expect(s.connectionType).toBe("MCP");
-    expect(s.status).toBe("inactive");
+    expect(s.status).toBe("disabled");
     expect(s.dataScope).toEqual([]);
     expect(s.apiEndpoints).toEqual([]);
   });

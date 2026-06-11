@@ -1,4 +1,4 @@
-import type { Agency, ApiEndpoint, ResponseField, ApiHeader } from "@/shared/types/agency";
+import type { Agency, AgencyLifecycleStatus, ApiEndpoint, ResponseField, ApiHeader } from "@/shared/types/agency";
 
 // ---------------------------------------------------------------------------
 // Form state shape
@@ -14,7 +14,7 @@ export interface AgencyFormState {
   color: string;
   scopeInput: string;
   dataScope: string[];
-  status: "active" | "inactive";
+  status: AgencyLifecycleStatus;
   // API-specific
   authMethod: string;
   authHeader: string;
@@ -62,7 +62,7 @@ export const DEFAULT_FORM_STATE: AgencyFormState = {
   color: "hsl(213 70% 45%)",
   scopeInput: "",
   dataScope: [],
-  status: "active",
+  status: "draft",
   authMethod: "api_key",
   authHeader: "",
   basePath: "",
