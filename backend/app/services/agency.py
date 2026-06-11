@@ -156,26 +156,56 @@ async def _test_rest(agency: Agency) -> dict[str, Any]:
             except Exception as exc:
                 fetch_error = str(exc)
 
-    s1_ms = int((time.monotonic() - s1) * 1000)
-    steps.append({"step": 1, "label": "TCP Connection", "status": "error" if fetch_error else "done", "time": s1_ms})
+        s1_ms = int((time.monotonic() - s1) * 1000)
+        steps.append({"step": 1, "label": "TCP Connection", "status": "error" if fetch_error else "done", "time": s1_ms})
 
-    if fetch_error:
-        total_ms = int((time.monotonic() - total_start) * 1000)
-        steps.append({"step": 2, "label": "HTTP Response", "status": "error", "time": 0})
-        return {"success": False, "protocol": "REST API", "version": "-", "steps": steps, "latency": f"{total_ms}ms", "error": fetch_error}
+        if fetch_error:
+            total_ms = int((time.monotonic() - total_start) * 1000)
+            steps.append({"step": 2, "label": "HTTP Response", "status": "error", "time": 0})
+            return {"success": False, "protocol": "REST API", "version": "-", "steps": steps, "latency": f"{total_ms}ms", "error": fetch_error}
+
+        # POST-only endpoints (e.g. chat APIs) answer a HEAD/GET probe with 405.
+        # Don't trust that as "reachable" — POST a probe and judge by the real response.
+        method = "HEAD"
+        if response.status_code == 405:
+            from app.services.chat.dispatch import build_api_headers, build_api_payload
+
+            s2 = time.monotonic()
+            post_headers = build_api_headers(agency.api_headers)
+            post_headers["user-agent"] = headers["User-Agent"]
+            probe = build_api_payload(agency.expected_payload or {}, "ทดสอบการเชื่อมต่อ", "")
+            try:
+                response = await client.post(url, headers=post_headers, json=probe)
+                method = "POST"
+            except httpx.TimeoutException:
+                total_ms = int((time.monotonic() - total_start) * 1000)
+                steps.append({"step": 2, "label": "POST probe", "status": "error", "time": int((time.monotonic() - s2) * 1000)})
+                return {"success": False, "protocol": "REST API", "version": "-", "steps": steps, "latency": f"{total_ms}ms", "error": f"POST probe timeout ({settings.CONNECTION_TEST_TIMEOUT}s)"}
+            except Exception as exc:
+                total_ms = int((time.monotonic() - total_start) * 1000)
+                steps.append({"step": 2, "label": "POST probe", "status": "error", "time": int((time.monotonic() - s2) * 1000)})
+                return {"success": False, "protocol": "REST API", "version": "-", "steps": steps, "latency": f"{total_ms}ms", "error": str(exc)}
 
     status_code = response.status_code
-    steps.append({"step": 2, "label": f"HTTP {status_code} {response.reason_phrase}", "status": "done" if status_code < 500 else "error", "time": s1_ms})
+    steps.append({"step": 2, "label": f"{method} {status_code} {response.reason_phrase}", "status": "done" if status_code < 500 else "error", "time": s1_ms})
 
     content_type = response.headers.get("content-type", "unknown").split(";")[0]
     server = response.headers.get("server", "unknown")
     steps.append({"step": 3, "label": f"Content-Type: {content_type}", "status": "done", "time": 0})
 
     total_ms = int((time.monotonic() - total_start) * 1000)
-    is_success = 200 <= status_code < 500
-    steps.append({"step": 4, "label": "API Reachable" if is_success else "API Error", "status": "done" if is_success else "error", "time": 0})
 
-    return {
+    # HEAD path: any non-5xx means the server is reachable (legacy semantics).
+    # POST probe path: only a 2xx confirms the chat method actually works.
+    if method == "POST":
+        is_success = 200 <= status_code < 300
+        last_label = "API verified (POST)" if is_success else f"POST returned HTTP {status_code}"
+    else:
+        is_success = 200 <= status_code < 500
+        last_label = "API Reachable" if is_success else "API Error"
+    steps.append({"step": 4, "label": last_label, "status": "done" if is_success else "error", "time": 0})
+
+    result = {
         "success": is_success,
         "protocol": "REST API",
         "version": "v1",
@@ -186,6 +216,9 @@ async def _test_rest(agency: Agency) -> dict[str, Any]:
         "server": server,
         "contentType": content_type,
     }
+    if not is_success and method == "POST":
+        result["error"] = f"POST probe returned HTTP {status_code} {response.reason_phrase}"
+    return result
 
 
 async def _test_mcp(agency: Agency) -> dict[str, Any]:
