@@ -29,7 +29,7 @@ class UserResponse(BaseModel):
     id: str
     email: str
     displayName: str
-    role: str
+    role: Role
     avatarUrl: str | None = None
     isActive: bool
     createdAt: datetime
@@ -45,6 +45,12 @@ class UserResponse(BaseModel):
             isActive=user.is_active,
             createdAt=user.created_at,
         )
+
+
+class UserCreateResponse(BaseModel):
+    user: UserResponse
+    email_sent: bool | None = None
+    reset_token: str | None = None
 
 
 class UserListResponse(BaseModel):

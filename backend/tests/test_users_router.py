@@ -1,5 +1,6 @@
 """Tests for app.routers.users — endpoints called directly with an injected admin."""
 
+import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -59,7 +60,6 @@ async def test_create_with_password_returns_201_shape(db):
 @pytest.mark.asyncio
 async def test_get_single_404(db):
     admin = await _admin()
-    import uuid
     with pytest.raises(HTTPException) as exc:
         await users_router.get_user(uuid.uuid4(), admin=admin)
     assert exc.value.status_code == 404
@@ -127,3 +127,29 @@ async def test_activate_sets_active(db):
     target = await _user(email="t@example.com", active=False)
     res = await users_router.activate_user(target.id, admin=admin)
     assert res.isActive is True
+
+
+@pytest.mark.asyncio
+async def test_activate_user_404(db):
+    admin = await _admin()
+    with pytest.raises(HTTPException) as exc:
+        await users_router.activate_user(uuid.uuid4(), admin=admin)
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_user_404(db):
+    admin = await _admin()
+    with pytest.raises(HTTPException) as exc:
+        await users_router.update_user(uuid.uuid4(), UserUpdate(display_name="X"), admin=admin)
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_list_search_filters_by_display_name(db):
+    admin = await _admin()
+    await User.create(email="match@example.com", hashed_password="x", role="user", is_active=True, display_name="Distinctive Name")
+    await _user(email="other@example.com")
+    res = await users_router.list_users(search="Distinctive", role=None, status_filter="all", admin=admin)
+    assert res.total == 1
+    assert res.data[0].email == "match@example.com"

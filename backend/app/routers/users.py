@@ -22,7 +22,7 @@ from tortoise.expressions import Q
 
 from app.auth.dependencies import require_admin
 from app.models.user import User
-from app.schemas.user import UserCreate, UserListResponse, UserResponse, UserUpdate
+from app.schemas.user import Role, UserCreate, UserCreateResponse, UserListResponse, UserResponse, UserUpdate
 from app.services import user as user_service
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.get("", response_model=UserListResponse, summary="List users")
 async def list_users(
     search: str | None = Query(None, description="Search email or display name"),
-    role: str | None = Query(None, description="Filter by role: user | admin"),
+    role: Role | None = Query(None, description="Filter by role: user | admin"),
     status_filter: Literal["active", "inactive", "all"] = Query(
         "all", alias="status", description="Filter by active status"
     ),
@@ -54,7 +54,7 @@ async def list_users(
     )
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, summary="Create a user")
+@router.post("", response_model=UserCreateResponse, status_code=status.HTTP_201_CREATED, summary="Create a user")
 async def create_user(body: UserCreate, admin: User = Depends(require_admin)) -> dict:
     user, extra = await user_service.create_user(body)
     return {"user": UserResponse.from_user(user).model_dump(), **extra}
@@ -78,16 +78,18 @@ async def update_user(
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    changed: list[str] = []
     if body.role is not None and body.role != user.role:
         user_service.ensure_not_self(admin.id, user.id)
         if user.role == "admin" and body.role == "user":
             await user_service.ensure_not_last_admin(user)
         user.role = body.role
-
+        changed.append("role")
     if body.display_name is not None:
         user.display_name = body.display_name
-
-    await user.save()
+        changed.append("display_name")
+    if changed:
+        await user.save(update_fields=changed)
     return UserResponse.from_user(user)
 
 
@@ -99,6 +101,7 @@ async def deactivate_user(user_id: uuid.UUID, admin: User = Depends(require_admi
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user_service.ensure_not_self(admin.id, user.id)
+    # Guard is best-effort: a concurrent deactivate could still race (non-transactional).
     await user_service.ensure_not_last_admin(user)
     user.is_active = False
     await user.save(update_fields=["is_active"])

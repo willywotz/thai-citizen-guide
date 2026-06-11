@@ -25,7 +25,7 @@ from app.services.email import send_password_reset_email
 
 def ensure_not_self(acting_user_id: uuid.UUID, target_id: uuid.UUID) -> None:
     """An admin may not change their own role, deactivate, or delete themselves."""
-    if str(acting_user_id) == str(target_id):
+    if acting_user_id == target_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ไม่สามารถดำเนินการกับบัญชีของตนเองได้",

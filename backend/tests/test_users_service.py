@@ -1,5 +1,6 @@
 """Tests for app.services.user — create flow and guardrails."""
 
+import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -85,19 +86,15 @@ async def test_create_rejects_duplicate_email(db):
     assert exc.value.status_code == 409
 
 
-@pytest.mark.asyncio
-async def test_ensure_not_self_blocks_same_id(db):
-    admin = await _make_admin()
+def test_ensure_not_self_blocks_same_id():
+    uid = uuid.uuid4()
     with pytest.raises(HTTPException) as exc:
-        user_service.ensure_not_self(admin.id, admin.id)
+        user_service.ensure_not_self(uid, uid)
     assert exc.value.status_code == 400
 
 
-@pytest.mark.asyncio
-async def test_ensure_not_self_allows_different_id(db):
-    admin = await _make_admin()
-    other = await _make_admin(email="other@example.com")
-    user_service.ensure_not_self(admin.id, other.id)  # no raise
+def test_ensure_not_self_allows_different_id():
+    user_service.ensure_not_self(uuid.uuid4(), uuid.uuid4())  # no raise
 
 
 @pytest.mark.asyncio
