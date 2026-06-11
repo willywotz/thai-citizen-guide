@@ -59,7 +59,7 @@ const App = () => (
                 <Route path="/architecture" element={<ArchitecturePage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/users" element={<UsersPage />} />
+                <Route path="/users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

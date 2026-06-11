@@ -45,7 +45,7 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
   async function handleSubmit() {
     try {
       if (isEdit && user) {
-        await updateMut.mutateAsync({ id: user.id, payload: { display_name: displayName, role } });
+        await updateMut.mutateAsync({ id: user.id, payload: { display_name: displayName || null, role } });
         toast.success('อัปเดตผู้ใช้เรียบร้อยแล้ว');
       } else {
         const err = validateCreateMode({ sendInvite, password });
