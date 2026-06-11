@@ -22,9 +22,11 @@ import {
   TRANSITION_LABEL,
 } from "../lifecycle";
 import { useAgencies, useUpdateAgencyStatus } from "../useAgencies";
+import { ConnectionTab } from "./ConnectionTab";
 import { HealthTab } from "./HealthTab";
 import { LogsTab } from "./LogsTab";
 import { OverviewTab } from "./OverviewTab";
+import { RoutingTab } from "./RoutingTab";
 
 export default function AgencyDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -136,10 +138,10 @@ export default function AgencyDetailPage() {
           <HealthTab agencyId={agency.id} />
         </TabsContent>
         <TabsContent value="connection">
-          <p className="text-sm text-muted-foreground">(Connection tab — Task 14)</p>
+          <ConnectionTab agency={agency} />
         </TabsContent>
         <TabsContent value="routing">
-          <p className="text-sm text-muted-foreground">(Routing tab — Task 14)</p>
+          <RoutingTab agency={agency} />
         </TabsContent>
         <TabsContent value="logs">
           <LogsTab agencyId={agency.id} />
