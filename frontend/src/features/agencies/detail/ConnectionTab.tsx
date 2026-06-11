@@ -41,7 +41,7 @@ export function ConnectionTab({ agency }: { agency: Agency }) {
     <div className="space-y-5 max-w-lg">
       <div className="space-y-1.5">
         <Label htmlFor="conn-endpoint">Endpoint URL</Label>
-        <Input id="conn-endpoint" value={endpointUrl} onChange={(e) => setEndpointUrl(e.target.value)} />
+        <Input id="conn-endpoint" placeholder="https://…" value={endpointUrl} onChange={(e) => setEndpointUrl(e.target.value)} />
       </div>
 
       {agency.connectionType === "API" && (
@@ -55,6 +55,7 @@ export function ConnectionTab({ agency }: { agency: Agency }) {
             <Textarea
               id="conn-payload"
               rows={5}
+              placeholder='{"query": "__query__", "session_id": "__session_id__"}'
               value={payloadRaw}
               onChange={(e) => setPayloadRaw(e.target.value)}
               className="font-mono text-xs"
@@ -67,7 +68,7 @@ export function ConnectionTab({ agency }: { agency: Agency }) {
       {agency.connectionType === "MCP" && (
         <div className="space-y-1.5">
           <Label htmlFor="conn-tool">MCP tool</Label>
-          <Input id="conn-tool" value={mcpToolName} onChange={(e) => setMcpToolName(e.target.value)} className="font-mono" />
+          <Input id="conn-tool" placeholder="เช่น chat_with_agency" value={mcpToolName} onChange={(e) => setMcpToolName(e.target.value)} className="font-mono" />
         </div>
       )}
 

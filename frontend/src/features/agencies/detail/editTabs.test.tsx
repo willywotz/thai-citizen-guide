@@ -43,6 +43,12 @@ describe("ConnectionTab", () => {
       ),
     );
   });
+
+  it("shows wizard-style gray placeholders for empty connection fields", () => {
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    expect(screen.getByPlaceholderText("https://…")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/"query": "__query__"/)).toBeInTheDocument();
+  });
 });
 
 describe("RoutingTab", () => {
@@ -72,5 +78,13 @@ describe("RoutingTab", () => {
     await waitFor(() =>
       expect(mockAgencies.find((a) => a.id === ACTIVE_ID)!.data_scope).toContain("ภาษีมูลค่าเพิ่ม"),
     );
+  });
+
+  it("shows wizard-style gray placeholders for empty routing fields", () => {
+    render(wrap(<RoutingTab agency={activeAgency()} />));
+    expect(screen.getByPlaceholderText(/อธิบายว่าหน่วยงานนี้ตอบคำถาม/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("เช่น 1")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("ค่าเริ่มต้นระบบ")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("ไม่จำกัด")).toBeInTheDocument();
   });
 });
