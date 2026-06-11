@@ -39,7 +39,7 @@ class Agency(BaseModel):
     currentLatency: float
     avgLatency: float
     errorRate: float
-    requestsPerMin: int
+    requestsPerMin: float
     lastCheckedAt: datetime
 
 class Incident(BaseModel):

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import timedelta
 
 import httpx
@@ -11,6 +12,8 @@ from app.utils import now
 from app.models import Agency, Conversation, Message, ConnectionLog
 from app.schemas.insight import AgencyHealthData, Agency as AgencyHealth
 from app.schemas.executive_summary import ExecutiveData, ExecutiveKPIs
+
+logger = logging.getLogger(__name__)
 
 
 async def get_dashboard_stats() -> dict:
@@ -104,12 +107,16 @@ async def get_agency_health() -> AgencyHealthData:
                 .values("avg_latency")
             avgLatency = avgLatency[0]["avg_latency"] if len(avgLatency) > 0 and avgLatency[0]["avg_latency"] is not None else 0
 
-            errorRate = await ConnectionLog \
-                .annotate(error_count=RawSQL("SUM(CASE WHEN status >= 'success' THEN 1 ELSE 0 END)"), total_count=RawSQL("COUNT(*)")) \
+            # Assumption: status == 'success' marks success; anything else is a failure.
+            # Consistent with ConnectionLog usage elsewhere ("success" on HTTP 200, "error" otherwise).
+            errorRateRow = await ConnectionLog \
+                .annotate(error_count=RawSQL("SUM(CASE WHEN status <> 'success' THEN 1 ELSE 0 END)"), total_count=RawSQL("COUNT(*)")) \
                 .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=7)) \
                 .group_by("agency_id") \
                 .values("error_count", "total_count")
-            errorRate = (errorRate[0]["error_count"] / errorRate[0]["total_count"]) if len(errorRate) > 0 and errorRate[0]["total_count"] > 0 else 0
+            total_count = errorRateRow[0]["total_count"] if len(errorRateRow) > 0 else 0
+            error_count = errorRateRow[0]["error_count"] if len(errorRateRow) > 0 else 0
+            errorRate = (error_count / total_count * 100) if total_count > 0 else 0
 
             totalDayRequest = await ConnectionLog.filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)).count()
 
@@ -122,7 +129,9 @@ async def get_agency_health() -> AgencyHealthData:
                 currentLatency=currentLatency // 1,
                 avgLatency=avgLatency // 1,
                 errorRate=round(errorRate, 2),
-                requestsPerMin=totalDayRequest // (settings.AVG_LATENCY_WINDOW_DAYS * 1440),
+                # Float division: low-traffic agencies (< AVG_LATENCY_WINDOW_DAYS*1440 requests)
+                # would floor to 0 with integer division; use round() for a meaningful rate.
+                requestsPerMin=round(totalDayRequest / (settings.AVG_LATENCY_WINDOW_DAYS * 1440), 2),
                 lastCheckedAt=now()
             ))
 
@@ -181,7 +190,7 @@ async def _get_weekly_brief(content: str) -> str:
 
             weekly_brief = resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
-            print(f"Error generating weekly brief: {e}")
+            logger.error("Error generating weekly brief: %s", e)
             weekly_brief = "ไม่สามารถสร้างสรุปประจำสัปดาห์ได้ในขณะนี้"
 
         _weekly_brief_cache = weekly_brief
@@ -194,8 +203,12 @@ async def get_executive_summary() -> ExecutiveData:
     async with in_transaction() as conn:
         await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
 
+        # (now().month - 1) is 0 in January, which is an invalid month value.
+        # Use modular arithmetic so January wraps to December (month 12).
+        prev_month = (now().month - 2) % 12 + 1
+
         thisMonthQuestions = await Message.filter(role="user", created_at__month=now().month).count()
-        lastMonthQuestions = await Message.filter(role="user", created_at__month=now().month - 1).count()
+        lastMonthQuestions = await Message.filter(role="user", created_at__month=prev_month).count()
         thisYearQuestions = await Message.filter(role="user", created_at__year=now().year).count()
         lastYearQuestions = await Message.filter(role="user", created_at__year=now().year - 1).count()
 
@@ -203,7 +216,7 @@ async def get_executive_summary() -> ExecutiveData:
         yoyGrowthQuestions = ((thisYearQuestions - lastYearQuestions) / lastYearQuestions * 100) if lastYearQuestions > 0 else thisYearQuestions * 100.0
 
         thisMonthCitizens = await Conversation.filter(created_at__month=now().month).count()
-        lastMonthCitizens = await Conversation.filter(created_at__month=now().month - 1).count()
+        lastMonthCitizens = await Conversation.filter(created_at__month=prev_month).count()
         thisYearCitizens = await Conversation.filter(created_at__year=now().year).count()
         lastYearCitizens = await Conversation.filter(created_at__year=now().year - 1).count()
 
