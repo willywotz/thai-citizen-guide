@@ -16,13 +16,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status, Depends
-from app.auth.dependencies import require_admin
+from fastapi import APIRouter, Depends, HTTPException, status
+from app.auth.dependencies import get_current_user, require_admin
 from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
 from app.config import settings
-from app.auth.dependencies import get_current_user
 from app.auth.security import (
     create_access_token,
     generate_reset_token,
@@ -31,7 +30,6 @@ from app.auth.security import (
     verify_password,
 )
 from app.services.email import send_password_reset_email
-from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 

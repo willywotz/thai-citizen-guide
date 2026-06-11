@@ -78,35 +78,6 @@ async def test_email_not_sent_expose_true_includes_reset_token():
 
 
 # ---------------------------------------------------------------------------
-# Legacy behaviour — email disabled (returns False) + EXPOSE True → token returned
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_reset_token_included_when_flag_true():
-    """Response dict contains reset_token when EXPOSE_PASSWORD_RESET_TOKEN is True and email not sent."""
-    from app.routers import auth as auth_module
-    from app.config import settings
-
-    mock_user = _make_mock_user()
-
-    with patch.object(settings, "EXPOSE_PASSWORD_RESET_TOKEN", True), \
-         patch.object(auth_module, "generate_reset_token", return_value="tok-abc"), \
-         patch.object(auth_module, "reset_token_expiry", return_value=None), \
-         patch("app.models.user.User.filter") as mock_filter, \
-         patch.object(auth_module, "send_password_reset_email", AsyncMock(return_value=False)):
-
-        mock_filter.return_value.first = AsyncMock(return_value=mock_user)
-
-        request = MagicMock()
-        request.email = "test@example.com"
-
-        result = await auth_module.forgot_password(request)
-
-    assert "reset_token" in result
-    assert result["reset_token"] == "tok-abc"
-
-
-# ---------------------------------------------------------------------------
 # EXPOSE False + no email → token NOT returned
 # ---------------------------------------------------------------------------
 
