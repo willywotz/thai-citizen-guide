@@ -55,8 +55,11 @@ export default function AgenciesPage() {
     try {
       const result = await testMutation.mutateAsync({ agencyId: agency.id });
       setTestResults((prev) => ({ ...prev, [agency.id]: result }));
-    } catch {
-      setTestResults((prev) => ({ ...prev, [agency.id]: { success: false, error: "Connection failed" } as TestResult }));
+    } catch (err: unknown) {
+      setTestResults((prev) => ({
+        ...prev,
+        [agency.id]: { success: false, error: err instanceof Error ? err.message : "Connection failed" },
+      }));
     } finally {
       setTestingId(null);
     }
@@ -133,6 +136,8 @@ export default function AgenciesPage() {
 
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">กำลังโหลด...</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">ไม่พบหน่วยงาน</div>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {filtered.map((agency) => (
