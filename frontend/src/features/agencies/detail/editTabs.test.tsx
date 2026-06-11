@@ -43,6 +43,12 @@ describe("ConnectionTab", () => {
       ),
     );
   });
+
+  it("shows wizard-style gray placeholders for empty connection fields", () => {
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    expect(screen.getByPlaceholderText("https://…")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/"query": "__query__"/)).toBeInTheDocument();
+  });
 });
 
 describe("RoutingTab", () => {
