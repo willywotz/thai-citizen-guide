@@ -36,9 +36,13 @@ from app.schemas.agency import (
     AgencyUpdate,
     HealthHistoryBucket,
     HealthHistoryResponse,
+    McpDiscoverRequest,
+    McpDiscoverResponse,
+    McpToolInfo,
     StatusUpdateRequest,
 )
 from app.services.agency_health import embedded_health, health_history
+from app.services.mcp_discovery import discover_tools
 from app.services.agency_lifecycle import is_legal_transition
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
@@ -78,6 +82,24 @@ async def list_agencies(
 
     data = [await _with_health(a) for a in agencies]
     return AgencyListResponse(data=data, total=total)
+
+
+# ---------------------------------------------------------------------------
+# MCP tool discovery
+#
+# NOTE: must be registered BEFORE any "/{agency_id}" route, otherwise FastAPI
+# matches "mcp" as an agency_id UUID path parameter.
+# ---------------------------------------------------------------------------
+
+@router.post("/mcp/discover", response_model=McpDiscoverResponse, summary="Discover MCP tools at an endpoint")
+async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin)):
+    if not body.endpoint_url.strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="endpoint_url is required")
+    try:
+        tools = await discover_tools(body.endpoint_url)
+    except Exception as exc:  # noqa: BLE001 — surface any MCP/connection failure to the client
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"MCP discovery failed: {exc}")
+    return McpDiscoverResponse(tools=[McpToolInfo(**t) for t in tools])
 
 
 # ---------------------------------------------------------------------------
