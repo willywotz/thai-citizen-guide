@@ -27,6 +27,18 @@ class Settings(BaseSettings):
     RESET_TOKEN_BYTES: int = 32
     EXPOSE_PASSWORD_RESET_TOKEN: bool = True  # Set False in production; deliver token by email instead
 
+    # ── Email ────────────────────────────────────────────────────────────────
+    EMAIL_SMTP_HOST: str = ""          # empty = email disabled (non-breaking default)
+    EMAIL_SMTP_PORT: int = 587
+    EMAIL_SMTP_USER: str = ""
+    EMAIL_SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = ""               # falls back to EMAIL_SMTP_USER if empty
+    EMAIL_USE_TLS: bool = True
+    EMAIL_USE_SSL: bool = False
+    EMAIL_SMTP_TIMEOUT: int = 10
+    # Must match the deployed frontend origin (same as the relevant CORS origin) or reset-email links will point to the wrong host.
+    FRONTEND_BASE_URL: str = "http://localhost:8080"
+
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_API_URL: str = "https://openrouter.ai/api/v1/chat/completions"
@@ -116,6 +128,7 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
     "Database": ["DATABASE_URL"],
     "CORS": ["CORS_ORIGINS"],
     "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES", "EXPOSE_PASSWORD_RESET_TOKEN"],
+    "Email": ["EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_USE_TLS", "EMAIL_USE_SSL", "EMAIL_SMTP_TIMEOUT", "FRONTEND_BASE_URL"],
     "LLM / OpenRouter": ["OPENROUTER_API_KEY", "OPENROUTER_API_URL", "CLASSIFICATION_MODEL", "LLM_CALL_TIMEOUT"],
     "Parse spec": ["PARSE_SPEC_URL", "PARSE_SPEC_API_KEY", "PARSE_SPEC_TIMEOUT", "PARSE_SPEC_LLM_MODEL"],
     "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "MCP_ENDPOINT_URL"],
@@ -129,6 +142,7 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
 
 SECRET_FIELD_NAMES: set[str] = {
     "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY", "EMBEDDING_API_KEY",
+    "EMAIL_SMTP_PASSWORD",
 }
 
 settings = Settings()

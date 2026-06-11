@@ -16,13 +16,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status, Depends
-from app.auth.dependencies import require_admin
+from fastapi import APIRouter, Depends, HTTPException, status
+from app.auth.dependencies import get_current_user, require_admin
 from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
 from app.config import settings
-from app.auth.dependencies import get_current_user
 from app.auth.security import (
     create_access_token,
     generate_reset_token,
@@ -30,7 +29,7 @@ from app.auth.security import (
     reset_token_expiry,
     verify_password,
 )
-from app.models.user import User
+from app.services.email import send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -167,9 +166,10 @@ async def forgot_password(body: ForgotPasswordRequest) -> dict:
     user.reset_token_expires = reset_token_expiry()
     await user.save(update_fields=["reset_token", "reset_token_expires"])
 
-    # Production: set EXPOSE_PASSWORD_RESET_TOKEN=False and deliver token by email instead.
-    response: dict = {"message": "สร้าง token รีเซ็ตรหัสผ่านเรียบร้อยแล้ว"}
-    if settings.EXPOSE_PASSWORD_RESET_TOKEN:
+    emailed = await send_password_reset_email(user.email, token)
+
+    response: dict = {"message": "สร้าง token รีเซ็ตรหัสผ่านเรียบร้อยแล้ว", "email_sent": emailed}
+    if not emailed and settings.EXPOSE_PASSWORD_RESET_TOKEN:
         response["reset_token"] = token
     return response
 
