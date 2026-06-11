@@ -77,6 +77,24 @@ async def test_generate_embedding_timeout_retries_three_times():
     assert MockClient.call_count == 3
 
 
+@pytest.mark.asyncio
+async def test_generate_embedding_connect_error_retries_three_times():
+    from app.config import settings
+    from app.services.embedding import generate_embedding
+
+    with patch.object(settings, "EMBEDDING_API_KEY", "key"), \
+         patch("app.services.embedding.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("refused"))
+        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        result = await generate_embedding("hello")
+
+    assert result is None
+    assert mock_client.post.await_count == 3
+    assert MockClient.call_count == 3
+
+
 def test_encode_embedding_returns_json_string():
     from app.services.embedding import encode_embedding
 
