@@ -9,6 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import settings
 from app.models import Agency, ConnectionLog
+from app.services.agency import test_connection
 from app.services.analytics import regenerate_weekly_brief
 from app.utils import generate_uuid, now
 
@@ -19,6 +20,8 @@ sem: asyncio.Semaphore | None = None
 async def agency_chat_item(agency: Agency) -> None:
     try:
         async with sem:
+            if agency.status in ("draft", "disabled"):
+                return
             if agency.connection_type == "API":
                 scope = agency.data_scope or ["ทั่วไป"]
                 scope = scope[random.randint(0, len(scope) - 1)] if scope else "ทั่วไป"
@@ -53,6 +56,21 @@ async def agency_chat_item(agency: Agency) -> None:
                         request_body=json.dumps(payload),
                         response_body=resp.text,
                     )
+            elif agency.connection_type in ("MCP", "A2A"):
+                result = await test_connection(agency.connection_type, agency)
+                try:
+                    latency = int(str(result.get("latency", "0")).rstrip("ms"))
+                except ValueError:
+                    latency = 0
+                await ConnectionLog.create(
+                    id=str(generate_uuid()),
+                    agency=agency,
+                    action="test",
+                    connection_type=agency.connection_type,
+                    status="success" if result.get("success") else "error",
+                    latency_ms=latency,
+                    detail=result.get("error") or "ok",
+                )
     except Exception as e:
         print(f"Error testing agency {agency.name}: {e}")
 
