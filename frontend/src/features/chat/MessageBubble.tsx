@@ -3,7 +3,6 @@ import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp } from "lucide-reac
 import { Button } from "@/shared/components/ui/button";
 import { cn, parseThinkContent } from "@/shared/lib/utils";
 import type { ChatMessage } from "@/shared/types";
-// import { AgentStepDisplay } from "./AgentStepDisplay";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -25,12 +24,6 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
 
   return (
     <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
-      {/* <div className={cn(
-        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm",
-        isUser ? "bg-primary text-primary-foreground" : "gov-gradient text-white"
-      )}>
-        {isUser ? '👤' : 'AI'}
-      </div> */}
       {isUser
         ? <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm bg-primary text-primary-foreground">👤</div>
         : <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />}
@@ -41,7 +34,6 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm"
         )}>
-          {/* {!isUser && message.agentSteps && <AgentStepDisplay steps={message.agentSteps} visibleCount={message.agentSteps.length + 1} />} */}
           {!isUser && thinking && (
             <div className="mb-2 rounded-lg border border-border bg-muted/40 overflow-hidden">
               <button

@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/shared/lib/apiClient';
-// import { agencies as mockAgencies } from '@/shared/data/mockData';
 import type { Agency } from '@/shared/types';
 import type {
   AgencyLifecycleStatus,
