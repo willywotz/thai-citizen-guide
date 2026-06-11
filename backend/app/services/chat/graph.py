@@ -2,15 +2,13 @@ import asyncio
 import json
 import operator
 import re
-import uuid
 from dataclasses import dataclass, field
 from typing import Annotated
 
-import httpx
 from langgraph.graph import END, START, StateGraph
 
-from app.config import settings
 from app.models.agency import Agency
+from app.services.chat.dispatch import dispatch_one
 from app.services.chat.llm import build_router_prompt, call_llm
 
 
@@ -51,43 +49,13 @@ async def route_query(state: AgentState) -> dict:
         ag = agency_map.get(route["agency_id"], {})
         route["endpoint_url"] = ag.get("endpoint_url", route.get("endpoint_url", ""))
         route["expected_payload"] = ag.get("expected_payload", route.get("expected_payload", {}))
+        route["api_headers"] = ag.get("api_headers", route.get("api_headers", []))
 
     return {"routes": routes}
 
 
 async def dispatch_to_agencies(state: AgentState) -> dict:
-    async def call_agency(route: dict) -> dict:
-        conn = route["connection_type"]
-        sub_q = route["sub_question"]
-        name = route["agency_name"]
-
-        try:
-            if conn == "A2A":
-                async with httpx.AsyncClient(timeout=settings.A2A_DISPATCH_TIMEOUT) as client:
-                    resp = await client.post(
-                        route["endpoint_url"],
-                        json={
-                            "session_id": str(uuid.uuid4()),
-                            "query": f"ให้ระบุแหล่งที่มาของข้อมูลในคำตอบด้วยเสมอ\n\nคำถาม: {sub_q}",
-                        },
-                        headers={"Content-Type": "application/json"},
-                    )
-                    return {"agency": name, "response": resp.json(), "status": "ok"}
-
-            if conn == "API":
-                # TODO: implement real API agency dispatch
-                raise NotImplementedError("API agency dispatch not yet implemented")
-
-            if conn == "MCP":
-                # TODO: implement real MCP agency dispatch
-                raise NotImplementedError("MCP agency dispatch not yet implemented")
-
-            return {"agency": name, "response": f"Unknown connection_type: {conn}", "status": "error"}
-
-        except Exception as e:
-            return {"agency": name, "response": str(e), "status": "error"}
-
-    tasks = [call_agency(route) for route in state.routes]
+    tasks = [dispatch_one(route, state.conversation_id) for route in state.routes]
     results = await asyncio.gather(*tasks)
     return {"results": list(results)}
 
