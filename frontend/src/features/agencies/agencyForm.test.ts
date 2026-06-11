@@ -281,7 +281,8 @@ describe("buildSavePayload", () => {
     expect(payload.authMethod).toBeUndefined();
     expect(payload.authHeader).toBeUndefined();
     expect(payload.apiEndpoints).toBeUndefined();
-    expect(payload.rateLimitRpm).toBeUndefined();
+    // rateLimitRpm is a routing field (base), so it persists for non-API types too.
+    expect(payload.rateLimitRpm).toBe(60);
   });
 
   it("excludes API-specific fields for A2A connectionType", () => {

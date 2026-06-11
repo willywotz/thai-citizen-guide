@@ -136,7 +136,7 @@ export function firstIncompleteStep(s: AgencyFormState): WizardStepId {
   return "test";
 }
 
-function parseIntOrNull(raw: string): number | null {
+export function parseIntOrNull(raw: string): number | null {
   const n = raw.trim() ? parseInt(raw, 10) : NaN;
   return Number.isNaN(n) ? null : n;
 }
@@ -163,6 +163,7 @@ export function buildSavePayload(
     routerHint: state.routerHint,
     dispatchTimeoutS: parseIntOrNull(state.dispatchTimeoutS),
     mcpToolName: state.connectionType === "MCP" ? state.mcpToolName || null : null,
+    rateLimitRpm: parseIntOrNull(state.rateLimitRpm),
   };
 
   if (state.connectionType === "API") {
@@ -171,7 +172,6 @@ export function buildSavePayload(
       authMethod: state.authMethod,
       authHeader: state.authHeader,
       basePath: state.basePath,
-      rateLimitRpm: parseIntOrNull(state.rateLimitRpm),
       requestFormat: state.requestFormat,
       apiEndpoints: state.apiEndpoints.filter((ep) => ep.path),
       responseSchema: state.responseSchema.filter((f) => f.field),

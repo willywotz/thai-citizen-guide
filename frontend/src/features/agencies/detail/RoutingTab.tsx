@@ -8,12 +8,8 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import type { Agency } from "@/shared/types/agency";
 
 import { DataScopeEditor } from "../DataScopeEditor";
+import { parseIntOrNull } from "../agencyForm";
 import { useUpdateAgency } from "../useAgencies";
-
-function parseIntOrNull(raw: string): number | null {
-  const n = raw.trim() ? parseInt(raw, 10) : NaN;
-  return Number.isNaN(n) ? null : n;
-}
 
 export function RoutingTab({ agency }: { agency: Agency }) {
   const updateMutation = useUpdateAgency();
