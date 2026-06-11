@@ -20,8 +20,8 @@ async def find_similar_question(
     """Find a similar question within SIMILARITY_WINDOW_SECONDS.
 
     Uses pgvector cosine similarity if embedding is provided.
-    Falls back to text similarity (levenshtein and/or trigram) if embedding is None.
-    Controlled by SIMILARITY_FALLBACK setting: "levenshtein", "trigram", or "both".
+    Falls back to text similarity if embedding is None.
+    Controlled by SIMILARITY_FALLBACK setting: "similarity", "levenshtein", or "both".
 
     Returns (user_message, assistant_message, connection_log) if a match is found above threshold,
     None otherwise.
