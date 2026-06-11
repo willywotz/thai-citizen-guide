@@ -32,6 +32,9 @@ async def test_generate_embedding_success():
         result = await generate_embedding("hello")
 
     assert result == [0.1, 0.2, 0.3]
+    call = mock_client.post.call_args
+    assert call.kwargs["headers"]["Authorization"] == "Bearer key"
+    assert call.kwargs["json"]["input"] == "hello"
 
 
 @pytest.mark.asyncio
@@ -41,7 +44,7 @@ async def test_generate_embedding_non_200_retries_three_times():
 
     mock_response = MagicMock()
     mock_response.status_code = 500
-    mock_response.text = "err"
+    mock_response.text = "err"  # consumed only by the logger on non-200
 
     with patch.object(settings, "EMBEDDING_API_KEY", "key"), \
          patch("app.services.embedding.httpx.AsyncClient") as MockClient:
@@ -53,6 +56,7 @@ async def test_generate_embedding_non_200_retries_three_times():
 
     assert result is None
     assert mock_client.post.await_count == 3
+    assert MockClient.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -70,6 +74,7 @@ async def test_generate_embedding_timeout_retries_three_times():
 
     assert result is None
     assert mock_client.post.await_count == 3
+    assert MockClient.call_count == 3
 
 
 def test_encode_embedding_returns_json_string():
