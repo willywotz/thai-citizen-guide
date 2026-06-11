@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
+import asyncio
 
 
 def test_should_dispatch_with_routes():
@@ -55,65 +56,105 @@ async def test_route_query_strips_think_and_fences_and_enriches():
     assert routes[0]["expected_payload"] == {"q": "__query__"}
     assert routes[0]["sub_question"] == "ค่าธรรมเนียม"
     assert routes[0]["agency_name"] == "กรมขนส่ง"
+    assert routes[0]["api_headers"] == []
 
 
 @pytest.mark.asyncio
-async def test_dispatch_a2a_posts_and_returns_ok():
+async def test_route_query_enriches_api_headers_from_agency():
+    from app.services.chat.graph import AgentState, route_query
+
+    state = AgentState(
+        query="ภาษี",
+        agencies=[
+            {
+                "id": "a1",
+                "name": "กรมสรรพากร",
+                "description": "d",
+                "connection_type": "API",
+                "endpoint_url": "http://x",
+                "expected_payload": {},
+                "api_headers": [{"name": "X-Key", "value": "secret"}],
+                "data_scope": [],
+            }
+        ],
+    )
+    llm_content = (
+        '{"routes": [{"agency_id": "a1", "agency_name": "กรมสรรพากร", '
+        '"connection_type": "API", "sub_question": "ภาษีมูลค่าเพิ่ม"}]}'
+    )
+
+    with patch("app.services.chat.graph.call_llm", new=AsyncMock(return_value={"content": llm_content})):
+        result = await route_query(state)
+
+    routes = result["routes"]
+    assert routes[0]["api_headers"] == [{"name": "X-Key", "value": "secret"}]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_to_agencies_calls_dispatch_one_per_route():
     from app.services.chat.graph import AgentState, dispatch_to_agencies
 
-    state = AgentState(routes=[{
-        "connection_type": "A2A", "sub_question": "q",
-        "agency_name": "A", "endpoint_url": "http://x",
-    }])
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"answer": "ok"}
+    routes = [
+        {"connection_type": "A2A", "sub_question": "q1", "agency_name": "A", "endpoint_url": "http://a"},
+        {"connection_type": "API", "sub_question": "q2", "agency_name": "B", "endpoint_url": "http://b"},
+    ]
+    state = AgentState(routes=routes, conversation_id="conv-test")
 
-    with patch("app.services.chat.graph.httpx.AsyncClient") as MockClient:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+    call_log = []
+
+    async def fake_dispatch_one(route, conversation_id):
+        call_log.append((route["agency_name"], conversation_id))
+        return {"agency": route["agency_name"], "response": "ok", "status": "ok"}
+
+    with patch("app.services.chat.graph.dispatch_one", side_effect=fake_dispatch_one):
         result = await dispatch_to_agencies(state)
 
-    res = result["results"][0]
-    assert res["status"] == "ok"
-    assert res["response"] == {"answer": "ok"}
-    assert res["agency"] == "A"
-    call = mock_client.post.call_args
-    assert call.args[0] == "http://x"
-    assert "q" in call.kwargs["json"]["query"]
-    assert call.kwargs["headers"]["Content-Type"] == "application/json"
+    assert len(result["results"]) == 2
+    assert {r["agency"] for r in result["results"]} == {"A", "B"}
+    assert call_log == [("A", "conv-test"), ("B", "conv-test")]
 
 
 @pytest.mark.asyncio
-async def test_dispatch_api_returns_not_implemented_error():
-    # NOTE: characterizes current (stub) behavior — API dispatch is a TODO.
-    # Sub-project #2 will replace this; this test is its regression safety net.
+async def test_dispatch_api_real_path_returns_ok():
     from app.services.chat.graph import AgentState, dispatch_to_agencies
 
-    state = AgentState(routes=[{
-        "connection_type": "API", "sub_question": "q",
-        "agency_name": "A", "endpoint_url": "http://x",
-    }])
-    result = await dispatch_to_agencies(state)
-    res = result["results"][0]
-    assert res["status"] == "error"
-    assert "not yet implemented" in res["response"]
+    state = AgentState(
+        routes=[{
+            "connection_type": "API", "sub_question": "q",
+            "agency_name": "A", "endpoint_url": "http://x",
+            "api_headers": None, "expected_payload": {},
+        }],
+        conversation_id="c1",
+    )
+
+    with patch("app.services.chat.graph.dispatch_one", new=AsyncMock(
+        return_value={"agency": "A", "response": {"data": "result"}, "status": "ok"}
+    )):
+        result = await dispatch_to_agencies(state)
+
+    assert result["results"][0]["status"] == "ok"
+    assert result["results"][0]["response"] == {"data": "result"}
 
 
 @pytest.mark.asyncio
-async def test_dispatch_mcp_returns_not_implemented_error():
-    # NOTE: characterizes current (stub) behavior — MCP dispatch is a TODO.
+async def test_dispatch_mcp_real_path_returns_ok():
     from app.services.chat.graph import AgentState, dispatch_to_agencies
 
-    state = AgentState(routes=[{
-        "connection_type": "MCP", "sub_question": "q",
-        "agency_name": "A", "endpoint_url": "http://x",
-    }])
-    result = await dispatch_to_agencies(state)
-    res = result["results"][0]
-    assert res["status"] == "error"
-    assert "not yet implemented" in res["response"]
+    state = AgentState(
+        routes=[{
+            "connection_type": "MCP", "sub_question": "q",
+            "agency_name": "A", "endpoint_url": "http://x",
+        }],
+        conversation_id="c1",
+    )
+
+    with patch("app.services.chat.graph.dispatch_one", new=AsyncMock(
+        return_value={"agency": "A", "response": "mcp text", "status": "ok"}
+    )):
+        result = await dispatch_to_agencies(state)
+
+    assert result["results"][0]["status"] == "ok"
+    assert result["results"][0]["response"] == "mcp text"
 
 
 @pytest.mark.asyncio
