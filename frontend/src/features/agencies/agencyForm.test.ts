@@ -7,7 +7,6 @@ import {
   buildSavePayload,
   canActivate,
   firstIncompleteStep,
-  isFormValid,
   isStepConnectionValid,
   isStepGeneralValid,
   parseExpectedPayload,
@@ -152,33 +151,6 @@ describe("agencyToFormState", () => {
   it("maps rateLimitRpm=0 to '0' (falsy number edge case)", () => {
     const agency: Agency = { ...API_AGENCY, rateLimitRpm: 0 };
     expect(agencyToFormState(agency).rateLimitRpm).toBe("0");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// isFormValid
-// ---------------------------------------------------------------------------
-
-describe("isFormValid", () => {
-  it("returns true when both name and shortName are non-empty", () => {
-    expect(isFormValid({ name: "Test", shortName: "T" })).toBe(true);
-  });
-
-  it("returns false when name is empty", () => {
-    expect(isFormValid({ name: "", shortName: "T" })).toBe(false);
-  });
-
-  it("returns false when shortName is empty", () => {
-    expect(isFormValid({ name: "Test", shortName: "" })).toBe(false);
-  });
-
-  it("returns false when both are empty", () => {
-    expect(isFormValid({ name: "", shortName: "" })).toBe(false);
-  });
-
-  it("trims whitespace before validation", () => {
-    expect(isFormValid({ name: "  ", shortName: "T" })).toBe(false);
-    expect(isFormValid({ name: "Test", shortName: "  " })).toBe(false);
   });
 });
 

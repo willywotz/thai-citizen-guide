@@ -35,26 +35,6 @@ export interface AgencyFormState {
 }
 
 // ---------------------------------------------------------------------------
-// Parse-spec API response types
-// ---------------------------------------------------------------------------
-
-export interface ParsedSpec {
-  auth_method?: string;
-  auth_header?: string;
-  base_path?: string;
-  rate_limit_rpm?: number;
-  request_format?: string;
-  endpoints?: ApiEndpoint[];
-  response_schema?: ResponseField[];
-  expected_payload?: Record<string, unknown>;
-}
-
-export interface ParseSpecResponse {
-  success: boolean;
-  data?: ParsedSpec;
-}
-
-// ---------------------------------------------------------------------------
 // Default form state
 // ---------------------------------------------------------------------------
 
@@ -118,14 +98,6 @@ export function agencyToFormState(agency: Agency): AgencyFormState {
     dispatchTimeoutS: agency.dispatchTimeoutS != null ? String(agency.dispatchTimeoutS) : "",
     mcpToolName: agency.mcpToolName ?? "",
   };
-}
-
-// ---------------------------------------------------------------------------
-// Validate form (returns true if valid)
-// ---------------------------------------------------------------------------
-
-export function isFormValid(state: Pick<AgencyFormState, "name" | "shortName">): boolean {
-  return Boolean(state.name.trim() && state.shortName.trim());
 }
 
 // ---------------------------------------------------------------------------
