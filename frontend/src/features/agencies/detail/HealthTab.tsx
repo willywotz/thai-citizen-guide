@@ -79,8 +79,8 @@ export function HealthTab({ agencyId }: { agencyId: string }) {
                   type="monotone"
                   dataKey="uptimePct"
                   name="uptime %"
-                  stroke="hsl(152, 55%, 42%)"
-                  fill="hsl(152, 55%, 42%, 0.15)"
+                  stroke="hsl(152 55% 42%)"
+                  fill="hsl(152 55% 42% / 0.15)"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -102,7 +102,7 @@ export function HealthTab({ agencyId }: { agencyId: string }) {
                 <XAxis dataKey="time" tick={{ fontSize: 10 }} minTickGap={32} />
                 <YAxis tick={{ fontSize: 10 }} width={40} />
                 <Tooltip />
-                <Line type="monotone" dataKey="avgLatencyMs" name="latency ms" stroke="hsl(213, 70%, 45%)" dot={false} />
+                <Line type="monotone" dataKey="avgLatencyMs" name="latency ms" stroke="hsl(213 70% 45%)" dot={false} />
               </LineChart>
             </ResponsiveContainer>
           )}
