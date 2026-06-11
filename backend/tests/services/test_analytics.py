@@ -160,6 +160,48 @@ async def test_get_weekly_brief_returns_fallback_on_http_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_get_agency_health_error_rate_and_uptime_values():
+    """Pin the corrected error-rate / uptime math: 1 failure out of 10 -> 10.0% / 90.0%."""
+    from app.schemas.insight import AgencyHealthData
+    from app.services import analytics
+
+    conn = MagicMock()
+    conn.execute_query = AsyncMock()
+
+    agency = MagicMock()
+    agency.all.return_value = MagicMock(values=AsyncMock(return_value=[
+        {"id": "ag-1", "name": "A", "short_name": "A", "status": "active"},
+    ]))
+
+    # Per-agency call order:
+    #   values[0] -> currentLatency  (.annotate.filter.group_by.values)
+    #   values[1] -> avgLatency      (.annotate.filter.group_by.values)
+    #   values[2] -> errorRate row   (.annotate.filter.group_by.values)
+    #   count[0]  -> totalDayRequest (.filter.count)
+    # After the loop:
+    #   values[3] -> rawHistorical   (.annotate.filter.group_by.values)
+    conn_log = _make_query_mock(
+        count_values=[4320],
+        values_values=[
+            [{"avg_latency": 100}],
+            [{"avg_latency": 120}],
+            [{"error_count": 1, "total_count": 10}],
+            [],
+        ],
+    )
+
+    with patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)), \
+         patch.object(analytics, "Agency", agency), \
+         patch.object(analytics, "ConnectionLog", conn_log):
+        result = await analytics.get_agency_health()
+
+    assert isinstance(result, AgencyHealthData)
+    ag = result.agencies[0]
+    assert ag.errorRate == 10.0
+    assert ag.uptime == 90.0
+
+
+@pytest.mark.asyncio
 async def test_get_executive_summary_january_month_boundary():
     """prev_month must be 12 in January, not 0."""
     from app.services import analytics
