@@ -1,0 +1,53 @@
+import { api } from '@/shared/lib/apiClient';
+
+export type UserRole = 'user' | 'admin';
+
+export interface ManagedUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  avatarUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface UserListParams {
+  search?: string;
+  role?: UserRole;
+  status?: 'active' | 'inactive' | 'all';
+}
+
+export interface CreateUserPayload {
+  email: string;
+  role: UserRole;
+  display_name?: string | null;
+  password?: string;
+  send_invite?: boolean;
+}
+
+export interface UpdateUserPayload {
+  display_name?: string | null;
+  role?: UserRole;
+}
+
+export async function listUsers(params: UserListParams): Promise<ManagedUser[]> {
+  const res = await api.get<{ data: ManagedUser[]; total: number }>('/api/v1/users', params);
+  return res.data;
+}
+
+export async function createUser(payload: CreateUserPayload): Promise<{ user: ManagedUser; email_sent?: boolean; reset_token?: string }> {
+  return api.post('/api/v1/users', payload);
+}
+
+export async function updateUser(id: string, payload: UpdateUserPayload): Promise<ManagedUser> {
+  return api.patch(`/api/v1/users/${id}`, payload);
+}
+
+export async function deactivateUser(id: string): Promise<ManagedUser> {
+  return api.post(`/api/v1/users/${id}/deactivate`);
+}
+
+export async function activateUser(id: string): Promise<ManagedUser> {
+  return api.post(`/api/v1/users/${id}/activate`);
+}
