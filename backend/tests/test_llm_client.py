@@ -1,7 +1,10 @@
+from uuid import uuid4
+
 import httpx
 
 from app.models import LlmUsage
 from app.services import llm_client
+from app.services.usage_context import current_api_key_id, current_user_id
 
 
 class _FakeResponse:
@@ -30,9 +33,6 @@ async def test_openrouter_chat_records_usage(db, monkeypatch):
 
 
 async def test_records_attribution_from_context(db, monkeypatch):
-    from uuid import uuid4
-    from app.services.usage_context import current_user_id, current_api_key_id
-
     async def fake_post(self, url, **kwargs):
         return _FakeResponse()
 
@@ -51,3 +51,21 @@ async def test_records_attribution_from_context(db, monkeypatch):
     row = await LlmUsage.first()
     assert row.user_id == uid
     assert row.api_key_id == kid
+
+
+async def test_explicit_user_id_overrides_context(db, monkeypatch):
+    async def fake_post(self, url, **kwargs):
+        return _FakeResponse()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    explicit = uuid4()
+    ctx = uuid4()
+    tok = current_user_id.set(ctx)
+    try:
+        await llm_client.openrouter_chat(
+            {"model": "m", "messages": []}, purpose="classification", user_id=explicit,
+        )
+    finally:
+        current_user_id.reset(tok)
+    row = await LlmUsage.first()
+    assert row.user_id == explicit

@@ -46,7 +46,7 @@ async def _record_usage(resp, payload, purpose, user_id, agency_id, conversation
             user_id=user_id if user_id is not None else current_user_id.get(),
             agency_id=agency_id,
             conversation_id=conversation_id,
-            api_key_id=current_api_key_id.get(),
+            api_key_id=current_api_key_id.get(),  # api_key_id always comes from request context
         )
     except Exception:  # accounting must never break the chat path
         logger.exception("failed to record llm usage")
