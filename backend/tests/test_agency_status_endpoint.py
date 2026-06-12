@@ -48,3 +48,25 @@ async def test_manual_status_change_clears_auto_maintenance(db):
     await r.update_agency_status(ag.id, StatusUpdateRequest(status="active"), user=admin)
     refreshed = await Agency.get(id=ag.id)
     assert refreshed.auto_maintenance is False
+
+
+@pytest.mark.asyncio
+async def test_draft_to_active_blocked_without_conformance(db):
+    from app.errors import ApiError
+    admin = await _admin()
+    ag = await Agency.create(name="A", short_name="A", connection_type="API", status="draft")
+    with pytest.raises(ApiError) as exc:
+        await r.update_agency_status(ag.id, StatusUpdateRequest(status="active"), user=admin)
+    assert exc.value.code == "invalid_request"
+    assert "conformance" in exc.value.message
+
+
+@pytest.mark.asyncio
+async def test_draft_to_active_allowed_with_passing_conformance(db):
+    admin = await _admin()
+    ag = await Agency.create(
+        name="A", short_name="A", connection_type="API", status="draft",
+        conformance_report={"passed": True, "checks": []},
+    )
+    res = await r.update_agency_status(ag.id, StatusUpdateRequest(status="active"), user=admin)
+    assert res.status == "active"

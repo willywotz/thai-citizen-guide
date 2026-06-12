@@ -48,6 +48,7 @@ from app.schemas.agency import (
 from app.services.agency_health import embedded_health, health_history
 from app.services.log_sanitize import sanitize_body
 from app.services.mcp_discovery import discover_tools
+from app.errors import ApiError
 from app.services.agency_lifecycle import is_legal_transition
 
 logger = logging.getLogger(__name__)
@@ -182,10 +183,28 @@ async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, 
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Illegal status transition: {agency.status.value} → {body.status}",
         )
+    if agency.status.value == "draft" and body.status == "active":
+        report = agency.conformance_report or {}
+        if not report.get("passed"):
+            raise ApiError("invalid_request", "conformance test must pass before activation", status=400)
     agency.status = body.status
     agency.auto_maintenance = False
     await agency.save(update_fields=["status", "auto_maintenance", "updated_at"])
     return await _with_health(agency)
+
+
+# ---------------------------------------------------------------------------
+# Conformance battery
+# ---------------------------------------------------------------------------
+
+@router.post("/{agency_id}/conformance", summary="Run the conformance battery (owner or admin)")
+async def run_agency_conformance(agency_id: str, user: User = Depends(get_current_user)):
+    agency = await Agency.get_or_none(id=agency_id)
+    if agency is None:
+        raise HTTPException(status_code=404, detail="Agency not found")
+    await authorize_or_403(user, "agency:edit", agency)
+    from app.services.conformance import run_conformance
+    return await run_conformance(agency)
 
 
 # ---------------------------------------------------------------------------
