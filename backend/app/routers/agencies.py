@@ -21,7 +21,9 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.auth.dependencies import require_admin
+from app.auth.authz import authorize_or_403, grant
+from app.auth.dependencies import get_current_user, require_admin
+from app.models.relationship import Relationship
 from app.models.user import User
 from pydantic import BaseModel
 from tortoise.exceptions import DoesNotExist
@@ -46,6 +48,7 @@ from app.schemas.agency import (
 from app.services.agency_health import embedded_health, health_history
 from app.services.log_sanitize import sanitize_body
 from app.services.mcp_discovery import discover_tools
+from app.errors import ApiError
 from app.services.agency_lifecycle import is_legal_transition
 
 logger = logging.getLogger(__name__)
@@ -108,6 +111,36 @@ async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin
 
 
 # ---------------------------------------------------------------------------
+# Owner-scoped endpoints
+#
+# NOTE: must be registered BEFORE any "/{agency_id}" route, otherwise FastAPI
+# matches "mine" as an agency_id UUID path parameter.
+# ---------------------------------------------------------------------------
+
+class AddOwnerRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/{agency_id}/owners", summary="Assign an owner to an agency (admin)")
+async def add_agency_owner(agency_id: str, body: AddOwnerRequest, user: User = Depends(get_current_user)):
+    agency = await Agency.get_or_none(id=agency_id)
+    if agency is None:
+        raise HTTPException(status_code=404, detail="Agency not found")
+    await authorize_or_403(user, "user:manage", agency)
+    await grant(body.user_id, "owner", "agency", agency.id)
+    return {"detail": "owner added"}
+
+
+@router.get("/mine", response_model=list[AgencyResponse], summary="Agencies owned by the current user")
+async def list_my_agencies(user: User = Depends(get_current_user)) -> list[AgencyResponse]:
+    ids = await Relationship.filter(
+        subject_type="user", subject_id=user.id, relation="owner", object_type="agency"
+    ).values_list("object_id", flat=True)
+    agencies = await Agency.filter(id__in=list(ids))
+    return [await _with_health(a) for a in agencies]
+
+
+# ---------------------------------------------------------------------------
 # Get single
 # ---------------------------------------------------------------------------
 
@@ -139,20 +172,39 @@ async def agency_health_history(agency_id: uuid.UUID, window: str = "24h"):
 # ---------------------------------------------------------------------------
 
 @router.patch("/{agency_id}/status", response_model=AgencyResponse, summary="Transition agency lifecycle status")
-async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, _: User = Depends(require_admin)):
+async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, user: User = Depends(get_current_user)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    await authorize_or_403(user, "agency:change_status", agency)
     if not is_legal_transition(agency.status.value, body.status):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Illegal status transition: {agency.status.value} → {body.status}",
         )
+    if agency.status.value == "draft" and body.status == "active":
+        report = agency.conformance_report or {}
+        if not report.get("passed"):
+            raise ApiError("invalid_request", "conformance test must pass before activation", status=400)
     agency.status = body.status
     agency.auto_maintenance = False
     await agency.save(update_fields=["status", "auto_maintenance", "updated_at"])
     return await _with_health(agency)
+
+
+# ---------------------------------------------------------------------------
+# Conformance battery
+# ---------------------------------------------------------------------------
+
+@router.post("/{agency_id}/conformance", summary="Run the conformance battery (owner or admin)")
+async def run_agency_conformance(agency_id: str, user: User = Depends(get_current_user)):
+    agency = await Agency.get_or_none(id=agency_id)
+    if agency is None:
+        raise HTTPException(status_code=404, detail="Agency not found")
+    await authorize_or_403(user, "agency:edit", agency)
+    from app.services.conformance import run_conformance
+    return await run_conformance(agency)
 
 
 # ---------------------------------------------------------------------------
@@ -177,11 +229,12 @@ async def create_agency(body: AgencyCreate, _: User = Depends(require_admin)):
 # ---------------------------------------------------------------------------
 
 @router.put("/{agency_id}", response_model=AgencyResponse, summary="Replace agency")
-async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, _: User = Depends(require_admin)):
+async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = Depends(get_current_user)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    await authorize_or_403(user, "agency:edit", agency)
 
     data = body.model_dump()
     data["api_endpoints"] = [e.model_dump() for e in body.api_endpoints]
@@ -200,11 +253,12 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, _: User = Dep
 # ---------------------------------------------------------------------------
 
 @router.patch("/{agency_id}", response_model=AgencyResponse, summary="Partial update agency")
-async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, _: User = Depends(require_admin)):
+async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = Depends(get_current_user)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    await authorize_or_403(user, "agency:edit", agency)
 
     update_data = body.model_dump(exclude_unset=True)
 
@@ -238,11 +292,12 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, _: User = Depe
 # ---------------------------------------------------------------------------
 
 @router.delete("/{agency_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete agency")
-async def delete_agency(agency_id: uuid.UUID, _: User = Depends(require_admin)):
+async def delete_agency(agency_id: uuid.UUID, user: User = Depends(get_current_user)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    await authorize_or_403(user, "agency:delete", agency)
     await agency.delete()
 
 

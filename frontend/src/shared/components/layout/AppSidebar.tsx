@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck } from "lucide-react";
 import { NavLink } from "@/shared/components/NavLink";
 import {
   Sidebar,
@@ -28,6 +28,10 @@ const navItems = [
   { title: "ประวัติการเชื่อมต่อ", url: "/connection-logs", icon: Activity },
   { title: "Architecture", url: "/architecture", icon: Network },
   { title: "API Keys", url: "/api-keys", icon: KeyRound },
+];
+
+const ownerItems = [
+  { title: "หน่วยงานของฉัน", url: "/my-agencies", icon: BadgeCheck },
 ];
 
 const adminItems = [
@@ -78,6 +82,20 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/chat"}
+                      className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+              {(user?.role === "agency_owner" || user?.role === "admin") && ownerItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild tooltip={item.title}>
+                    <NavLink
+                      to={item.url}
                       className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                     >

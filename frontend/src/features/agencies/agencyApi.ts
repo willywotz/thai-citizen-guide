@@ -1,4 +1,29 @@
 import { api } from '@/shared/lib/apiClient';
+import type { Agency, AgencyRow } from '@/shared/types/agency';
+import { mapRowToAgency } from '@/shared/types/agency';
+
+export interface ConformanceCheck {
+  name: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface ConformanceReport {
+  ran_at: string;
+  passed: boolean;
+  checks: ConformanceCheck[];
+}
+
+/** Agencies owned by the current user. Same per-item shape as the main list. */
+export async function getMyAgencies(): Promise<Agency[]> {
+  const rows = await api.get<AgencyRow[]>('/api/v1/agencies/mine');
+  return rows.map(mapRowToAgency);
+}
+
+/** Run the conformance battery for an agency (owner or admin). */
+export async function runConformance(id: string): Promise<ConformanceReport> {
+  return api.post<ConformanceReport>(`/api/v1/agencies/${id}/conformance`);
+}
 
 export interface AgencyApiResponse {
   success: boolean;

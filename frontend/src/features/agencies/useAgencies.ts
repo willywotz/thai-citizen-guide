@@ -11,6 +11,11 @@ import type {
 } from '@/shared/types/agency';
 import { mapBucketRow, mapRowToAgency } from '@/shared/types/agency';
 import type { TestResult } from '@/features/agencies/ConnectionTestResult';
+import {
+  getMyAgencies,
+  runConformance,
+  type ConformanceReport,
+} from '@/features/agencies/agencyApi';
 
 // ---------------------------------------------------------------------------
 // Fetch helpers
@@ -39,6 +44,22 @@ export function useAgencies() {
     queryFn: fetchAgencies,
     staleTime: 30_000,
     refetchInterval: 60_000,   // poll every 60 s (replaces Supabase realtime)
+  });
+}
+
+export function useMyAgencies() {
+  return useQuery({
+    queryKey: ['agencies', 'mine'],
+    queryFn: getMyAgencies,
+    staleTime: 30_000,
+  });
+}
+
+export function useRunConformance() {
+  const qc = useQueryClient();
+  return useMutation<ConformanceReport, Error, string>({
+    mutationFn: (id: string) => runConformance(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
 }
 

@@ -68,6 +68,9 @@ class Agency(Model):
     dispatch_timeout_s = fields.IntField(null=True)
     mcp_tool_name = fields.CharField(max_length=255, null=True)
 
+    # Conformance
+    conformance_report = fields.JSONField(null=True)
+
     # Metrics
     total_calls = fields.IntField(default=0)
     rating_up = fields.IntField(default=0)

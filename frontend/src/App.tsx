@@ -13,6 +13,7 @@ import ExecutivePage from "@/features/executive/ExecutivePage";
 import HealthPage from "@/features/health/HealthPage";
 import HeatmapPage from "@/features/heatmap/HeatmapPage";
 import AgenciesPage from "@/features/agencies/AgenciesPage";
+import MyAgenciesPage from "@/features/agencies/MyAgenciesPage";
 import AgencyDetailPage from "@/features/agencies/detail/AgencyDetailPage";
 import AgencyWizardPage from "@/features/agencies/wizard/AgencyWizardPage";
 import HistoryPage from "@/features/history/HistoryPage";
@@ -53,6 +54,7 @@ const App = () => (
                 <Route path="/health" element={<HealthPage />} />
                 <Route path="/heatmap" element={<HeatmapPage />} />
                 <Route path="/agencies" element={<AgenciesPage />} />
+                <Route path="/my-agencies" element={<MyAgenciesPage />} />
                 <Route path="/agencies/new" element={<AgencyWizardPage />} />
                 <Route path="/agencies/:id/setup" element={<AgencyWizardPage />} />
                 <Route path="/agencies/:id" element={<AgencyDetailPage />} />
