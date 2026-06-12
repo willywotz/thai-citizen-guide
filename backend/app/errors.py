@@ -5,6 +5,7 @@ rate_limited, agency_unavailable, agency_timeout, llm_error, internal.
 """
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 _STATUS_CODES = {
     400: "invalid_request", 401: "unauthorized", 403: "forbidden",
@@ -35,11 +36,13 @@ def register_error_handlers(app: FastAPI) -> None:
             content=_envelope(exc.code, exc.message, exc.retryable, exc.upstream_status),
         )
 
-    @app.exception_handler(HTTPException)
-    async def _http_error(_req: Request, exc: HTTPException):
+    async def _http_error(_req: Request, exc):
         code = _STATUS_CODES.get(exc.status_code, "internal")
         return JSONResponse(
             status_code=exc.status_code,
             content=_envelope(code, str(exc.detail), retryable=exc.status_code == 429),
             headers=getattr(exc, "headers", None),
         )
+
+    app.add_exception_handler(HTTPException, _http_error)
+    app.add_exception_handler(StarletteHTTPException, _http_error)

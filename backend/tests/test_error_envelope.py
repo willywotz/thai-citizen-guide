@@ -32,3 +32,12 @@ def test_http_exception_mapped_to_envelope():
     assert r.status_code == 404
     body = r.json()["error"]
     assert body["code"] == "not_found" and body["message"] == "Not found"
+
+
+def test_unmatched_route_uses_envelope():
+    app = FastAPI()
+    register_error_handlers(app)
+    r = TestClient(app).get("/api/v1/does-not-exist")
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "not_found"
+    assert r.json()["error"]["message"]  # non-empty
