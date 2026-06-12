@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.auth.dependencies import get_current_user
 from app.auth.security import generate_api_key, hash_api_key
 from app.models.user import User, UserAPIKey
+from app.services.audit import record_audit
 from app.utils import now
 
 router = APIRouter(prefix="/api-keys", tags=["API Keys"])
@@ -108,4 +109,5 @@ async def revoke_api_key(key_id: str, user: User = Depends(get_current_user)) ->
     if key.revoked_at is None:
         key.revoked_at = now()
         await key.save(update_fields=["revoked_at"])
+    await record_audit(user, "api_key.revoke", object_type="api_key", object_id=key_id)
     return _resp(key)

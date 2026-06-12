@@ -1,3 +1,4 @@
+from .audit import *
 from .agency import *
 from .connection_log import *
 from .conversation import *

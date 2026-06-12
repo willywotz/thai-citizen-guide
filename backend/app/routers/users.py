@@ -24,6 +24,7 @@ from app.auth.dependencies import require_admin
 from app.models.user import User
 from app.schemas.user import Role, UserCreate, UserCreateResponse, UserListResponse, UserResponse, UserUpdate
 from app.services import user as user_service
+from app.services.audit import record_audit
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -56,8 +57,9 @@ async def list_users(
 
 @router.post("", response_model=UserCreateResponse, status_code=status.HTTP_201_CREATED, summary="Create a user")
 async def create_user(body: UserCreate, admin: User = Depends(require_admin)) -> dict:
-    user, extra = await user_service.create_user(body)
-    return {"user": UserResponse.from_user(user).model_dump(), **extra}
+    new_user, extra = await user_service.create_user(body)
+    await record_audit(admin, "user.create", object_type="user", object_id=new_user.id, detail={"email": new_user.email, "role": new_user.role})
+    return {"user": UserResponse.from_user(new_user).model_dump(), **extra}
 
 
 @router.get("/{user_id}", response_model=UserResponse, summary="Get user by ID")
@@ -90,6 +92,10 @@ async def update_user(
         changed.append("display_name")
     if changed:
         await user.save(update_fields=changed)
+        await record_audit(
+            admin, "user.update", object_type="user", object_id=user.id,
+            detail={"changed": changed, "role": user.role},
+        )
     return UserResponse.from_user(user)
 
 
@@ -105,6 +111,7 @@ async def deactivate_user(user_id: uuid.UUID, admin: User = Depends(require_admi
     await user_service.ensure_not_last_admin(user)
     user.is_active = False
     await user.save(update_fields=["is_active"])
+    await record_audit(admin, "user.deactivate", object_type="user", object_id=user.id)
     return UserResponse.from_user(user)
 
 
@@ -117,4 +124,5 @@ async def activate_user(user_id: uuid.UUID, admin: User = Depends(require_admin)
 
     user.is_active = True
     await user.save(update_fields=["is_active"])
+    await record_audit(admin, "user.activate", object_type="user", object_id=user.id)
     return UserResponse.from_user(user)

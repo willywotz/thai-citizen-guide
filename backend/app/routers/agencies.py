@@ -51,6 +51,7 @@ from app.services.log_sanitize import sanitize_body
 from app.services.mcp_discovery import discover_tools
 from app.errors import ApiError
 from app.services.agency_lifecycle import is_legal_transition
+from app.services.audit import record_audit
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,7 @@ async def add_agency_owner(agency_id: str, body: AddOwnerRequest, user: User = D
         raise HTTPException(status_code=404, detail="Agency not found")
     await authorize_or_403(user, "user:manage", agency)
     await grant(body.user_id, "owner", "agency", agency.id)
+    await record_audit(user, "agency.add_owner", object_type="agency", object_id=agency.id, detail={"owner_user_id": body.user_id})
     return {"detail": "owner added"}
 
 
@@ -188,9 +190,11 @@ async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, 
         report = agency.conformance_report or {}
         if not report.get("passed"):
             raise ApiError("invalid_request", "conformance test must pass before activation", status=400)
+    old_status = agency.status.value
     agency.status = body.status
     agency.auto_maintenance = False
     await agency.save(update_fields=["status", "auto_maintenance", "updated_at"])
+    await record_audit(user, "agency.status_change", object_type="agency", object_id=agency.id, detail={"from": old_status, "to": body.status})
     return await _with_health(agency)
 
 
@@ -355,6 +359,7 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = 
         await flush_similarity_cache()
     except Exception:
         logger.exception("failed to flush similarity cache after agency update")
+    await record_audit(user, "agency.update", object_type="agency", object_id=agency.id)
     return await _with_health(agency)
 
 
@@ -394,6 +399,7 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = D
         await flush_similarity_cache()
     except Exception:
         logger.exception("failed to flush similarity cache after agency update")
+    await record_audit(user, "agency.update", object_type="agency", object_id=agency.id)
     return await _with_health(agency)
 
 
@@ -409,6 +415,7 @@ async def delete_agency(agency_id: uuid.UUID, user: User = Depends(get_current_u
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
     await authorize_or_403(user, "agency:delete", agency)
     await agency.delete()
+    await record_audit(user, "agency.delete", object_type="agency", object_id=agency_id)
 
 
 # ---------------------------------------------------------------------------
