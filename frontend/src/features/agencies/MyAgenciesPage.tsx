@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import type { ConformanceReport } from "@/features/agencies/agencyApi";
-import type { Agency, AgencyLifecycleStatus } from "@/shared/types/agency";
+import type { Agency } from "@/shared/types/agency";
 
 import { AgencyCard } from "./AgencyCard";
 import type { TestResult } from "./ConnectionTestResult";
@@ -52,8 +52,6 @@ export default function MyAgenciesPage() {
   const [testResults, setTestResults] = useState<Record<string, TestResult | null>>({});
   const [runningId, setRunningId] = useState<string | null>(null);
   const [reports, setReports] = useState<Record<string, ConformanceReport>>({});
-
-  const noop = () => {};
 
   const handleTest = async (agency: Agency) => {
     setTestingId(agency.id);
@@ -109,8 +107,7 @@ export default function MyAgenciesPage() {
                 <AgencyCard
                   agency={agency}
                   onTest={handleTest}
-                  onDelete={noop}
-                  onStatusChange={noop as (a: Agency, s: AgencyLifecycleStatus) => void}
+                  manageActions={false}
                   testing={testingId === agency.id}
                   testResult={testResults[agency.id] ?? null}
                 />

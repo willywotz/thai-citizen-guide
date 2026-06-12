@@ -31,13 +31,22 @@ const connectionTypeColors: Record<string, string> = {
 interface Props {
   agency: Agency;
   onTest: (agency: Agency) => void;
-  onDelete: (agency: Agency) => void;
-  onStatusChange: (agency: Agency, status: AgencyLifecycleStatus) => void;
+  onDelete?: (agency: Agency) => void;
+  onStatusChange?: (agency: Agency, status: AgencyLifecycleStatus) => void;
   testing: boolean;
   testResult: TestResult | null;
+  manageActions?: boolean;
 }
 
-export function AgencyCard({ agency, onTest, onDelete, onStatusChange, testing, testResult }: Props) {
+export function AgencyCard({
+  agency,
+  onTest,
+  onDelete,
+  onStatusChange,
+  testing,
+  testResult,
+  manageActions = true,
+}: Props) {
   const navigate = useNavigate();
   const showHealth = agency.status === "active" || agency.status === "maintenance";
   const uptime = agency.health.uptime24h;
@@ -83,19 +92,26 @@ export function AgencyCard({ agency, onTest, onDelete, onStatusChange, testing, 
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTest(agency); }}>
                 <Wifi className="h-3.5 w-3.5 mr-2" /> ทดสอบการเชื่อมต่อ
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {legalTransitions(agency.status).map((to) => (
-                <DropdownMenuItem key={to} onClick={(e) => { e.stopPropagation(); onStatusChange(agency, to); }}>
-                  {TRANSITION_LABEL[to]}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); onDelete(agency); }}
-                className="text-destructive"
-              >
-                <Trash2 className="h-3.5 w-3.5 mr-2" /> ลบ
-              </DropdownMenuItem>
+              {manageActions && (
+                <>
+                  <DropdownMenuSeparator />
+                  {legalTransitions(agency.status).map((to) => (
+                    <DropdownMenuItem
+                      key={to}
+                      onClick={(e) => { e.stopPropagation(); onStatusChange?.(agency, to); }}
+                    >
+                      {TRANSITION_LABEL[to]}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={(e) => { e.stopPropagation(); onDelete?.(agency); }}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" /> ลบ
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
