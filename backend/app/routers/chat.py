@@ -54,10 +54,18 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     cached = await find_similar_question(query=query, embedding=embedding)
     if cached:
         user_msg, asst_msg, _ = cached
+        conversation_id = body.conversation_id or str(generate_uuid())
+        new_asst_msg = await _copy_cached_answer(
+            query=query,
+            conversation_id=conversation_id,
+            user=user,
+            user_msg=user_msg,
+            asst_msg=asst_msg,
+        )
         return {
             "success": True,
             "data": {
-                "message_id": asst_msg.id,
+                "message_id": new_asst_msg.id,
                 "answer": asst_msg.content,
                 "references": asst_msg.sources if asst_msg.sources else [],
                 "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
@@ -65,7 +73,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
                 "confidence": settings.SIMILARITY_THRESHOLD,
                 "cached": True,
             },
-            "conversation_id": str(user_msg.conversation_id),
+            "conversation_id": conversation_id,
             "responseTime": 0,
         }
 
