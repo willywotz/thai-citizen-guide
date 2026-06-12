@@ -1,10 +1,12 @@
 import uuid
+from datetime import timedelta
 
 import pytest
 
 from app.config import settings
 from app.models import LlmUsage
 from app.services.quota import QuotaExceeded, check_global_budget, check_user_quota
+from app.utils import now
 
 USER_ID = uuid.UUID(int=0)
 
@@ -27,3 +29,21 @@ async def test_global_daily_cost_kill_switch(db, monkeypatch):
     await LlmUsage.create(model="m", purpose="synthesis", cost_usd=0.02)
     with pytest.raises(QuotaExceeded):
         await check_global_budget()
+
+
+async def test_global_budget_excludes_prior_days(db, monkeypatch):
+    # A row from two days ago is outside today's window and must not count —
+    # deterministic guard against the day-boundary timezone-comparison bug.
+    monkeypatch.setattr(settings, "GLOBAL_DAILY_COST_LIMIT_USD", 0.01)
+    old = await LlmUsage.create(model="m", purpose="synthesis", cost_usd=0.02)
+    await LlmUsage.filter(id=old.id).update(created_at=now() - timedelta(days=2))
+    await check_global_budget()  # only the old row exists → no raise
+
+
+async def test_user_monthly_excludes_prior_months(db, monkeypatch):
+    monkeypatch.setattr(settings, "USER_MONTHLY_TOKEN_QUOTA", 100)
+    old = await LlmUsage.create(
+        model="m", purpose="synthesis", prompt_tokens=90, completion_tokens=20, user_id=USER_ID
+    )
+    await LlmUsage.filter(id=old.id).update(created_at=now() - timedelta(days=40))
+    await check_user_quota(USER_ID)  # prior-month usage not counted → no raise
