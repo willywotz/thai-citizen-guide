@@ -13,7 +13,8 @@ import time
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query, status, Depends
-from app.auth.dependencies import require_admin, get_current_user, get_current_user_optional
+from app.auth.authz import authorize_or_403
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.models.user import User
 from tortoise.exceptions import DoesNotExist
 
@@ -131,9 +132,7 @@ async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
-
-    if conv.user_id != user.id and not user.is_admin:
-        raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงสนทนานี้ได้")
+    await authorize_or_403(user, "conversation:read", conv)
 
     messages = await Message.filter(conversation_id=conversation_id).order_by("created_at")
 
@@ -167,9 +166,7 @@ async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Dep
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
-
-    if conv.user_id != user.id and not user.is_admin:
-        raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงสนทนานี้ได้")
+    await authorize_or_403(user, "conversation:read", conv)
 
     messages = await Message.filter(conversation_id=conversation_id).order_by("created_at")
 
@@ -198,6 +195,5 @@ async def delete_conversation(conversation_id: uuid.UUID, user: User = Depends(g
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.user_id != user.id and not user.is_admin:
-        raise HTTPException(status_code=403, detail="ไม่สามารถลบสนทนานี้ได้")
+    await authorize_or_403(user, "conversation:delete", conv)
     await conv.delete()

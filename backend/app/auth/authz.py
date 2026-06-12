@@ -7,6 +7,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from fastapi import HTTPException
 from app.models import Relationship
 from app.models.user import User
 
@@ -76,6 +77,12 @@ async def authorize(user: User, action: str, resource: Any) -> Decision:
     if deny:
         return _log(user, action, deny)
     return Decision(True, "rebac", "")
+
+
+async def authorize_or_403(user: User, action: str, resource: Any) -> None:
+    d = await authorize(user, action, resource)
+    if not d.allowed:
+        raise HTTPException(status_code=403, detail=d.reason or "Forbidden")
 
 
 def _log(user: User, action: str, d: Decision) -> Decision:

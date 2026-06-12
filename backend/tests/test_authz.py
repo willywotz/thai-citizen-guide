@@ -1,4 +1,7 @@
-from app.auth.authz import authorize, grant
+import pytest
+from fastapi import HTTPException
+
+from app.auth.authz import authorize, authorize_or_403, grant
 from app.models import Agency, User
 from app.models.conversation import Conversation
 
@@ -56,3 +59,11 @@ async def test_inactive_user_denied_everywhere(db):
     conv = await Conversation.create(title="t", user_id=u.id)
     d = await authorize(u, "conversation:read", conv)
     assert not d.allowed and d.layer == "abac"
+
+
+async def test_authorize_or_403_raises_on_deny(db):
+    u = await User.create(email="d@x.com", hashed_password="h", role="user")
+    ag = await Agency.create(name="A", status="draft")
+    with pytest.raises(HTTPException) as e:
+        await authorize_or_403(u, "agency:edit", ag)
+    assert e.value.status_code == 403
