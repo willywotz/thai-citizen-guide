@@ -9,7 +9,8 @@ import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } fr
 import { useAgencies } from "@/features/agencies/useAgencies";
 import { cn } from "@/shared/lib/utils";
 import { useTheme } from "next-themes";
-import { FeedbackAnalytics } from "./FeedbackAnalytics";
+import { Link } from "react-router-dom";
+import { FeedbackSummaryCards } from "@/features/feedback/FeedbackSummaryCards";
 import { DashboardStatsRow } from "./DashboardStatsRow";
 import { DashboardAgencyStatus } from "./DashboardAgencyStatus";
 
@@ -189,7 +190,13 @@ export default function DashboardPage() {
         <DashboardAgencyStatus agencies={agencies} />
       </div>
 
-      <FeedbackAnalytics />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-foreground">📊 Feedback</h3>
+          <Link to="/feedback" className="text-xs text-primary hover:underline">ดูทั้งหมด →</Link>
+        </div>
+        <FeedbackSummaryCards />
+      </div>
     </div>
   );
 }
