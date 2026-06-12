@@ -141,3 +141,26 @@ export function makeHistory(agencyId: string, window: HealthWindow): HealthHisto
     };
   });
 }
+
+export const mockFeedbackStats = {
+  total_ratings: 42,
+  up_count: 30,
+  down_count: 12,
+  satisfaction_rate: 71,
+  daily_trend: [
+    { date: "01/06", up: 3, down: 1, rate: 75 },
+    { date: "02/06", up: 5, down: 2, rate: 71 },
+  ],
+  low_rated_questions: [
+    {
+      content: "ทำไมระบบตอบช้า",
+      feedback_text: "ไม่ตรงคำถาม",
+      agency: "กรมสรรพากร",
+      created_at: "2026-06-01T10:00:00Z",
+    },
+  ],
+  agency_breakdown: [
+    { agency: "กรมสรรพากร", up: 20, down: 5, rate: 80 },
+    { agency: "กรมที่ดิน", up: 10, down: 7, rate: 59 },
+  ],
+};
