@@ -53,7 +53,7 @@ class AuthMiddleware(Middleware):
             if api_key:
                 api_key.last_used_at = now()
                 await api_key.save(update_fields=["last_used_at"])
-                user = await User.filter(id=api_key.user_id).first()
+                user = await User.filter(id=api_key.user_id, is_active=True).first()
             if user: await ctx.fastmcp_context.set_state("user_id", user.id)
             if user: await ctx.fastmcp_context.set_state("user_is_admin", user.is_admin)
 
