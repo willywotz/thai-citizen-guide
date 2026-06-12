@@ -31,7 +31,7 @@ from mcp.server.sse import SseServerTransport
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.config import settings, load_settings_from_db
+from app.config import settings, load_settings_from_db, assert_production_secrets
 from app.database import init_db, close_db
 from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, users, settings as settings_router
@@ -67,6 +67,7 @@ async def _sse_handler(request: Request) -> Response:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    assert_production_secrets(settings)
     await init_db()
     await load_settings_from_db()
     await _run_seed_admin()

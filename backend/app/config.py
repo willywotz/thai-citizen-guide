@@ -3,6 +3,8 @@ from typing import get_origin
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_JWT_SECRET = "change-me-in-production-use-a-long-random-string"
+
 
 class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────────
@@ -10,6 +12,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     TIMEZONE: str = "Asia/Bangkok"
     USER_AGENT_PREFIX: str = "AI-Chatbot-Portal/1.0"
+    ENV: str = "development"  # development | production
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatbot"
@@ -18,7 +21,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"]
 
     # ── Auth ─────────────────────────────────────────────────────────────────
-    JWT_SECRET: str = "change-me-in-production-use-a-long-random-string"
+    JWT_SECRET: str = DEFAULT_JWT_SECRET
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     MIN_PASSWORD_LENGTH: int = 6
@@ -122,8 +125,13 @@ def _deserialize(raw: str, annotation: type):
     return raw
 
 
+def assert_production_secrets(s: "Settings") -> None:
+    if s.ENV == "production" and s.JWT_SECRET == DEFAULT_JWT_SECRET:
+        raise RuntimeError("JWT_SECRET must be changed when ENV=production")
+
+
 SETTINGS_GROUPS: dict[str, list[str]] = {
-    "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX"],
+    "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
     "Database": ["DATABASE_URL"],
     "CORS": ["CORS_ORIGINS"],
     "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES", "EXPOSE_PASSWORD_RESET_TOKEN"],
