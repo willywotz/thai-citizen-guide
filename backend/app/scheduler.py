@@ -79,7 +79,10 @@ async def agency_chat_item(agency: Agency) -> None:
 async def agency_chat_test() -> None:
     agencies = await Agency.all()
     await asyncio.gather(*[agency_chat_item(ag) for ag in agencies])
-    await reconcile_statuses()
+    try:
+        await reconcile_statuses()
+    except Exception as e:
+        print(f"Error reconciling agency statuses: {e}")
 
 
 async def regenerate_brief_job() -> None:
