@@ -32,10 +32,16 @@ describe("DashboardPage feedback section", () => {
     expect(screen.getByRole("link", { name: /ดูทั้งหมด/ })).toHaveAttribute("href", "/feedback");
   });
 
-  it("no longer renders the full feedback charts or low-rated list", async () => {
+  it("no longer renders the full feedback charts or low-rated list heading", async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("Feedback ทั้งหมด")).toBeInTheDocument());
     expect(screen.queryByText("แนวโน้มความพึงพอใจรายวัน (14 วัน)")).not.toBeInTheDocument();
     expect(screen.queryByText("คำถามที่ได้คะแนนต่ำ (ล่าสุด)")).not.toBeInTheDocument();
+  });
+
+  it("shows a preview of recent low-rated questions", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText("ทำไมระบบตอบช้า")).toBeInTheDocument());
+    expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument();
   });
 });
