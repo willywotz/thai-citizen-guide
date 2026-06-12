@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from tortoise.expressions import RawSQL
@@ -36,6 +36,10 @@ async def _enrich_api_keys(rows: list[dict]) -> None:
 async def usage_summary(group_by: str = "purpose", date_from: datetime | None = None,
                         date_to: datetime | None = None) -> list[dict]:
     field = _GROUP_FIELDS.get(group_by, "purpose")
+    if date_from is not None and date_from.tzinfo is None:
+        date_from = date_from.replace(tzinfo=timezone.utc)
+    if date_to is not None and date_to.tzinfo is None:
+        date_to = date_to.replace(tzinfo=timezone.utc)
     qs = LlmUsage.all()
     if date_from is not None:
         qs = qs.filter(created_at__gte=date_from)

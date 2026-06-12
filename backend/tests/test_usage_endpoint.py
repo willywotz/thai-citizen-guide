@@ -47,3 +47,15 @@ async def test_usage_date_filter(db):
     rows = await usage_summary(group_by="purpose", date_from=datetime(2021, 1, 1, tzinfo=timezone.utc))
     by_key = {r["key"]: r for r in rows}
     assert by_key["router"]["prompt_tokens"] == 9
+
+
+async def test_usage_date_filter_naive_treated_as_utc(db):
+    from datetime import datetime, timezone
+    old = await LlmUsage.create(model="m", purpose="router", prompt_tokens=1, completion_tokens=0)
+    await LlmUsage.filter(id=old.id).update(created_at=datetime(2020, 1, 1, tzinfo=timezone.utc))
+    await LlmUsage.create(model="m", purpose="router", prompt_tokens=9, completion_tokens=0)
+
+    # naive datetime (no tzinfo) must be treated as UTC, not rejected or mishandled
+    rows = await usage_summary(group_by="purpose", date_from=datetime(2021, 1, 1))
+    by_key = {r["key"]: r for r in rows}
+    assert by_key["router"]["prompt_tokens"] == 9
