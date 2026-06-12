@@ -38,6 +38,9 @@ class Agency(Model):
     status = fields.CharEnumField(
         AgencyStatus, max_length=20, default=AgencyStatus.active
     )
+    # Set True when the health rule auto-set maintenance; lets only rule-set
+    # maintenance be auto-reactivated. Cleared on every manual status change.
+    auto_maintenance = fields.BooleanField(default=False)
 
     # Scope
     data_scope = fields.JSONField(default=list)                 # list[str]

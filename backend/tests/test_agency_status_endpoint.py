@@ -36,3 +36,15 @@ async def test_status_404(db):
     with pytest.raises(HTTPException) as exc:
         await r.update_agency_status(uuid.uuid4(), StatusUpdateRequest(status="active"), _=admin)
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_manual_status_change_clears_auto_maintenance(db):
+    admin = await _admin()
+    ag = await Agency.create(
+        name="A", short_name="A", connection_type="API",
+        status="maintenance", auto_maintenance=True,
+    )
+    await r.update_agency_status(ag.id, StatusUpdateRequest(status="active"), _=admin)
+    refreshed = await Agency.get(id=ag.id)
+    assert refreshed.auto_maintenance is False

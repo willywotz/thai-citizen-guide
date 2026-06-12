@@ -50,3 +50,11 @@ async def test_scheduler_skips_disabled(db):
     with patch("app.scheduler.test_connection", AsyncMock()) as tc:
         await scheduler.agency_chat_item(ag)
     assert await ConnectionLog.filter(agency_id=ag.id).count() == 0
+
+
+@pytest.mark.asyncio
+async def test_health_check_job_reconciles_statuses(db):
+    scheduler.sem = asyncio.Semaphore(5)
+    with patch("app.scheduler.reconcile_statuses", AsyncMock()) as rec:
+        await scheduler.agency_chat_test()
+    rec.assert_awaited_once()
