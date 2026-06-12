@@ -7,3 +7,13 @@ async def test_create_usage_row(db):
         prompt_tokens=120, completion_tokens=8, cost_usd=0.000034,
     )
     assert row.total_tokens == 128
+
+
+async def test_usage_row_stores_api_key_id(db):
+    from uuid import uuid4
+    kid = uuid4()
+    row = await LlmUsage.create(
+        model="m", purpose="classification",
+        prompt_tokens=1, completion_tokens=1, api_key_id=kid,
+    )
+    assert row.api_key_id == kid
