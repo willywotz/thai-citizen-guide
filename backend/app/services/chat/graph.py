@@ -10,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from app.models.agency import Agency
 from app.services.chat.dispatch import dispatch_one
 from app.services.chat.llm import build_router_prompt, call_llm
+from app.services.circuit_breaker import record_dispatch_result
 
 
 @dataclass
@@ -62,6 +63,11 @@ async def route_query(state: AgentState) -> dict:
 async def dispatch_to_agencies(state: AgentState) -> dict:
     tasks = [dispatch_one(route, state.conversation_id) for route in state.routes]
     results = await asyncio.gather(*tasks)
+    for route, result in zip(state.routes, results):
+        agency_id = route.get("agency_id")
+        if agency_id is None or result.get("status") == "rate_limited":
+            continue
+        await record_dispatch_result(agency_id, success=(result.get("status") == "ok"))
     return {"results": list(results)}
 
 
