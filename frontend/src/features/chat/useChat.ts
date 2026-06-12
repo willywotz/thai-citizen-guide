@@ -31,26 +31,9 @@ export function useChat() {
   const [streamingState, setStreamingState] = useState<StreamingState>(INITIAL_STREAMING_STATE);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  // B2: ref always holds the latest conversationId to avoid stale closure in handleSend
-  const conversationIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   // Ref to always have latest streaming state in closures
   const streamingRef = useRef<StreamingState>(INITIAL_STREAMING_STATE);
-
-  // Keep ref in sync
-  useEffect(() => {
-    streamingRef.current = streamingState;
-
-    if (streamingState.sessionId) {
-      setConversationId(streamingState.sessionId);
-      conversationIdRef.current = streamingState.sessionId;
-    }
-  }, [streamingState]);
-
-  // B2: safety-net sync for direct setConversationId calls
-  useEffect(() => {
-    conversationIdRef.current = conversationId;
-  }, [conversationId]);
 
   // B7: abort in-flight SSE on unmount to prevent state updates after unmount
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -87,6 +70,7 @@ export function useChat() {
 
   const finalizeStreaming = useCallback(() => {
     const state = streamingRef.current;
+    state.sessionId && setConversationId(state.sessionId);
     const aiMsg = buildAiMessageFromState(state);
     if (aiMsg) {
       setMessages((prev) => [...prev, aiMsg]);
@@ -96,10 +80,6 @@ export function useChat() {
     } else if (!state.done) {
       // Stream ended without answer or done — connection lost
       setMessages((prev) => [...prev, buildConnectionLostMessage()]);
-    }
-    if (state.sessionId) {
-      setConversationId(state.sessionId);
-      conversationIdRef.current = state.sessionId;
     }
     setIsTyping(false);
     setActiveStepCount(0);
@@ -127,90 +107,27 @@ export function useChat() {
     abortRef.current = abortController;
 
     // Callbacks update state via setStreamingState + streamingRef
-    const onStep: Parameters<typeof sendChatQuerySSE>[1]['onStep'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyStepEvent(prev, event);
+    const applyAndSet = <E>(applyFn: (prev: StreamingState, event: E) => StreamingState) =>
+      (event: E) => {
+        const next = applyFn(streamingRef.current, event);
         streamingRef.current = next;
-        return next;
-      });
-    };
+        setStreamingState(next);
+      };
 
-    const onAgencies: Parameters<typeof sendChatQuerySSE>[1]['onAgencies'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyAgenciesEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
-
-    const onIntent: Parameters<typeof sendChatQuerySSE>[1]['onIntent'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyIntentEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
-
-    const onRouting: Parameters<typeof sendChatQuerySSE>[1]['onRouting'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyRoutingEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
-
-    const onAgencyStart: Parameters<typeof sendChatQuerySSE>[1]['onAgencyStart'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyAgencyStartEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
-
-    const onAgencyResponded: Parameters<typeof sendChatQuerySSE>[1]['onAgencyResponded'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyAgencyRespondedEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
-
-    const onAgencyVerified: Parameters<typeof sendChatQuerySSE>[1]['onAgencyVerified'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyAgencyVerifiedEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
-
-    const onAnswer: Parameters<typeof sendChatQuerySSE>[1]['onAnswer'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyAnswerEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
-
-    const onDone: Parameters<typeof sendChatQuerySSE>[1]['onDone'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyDoneEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
-
-    const onError: Parameters<typeof sendChatQuerySSE>[1]['onError'] = (event) => {
-      setStreamingState((prev) => {
-        const next = applyErrorEvent(prev, event);
-        streamingRef.current = next;
-        return next;
-      });
-    };
+    const onStep = applyAndSet(applyStepEvent);
+    const onAgencies = applyAndSet(applyAgenciesEvent);
+    const onIntent = applyAndSet(applyIntentEvent);
+    const onRouting = applyAndSet(applyRoutingEvent);
+    const onAgencyStart = applyAndSet(applyAgencyStartEvent);
+    const onAgencyResponded = applyAndSet(applyAgencyRespondedEvent);
+    const onAgencyVerified = applyAndSet(applyAgencyVerifiedEvent);
+    const onAnswer = applyAndSet(applyAnswerEvent);
+    const onDone = applyAndSet(applyDoneEvent);
+    const onError = applyAndSet(applyErrorEvent);
 
     try {
-      // Try SSE first; B2: read conversationIdRef.current instead of stale closed-over state
       const usedSSE = await sendChatQuerySSE(
-        { query: question, conversation_id: conversationIdRef.current || undefined },
+        { query: question, conversation_id: conversationId || undefined },
         { onStep, onAgencies, onIntent, onRouting, onAgencyStart, onAgencyResponded, onAgencyVerified, onAnswer, onDone, onError },
         abortController.signal,
       );
@@ -222,12 +139,10 @@ export function useChat() {
         return;
       }
 
-      // Fallback: regular JSON POST; B2: read conversationIdRef.current for consistency
-      const response = await sendChatQuery({ query: question, conversation_id: conversationIdRef.current || undefined });
+      const response = await sendChatQuery({ query: question, conversation_id: conversationId || undefined });
 
       if (response.success) {
         setConversationId(response.conversation_id);
-        conversationIdRef.current = response.conversation_id;
         setCurrentSteps(response.data.agentSteps as AgentStep[]);
         setActiveStepCount(response.data.agentSteps.length);
 
@@ -270,7 +185,6 @@ export function useChat() {
     setInput('');
     setCurrentSteps(mockAgentSteps);
     setConversationId(null);
-    conversationIdRef.current = null;
     setStreamingState(INITIAL_STREAMING_STATE);
     streamingRef.current = INITIAL_STREAMING_STATE;
     abortRef.current?.abort();
