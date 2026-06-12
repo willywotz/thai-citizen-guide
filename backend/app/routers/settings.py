@@ -19,6 +19,7 @@ from app.schemas.settings import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
+from app.services.audit import record_audit
 from app.services.cache_flush import flush_similarity_cache
 
 router = APIRouter(tags=["Settings"])
@@ -91,8 +92,9 @@ async def list_settings():
     return SettingsResponse(groups=groups)
 
 
-@router.put("/settings", dependencies=[Depends(require_admin)])
-async def update_settings(body: SettingsUpdateRequest, admin: User = Depends(require_admin)):
+@router.put("/settings")
+async def update_settings(body: SettingsUpdateRequest, user: User = Depends(require_admin)):
+    updated_keys: list[str] = []
     for item in body.settings:
         if item.key not in ALL_KEYS:
             continue
@@ -100,9 +102,11 @@ async def update_settings(body: SettingsUpdateRequest, admin: User = Depends(req
             continue
         await Setting.update_or_create(
             key=item.key,
-            defaults={"value": item.value, "updated_by": admin.email, "is_secret": item.key in SECRET_FIELD_NAMES, "group": _group_for_key(item.key), "field_type": _field_type_for(settings.model_fields[item.key].annotation)},
+            defaults={"value": item.value, "updated_by": user.email, "is_secret": item.key in SECRET_FIELD_NAMES, "group": _group_for_key(item.key), "field_type": _field_type_for(settings.model_fields[item.key].annotation)},
         )
+        updated_keys.append(item.key)
     await load_settings_from_db()
+    await record_audit(user, "settings.update", object_type="settings", detail={"keys": updated_keys})
     return {"detail": "Settings updated"}
 
 
