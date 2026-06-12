@@ -12,9 +12,11 @@ import type {
 import { mapBucketRow, mapRowToAgency } from '@/shared/types/agency';
 import type { TestResult } from '@/features/agencies/ConnectionTestResult';
 import {
+  getAgencyLowRated,
   getMyAgencies,
   runConformance,
   type ConformanceReport,
+  type LowRatedAnswer,
 } from '@/features/agencies/agencyApi';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +53,16 @@ export function useMyAgencies() {
   return useQuery({
     queryKey: ['agencies', 'mine'],
     queryFn: getMyAgencies,
+    staleTime: 30_000,
+  });
+}
+
+/** Lazily fetches down-rated answers for an agency; pass enabled to gate. */
+export function useAgencyLowRated(agencyId: string, enabled: boolean) {
+  return useQuery<LowRatedAnswer[]>({
+    queryKey: ['agency-low-rated', agencyId],
+    queryFn: () => getAgencyLowRated(agencyId),
+    enabled,
     staleTime: 30_000,
   });
 }

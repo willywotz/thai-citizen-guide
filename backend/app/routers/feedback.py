@@ -21,7 +21,39 @@ from app.schemas.conversation import FeedbackStats
 from app.models.agency import Agency
 from app.utils import now
 
+from app.auth.authz import authorize_or_403
+
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
+
+
+async def agency_low_rated(agency_id: str, limit: int = 50) -> list[dict]:
+    """Recent down-rated assistant answers involving an agency.
+
+    `agency_ids` is a JSON list; `__contains` on JSON is not portable to
+    SQLite, so we fetch down-rated assistant messages then filter membership
+    in Python. The `limit` caps the DB query BEFORE the Python membership
+    filter, so the result may contain fewer than `limit` rows for this agency.
+    That is acceptable for a "recent low-rated" view.
+    """
+    rows = (
+        await Message.filter(role="assistant", rating="down")
+        .order_by("-created_at").limit(limit)
+    )
+    out = [m for m in rows if agency_id in (m.agency_ids or [])]
+    return [
+        {"id": str(m.id), "content": m.content, "feedback_text": m.feedback_text,
+         "created_at": str(m.created_at)}
+        for m in out
+    ]
+
+
+@router.get("/agencies/{agency_id}/low-rated", summary="Down-rated answers for an agency (owner/admin)")
+async def get_agency_low_rated(agency_id: str, user: User = Depends(get_current_user)):
+    agency = await Agency.get_or_none(id=agency_id)
+    if agency is None:
+        raise HTTPException(status_code=404, detail="Agency not found")
+    await authorize_or_403(user, "agency:read_logs", agency)
+    return await agency_low_rated(agency_id)
 
 
 @router.get("/stats", response_model=FeedbackStats, summary="Get feedback and satisfaction metrics")

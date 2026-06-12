@@ -1,4 +1,4 @@
-import { Check, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -9,7 +9,57 @@ import type { Agency } from "@/shared/types/agency";
 
 import { AgencyCard } from "./AgencyCard";
 import type { TestResult } from "./ConnectionTestResult";
-import { useMyAgencies, useRunConformance, useTestConnection } from "./useAgencies";
+import {
+  useAgencyLowRated,
+  useMyAgencies,
+  useRunConformance,
+  useTestConnection,
+} from "./useAgencies";
+
+function LowRatedSection({ agencyId }: { agencyId: string }) {
+  const [open, setOpen] = useState(false);
+  const { data = [], isLoading } = useAgencyLowRated(agencyId, open);
+
+  return (
+    <div className="rounded-md border border-border">
+      <button
+        type="button"
+        className="flex w-full items-center gap-1.5 p-2 text-xs font-medium text-foreground"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5" />
+        )}
+        คำตอบที่ถูกให้คะแนนต่ำ
+      </button>
+      {open && (
+        <div className="px-3 pb-3">
+          {isLoading ? (
+            <p className="text-xs text-muted-foreground">กำลังโหลด...</p>
+          ) : data.length === 0 ? (
+            <p className="text-xs text-muted-foreground">ไม่มีคำตอบที่ถูกให้คะแนนต่ำ</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.map((row) => (
+                <li key={row.id} className="rounded border border-border p-2 text-xs">
+                  <p className="text-foreground">{row.content}</p>
+                  {row.feedback_text && (
+                    <p className="mt-1 text-muted-foreground">“{row.feedback_text}”</p>
+                  )}
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {new Date(row.created_at).toLocaleString("th-TH")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ConformanceResult({ report }: { report: ConformanceReport }) {
   return (
@@ -125,6 +175,7 @@ export default function MyAgenciesPage() {
                 {readyToSubmit && (
                   <p className="text-xs text-green-600">พร้อมส่งเพื่อขออนุมัติ</p>
                 )}
+                <LowRatedSection agencyId={agency.id} />
               </div>
             );
           })}

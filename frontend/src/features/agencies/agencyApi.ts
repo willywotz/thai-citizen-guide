@@ -25,6 +25,18 @@ export async function runConformance(id: string): Promise<ConformanceReport> {
   return api.post<ConformanceReport>(`/api/v1/agencies/${id}/conformance`);
 }
 
+export interface LowRatedAnswer {
+  id: string;
+  content: string;
+  feedback_text: string | null;
+  created_at: string;
+}
+
+/** Recent down-rated answers for an agency (owner or admin). */
+export async function getAgencyLowRated(id: string): Promise<LowRatedAnswer[]> {
+  return api.get<LowRatedAnswer[]>(`/api/v1/feedback/agencies/${id}/low-rated`);
+}
+
 export interface AgencyApiResponse {
   success: boolean;
   agency: string;

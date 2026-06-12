@@ -13,6 +13,7 @@ from app.models import Agency, ConnectionLog
 from app.services.agency import test_connection
 from app.services.agency_reconcile import reconcile_statuses
 from app.services.analytics import regenerate_weekly_brief
+from app.services.evaluation import run_evaluation
 from app.services.log_sanitize import sanitize_body
 from app.utils import generate_uuid, now
 
@@ -107,6 +108,7 @@ async def start_scheduler() -> None:
     scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES))
     scheduler.add_job(regenerate_brief_job, IntervalTrigger(hours=settings.BRIEF_REGEN_INTERVAL_HOURS))
     scheduler.add_job(purge_old_connection_logs, IntervalTrigger(hours=24))
+    scheduler.add_job(run_evaluation, IntervalTrigger(hours=settings.EVAL_INTERVAL_HOURS))
     scheduler.start()
 
 
