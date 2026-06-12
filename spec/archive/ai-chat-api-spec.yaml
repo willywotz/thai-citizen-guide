@@ -1,3 +1,4 @@
+# ARCHIVED: describes the pre-FastAPI Supabase Edge Functions architecture; kept for historical reference only.
 openapi: "3.0.3"
 info:
   title: AI Chat Orchestrator API

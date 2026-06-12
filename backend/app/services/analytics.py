@@ -90,7 +90,7 @@ async def get_agency_health() -> AgencyHealthData:
         agencies_health = []
 
         for ag in agencies:
-            status = {"active": "healthy", "inactive": "down"}.get(ag["status"], "down")
+            status = {"active": "healthy"}.get(ag["status"], "down")
 
             currentLatency = await ConnectionLog \
                 .annotate(avg_latency=RawSQL("AVG(latency_ms)")) \

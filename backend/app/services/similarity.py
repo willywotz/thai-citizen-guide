@@ -97,17 +97,20 @@ async def _vector_search(
     """Search for similar questions using pgvector cosine distance."""
     threshold_distance = 1 - threshold  # cosine distance = 1 - cosine similarity
     embedding_json = encode_embedding(embedding)
+    # Dimension must match idx_messages_embedding_cosine index expression ((embedding)::vector(384)).
+    # Postgres treats ::vector and ::vector(384) as different expressions; a mismatch causes a seq scan.
+    dim = settings.EMBEDDING_DIMENSIONS
 
     conn = Tortoise.get_connection("default")
     rows = await conn.execute_query_dict(
-        """
+        f"""
         SELECT id, content, conversation_id, embedding
         FROM messages
         WHERE role = 'user'
           AND created_at >= $1
           AND embedding IS NOT NULL
-          AND (embedding::vector <=> $2::vector) < $3
-        ORDER BY (embedding::vector <=> $4::vector)
+          AND (embedding::vector({dim}) <=> $2::vector({dim})) < $3
+        ORDER BY (embedding::vector({dim}) <=> $4::vector({dim}))
         LIMIT 1
         """,
         [cutoff, embedding_json, threshold_distance, embedding_json],
