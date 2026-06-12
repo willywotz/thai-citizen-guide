@@ -96,6 +96,7 @@ export interface AnswerEvent {
 export interface DoneEvent {
   session_id: string;
   total_ms: number;
+  message_id?: string;
 }
 
 export interface ErrorEvent {
@@ -131,6 +132,7 @@ export interface StreamingState {
   sections: AnswerSection[];
   errors: AnswerEvent['errors'];
   sessionId: string | null;
+  messageId: string | null;
   totalMs: number | null;
   done: boolean;
 }

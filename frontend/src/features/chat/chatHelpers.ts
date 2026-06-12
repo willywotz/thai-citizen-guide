@@ -17,6 +17,7 @@ export const INITIAL_STREAMING_STATE: StreamingState = {
   sections: [],
   errors: [],
   sessionId: null,
+  messageId: null,
   totalMs: null,
   done: false,
 };
@@ -74,7 +75,7 @@ export function buildAiMessageFromState(state: StreamingState): ChatMessage | nu
   if (!state.answer) return null;
 
   return {
-    id: generateUniqueId(),
+    id: state.messageId ?? generateUniqueId(),
     role: 'assistant',
     content: state.answer,
     timestamp: formatTimestamp(),
@@ -188,7 +189,7 @@ export function applyAnswerEvent(prev: StreamingState, event: AnswerEvent): Stre
 }
 
 export function applyDoneEvent(prev: StreamingState, event: DoneEvent): StreamingState {
-  return { ...prev, sessionId: event.session_id, totalMs: event.total_ms, done: true };
+  return { ...prev, sessionId: event.session_id, totalMs: event.total_ms, messageId: event.message_id ?? prev.messageId, done: true };
 }
 
 export function applyErrorEvent(prev: StreamingState, event: ErrorEvent): StreamingState {

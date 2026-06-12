@@ -325,6 +325,11 @@ describe('applyDoneEvent', () => {
     expect(next.sessionId).toBe('sess-123');
     expect(next.totalMs).toBe(4200);
   });
+
+  it('stores message_id when the done event includes it', () => {
+    const next = applyDoneEvent(baseState(), { session_id: 'sess-1', total_ms: 1, message_id: 'db-msg-1' });
+    expect(next.messageId).toBe('db-msg-1');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -379,6 +384,15 @@ describe('buildAiMessageFromState', () => {
     expect(msg!.sources![0].agency).toBe('NSO');
     expect(msg!.sources![0].title).toBe('General');
     expect(msg!.rating).toBeNull();
+  });
+
+  it('uses the DB messageId as the message id when present', () => {
+    const state = applyAnswerEvent(
+      applyDoneEvent(baseState(), { session_id: 'sess-1', total_ms: 1, message_id: 'db-msg-1' }),
+      { answer: 'hi', sections: [], errors: [], debug: null },
+    );
+    const msg = buildAiMessageFromState(state);
+    expect(msg!.id).toBe('db-msg-1');
   });
 });
 
