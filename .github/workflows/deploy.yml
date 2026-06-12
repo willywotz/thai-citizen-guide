@@ -29,9 +29,14 @@ jobs:
             echo "deploy=false" >> "$GITHUB_OUTPUT"
           fi
 
+  test:
+    needs: check-deploy
+    if: ${{ needs.check-deploy.outputs.deploy == 'true' }}
+    uses: ./.github/workflows/test.yml
+
   deploy:
     runs-on: self-hosted
-    needs: check-deploy
+    needs: [check-deploy, test]
     if: ${{ needs.check-deploy.outputs.deploy == 'true' }}
 
     steps:
