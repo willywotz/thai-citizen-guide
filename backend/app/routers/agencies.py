@@ -130,12 +130,13 @@ async def add_agency_owner(agency_id: str, body: AddOwnerRequest, user: User = D
     return {"detail": "owner added"}
 
 
-@router.get("/mine", summary="Agencies owned by the current user")
-async def list_my_agencies(user: User = Depends(get_current_user)) -> list:
+@router.get("/mine", response_model=list[AgencyResponse], summary="Agencies owned by the current user")
+async def list_my_agencies(user: User = Depends(get_current_user)) -> list[AgencyResponse]:
     ids = await Relationship.filter(
         subject_type="user", subject_id=user.id, relation="owner", object_type="agency"
     ).values_list("object_id", flat=True)
-    return await Agency.filter(id__in=list(ids))
+    agencies = await Agency.filter(id__in=list(ids))
+    return [await _with_health(a) for a in agencies]
 
 
 # ---------------------------------------------------------------------------
