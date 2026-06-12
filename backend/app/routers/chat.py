@@ -311,7 +311,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                         answer_data = json.loads(conn_log.response_body)
                     except Exception:
                         answer_data = {"answer": asst_msg.content}
-                    await _save_stream_conversation(
+                    assistant_id = await _save_stream_conversation(
                         query=query,
                         conversation_id=conversation_id,
                         answer_data=answer_data,
@@ -322,7 +322,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                         background_tasks=background_tasks,
                     )
                     yield _sse_event("answer", {"answer": asst_msg.content})
-                    yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+                    yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0, "message_id": str(assistant_id)})
 
                 return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
         else:
@@ -342,6 +342,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
             answer_data = None
             session_id = None
             total_ms = None
+            done_event_data = None
             start_ns = time.perf_counter_ns()
             log_latency_ms = 0
 
@@ -375,12 +376,11 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                                 elif event_name == "done":
                                     session_id = event_data.get("session_id")
                                     total_ms = event_data.get("total_ms")
+                                    done_event_data = event_data
                                 with tracer.start_as_current_span("event") as event_span:
                                     event_span.set_attribute("stream_event", event_name)
                                     event_span.set_attribute("event_data", json.dumps(event_data)[:500])
-                                if event_name == "done":
-                                    yield _sse_event(event_name, {**event_data, "session_id": conversation_id})
-                                else:
+                                if event_name != "done":
                                     yield _sse_event(event_name, event_data)
 
             except httpx.ReadTimeout:
@@ -395,7 +395,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                 return
 
             if answer_data:
-                await _save_stream_conversation(
+                assistant_id = await _save_stream_conversation(
                     query=query,
                     conversation_id=conversation_id,
                     answer_data=answer_data,
@@ -405,6 +405,9 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                     user=user,
                     background_tasks=background_tasks,
                 )
+                yield _sse_event("done", {**(done_event_data or {}), "session_id": conversation_id, "message_id": str(assistant_id)})
+            elif done_event_data is not None:
+                yield _sse_event("done", {**done_event_data, "session_id": conversation_id})
 
         return StreamingResponse(event_generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
@@ -499,7 +502,7 @@ async def _save_stream_conversation(
     latency_ms: int,
     user: User | None,
     background_tasks: BackgroundTasks,
-) -> None:
+) -> Any:
     answer = answer_data.get("answer", "").strip()
     errors = answer_data.get("errors", [])
     sections = answer_data.get("sections", [])
@@ -555,3 +558,5 @@ async def _save_stream_conversation(
 
     background_tasks.add_task(classify_message_category, str(query_msg.id), query, answer)
     background_tasks.add_task(store_embedding, str(query_msg.id), query)
+
+    return assistant_msg.id
