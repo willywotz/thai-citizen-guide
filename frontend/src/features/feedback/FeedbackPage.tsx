@@ -31,7 +31,6 @@ export default function FeedbackPage() {
       tick: isDark ? "hsl(215 15% 60%)" : "hsl(215 15% 50%)",
       up: isDark ? "hsl(145 50% 50%)" : "hsl(145 55% 40%)",
       down: isDark ? "hsl(0 60% 55%)" : "hsl(0 65% 50%)",
-      rate: isDark ? "hsl(213 65% 60%)" : "hsl(213 70% 45%)",
     }),
     [isDark],
   );
@@ -168,7 +167,7 @@ export default function FeedbackPage() {
                 <div className="space-y-2">
                   {stats.lowRatedQuestions.map((q, i) => (
                     <div
-                      key={i}
+                      key={`${q.created_at}-${q.content}`}
                       className="flex items-start gap-3 p-3 bg-destructive/5 border border-destructive/10 rounded-lg"
                     >
                       <ThumbsDown className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
