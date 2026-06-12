@@ -166,7 +166,7 @@ Make "how do I connect my agency" a 30-minute task:
 - One published doc: connection contract (request/response shape per
   API / MCP / A2A), timeout expectations, health-probe behavior.
 - A reference agency implementation (small FastAPI app) in `examples/`.
-- This replaces scattered knowledge in `spec/readme.md` and tribal knowledge.
+- This replaces scattered knowledge in `spec/mcp-server.md` and tribal knowledge.
 
 ### 2.4 Notifications & status
 
@@ -281,18 +281,15 @@ Four entry points: `POST /chat` (alias), `/chat/internal`, `/chat/external`,
   internal LangGraph path behind a flag) — do not document them publicly.
 - Delete the alias indirection where `/chat` just re-calls another handler.
 
-### 3.2 Duplicate / stale spec files
+### 3.2 Duplicate / stale spec files — DONE
 
-- `spec/hello.md` ≈ subset of `spec/agent-onechat.md`; `spec/readme 2.md` ≈
-  older `spec/readme.md`; the OneChat doc itself contains the same endpoint
-  documented twice with two base URLs.
-- Consolidate into `spec/onechat.md` (one canonical OneChat contract) and
-  `spec/mcp-server.md` (the MCP requirements doc). Delete `hello.md`,
-  `readme 2.md`.
-- `spec/ai-chat-api-spec.yaml` describes the old Supabase Edge Functions
-  architecture — archive to `spec/archive/` or delete.
-- Filenames with spaces (`readme 2.md`) and stray curl-with-secret blocks at
-  the bottom of specs: remove.
+- `spec/hello.md` (duplicate of agent-onechat.md content) and `spec/readme 2.md`
+  (older near-duplicate of readme.md) have been deleted.
+- `spec/readme.md` renamed to `spec/mcp-server.md` (the MCP server requirements doc).
+- `spec/ai-chat-api-spec.yaml` archived to `spec/archive/ai-chat-api-spec.yaml`
+  (describes the pre-FastAPI Supabase Edge Functions architecture; kept for historical reference).
+- `spec/InceptionReport_*.pdf` and `spec/v4-streaming.html` are now git-ignored
+  (binaries/raw captures); `spec/v4-streaming.md` (distilled) stays tracked.
 
 ### 3.3 Dead or duplicated mechanisms in code
 
@@ -312,8 +309,8 @@ Four entry points: `POST /chat` (alias), `/chat/internal`, `/chat/external`,
 - `lab/` experiments: move to a separate branch or `lab/README.md` stating
   "not part of the product, not maintained".
 - `spec/InceptionReport_*.pdf` (1.5 MB) and `spec/v4-streaming.html` (45 KB
-  raw capture): git-ignore binaries/captures; keep only the distilled
-  `v4-streaming.md`.
+  raw capture): git-ignored (untracked from index, still on disk); `spec/v4-streaming.md`
+  (distilled) stays tracked. DONE.
 
 ### 3.5 Things deliberately NOT to build (avoid scope creep)
 
