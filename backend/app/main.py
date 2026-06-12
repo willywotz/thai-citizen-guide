@@ -32,6 +32,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.config import settings, load_settings_from_db, assert_production_secrets
+from app.errors import register_error_handlers
 from app.database import init_db, close_db
 from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, users, settings as settings_router
@@ -98,6 +99,7 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+register_error_handlers(app)
 
 # ---------------------------------------------------------------------------
 # CORS

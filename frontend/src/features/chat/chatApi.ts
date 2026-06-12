@@ -87,7 +87,9 @@ export async function sendChatQuerySSE(
     // Try to parse error JSON before falling back
     try {
       const errBody = await response.json();
-      callbacks.onError?.({ message: errBody.detail ?? `HTTP ${response.status}`, code: response.status });
+      // Support new envelope {"error": {"message"}} and legacy {"detail": "..."} shapes
+      const errMessage = errBody.error?.message ?? errBody.detail ?? `HTTP ${response.status}`;
+      callbacks.onError?.({ message: errMessage, code: response.status });
     } catch {
       callbacks.onError?.({ message: `HTTP ${response.status}`, code: response.status });
     }
