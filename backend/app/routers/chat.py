@@ -1,12 +1,15 @@
 """
 AI Chat router.
 
-Endpoints
----------
-  POST /chat            → delegates to /chat/external
-  POST /chat/internal   → LangGraph multi-agent pipeline
-  POST /chat/external   → OneChat v3 (sync JSON)
+Public endpoints (schema-visible)
+----------------------------------
+  POST /chat            → canonical sync endpoint (delegates to /chat/external)
   POST /chat/stream     → OneChat v4 (SSE proxy)
+
+Internal endpoints (hidden from OpenAPI schema, still functional)
+-----------------------------------------------------------------
+  POST /chat/internal   → LangGraph multi-agent pipeline
+  POST /chat/external   → OneChat v3 sync (alias of /chat; deprecated)
 """
 
 import asyncio
@@ -55,7 +58,7 @@ def enforce_user_rate_limit(user) -> None:
 
 # ─── Internal endpoint (LangGraph pipeline) ────────────────────────────────────
 
-@router.post("/internal", summary="Send a query and get a synthesised AI response")
+@router.post("/internal", include_in_schema=False)  # internal LangGraph pipeline
 async def chat_internal(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     if user is not None:
         enforce_user_rate_limit(user)
@@ -167,7 +170,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 
 # ─── External endpoint (OneChat v3) ────────────────────────────────────────────
 
-@router.post("/external", summary="Send a query and get a synthesised AI response")
+@router.post("/external", include_in_schema=False, deprecated=True)  # alias; use POST /chat
 async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     if user is not None:
         enforce_user_rate_limit(user)
