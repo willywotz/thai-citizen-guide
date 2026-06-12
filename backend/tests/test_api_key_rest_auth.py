@@ -77,3 +77,28 @@ async def test_optional_expired_jwt_degrades_to_anonymous(db):
     # A browser's stale/invalid JWT on an optional-auth endpoint degrades to
     # anonymous so anonymous-allowed endpoints (e.g. chat) keep working.
     assert await get_current_user_optional(_creds("not-a-valid-jwt")) is None
+
+
+async def test_resolve_sets_context_for_api_key(db):
+    from app.auth.dependencies import _resolve_token
+    from app.services.usage_context import current_user_id, current_api_key_id
+
+    user, raw, key = await _user_with_key("ctx@x.com")
+    resolved = await _resolve_token(raw)
+
+    assert resolved.id == user.id
+    assert current_user_id.get() == user.id
+    assert current_api_key_id.get() == key.id
+
+
+async def test_resolve_sets_user_only_for_jwt(db):
+    from app.auth.dependencies import _resolve_token
+    from app.services.usage_context import current_user_id, current_api_key_id
+
+    user = await User.create(email="jwt@x.com", hashed_password="h", is_active=True)
+    token = create_access_token({"sub": str(user.id)})
+    resolved = await _resolve_token(token)
+
+    assert resolved.id == user.id
+    assert current_user_id.get() == user.id
+    assert current_api_key_id.get() is None

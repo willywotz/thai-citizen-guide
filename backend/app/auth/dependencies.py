@@ -23,6 +23,7 @@ from jose import JWTError
 from app.auth.security import API_KEY_PREFIX, decode_access_token, hash_api_key
 from app.models.user import User, UserAPIKey
 from app.services.rate_limit import api_key_limiter
+from app.services.usage_context import current_api_key_id, current_user_id
 from app.utils import now
 
 _bearer = HTTPBearer(auto_error=True)
@@ -62,6 +63,8 @@ async def _resolve_token(token: str) -> User | None:
                 )
         api_key.last_used_at = now()
         await api_key.save(update_fields=["last_used_at"])
+        current_user_id.set(user.id)
+        current_api_key_id.set(api_key.id)
         return user
 
     try:
@@ -71,7 +74,10 @@ async def _resolve_token(token: str) -> User | None:
     user_id: str = payload.get("sub", "")
     if not user_id:
         return None
-    return await User.filter(id=user_id, is_active=True).first()
+    user = await User.filter(id=user_id, is_active=True).first()
+    if user is not None:
+        current_user_id.set(user.id)
+    return user
 
 
 async def get_current_user(
