@@ -13,7 +13,8 @@ export default function UsageAnalyticsPage() {
   const { data, isLoading, isError } = useUsage({
     group_by: 'api_key',
     from: from ? new Date(from).toISOString() : undefined,
-    to: to ? new Date(to).toISOString() : undefined,
+    // exclusive upper bound = start of the day after the selected date, so the picked "to" day is included
+    to: to ? new Date(new Date(to).getTime() + 24 * 60 * 60 * 1000).toISOString() : undefined,
   });
 
   const rows = data ?? [];

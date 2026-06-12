@@ -59,3 +59,28 @@ async def test_usage_date_filter_naive_treated_as_utc(db):
     rows = await usage_summary(group_by="purpose", date_from=datetime(2021, 1, 1))
     by_key = {r["key"]: r for r in rows}
     assert by_key["router"]["prompt_tokens"] == 9
+
+
+async def test_usage_api_key_catch_all_merges_null_and_deleted(db):
+    from uuid import uuid4
+    from app.models.user import User, UserAPIKey
+    user = await User.create(email="o@x.com", hashed_password="h", is_active=True)
+    key = await UserAPIKey.create(user_id=user.id, name="prod", key_hash="h2", key_prefix="tcg_x")
+
+    await LlmUsage.create(model="m", purpose="router", prompt_tokens=5, completion_tokens=1,
+                          cost_usd=0.02)  # keyless / NULL
+    await LlmUsage.create(model="m", purpose="router", prompt_tokens=3, completion_tokens=2,
+                          cost_usd=0.01, api_key_id=uuid4())  # orphaned (deleted key)
+    await LlmUsage.create(model="m", purpose="router", prompt_tokens=10, completion_tokens=0,
+                          cost_usd=0.0, api_key_id=key.id)  # valid keyed
+
+    rows = await usage_summary(group_by="api_key")
+
+    catch_all = [r for r in rows if r["key"] == "—"]
+    assert len(catch_all) == 1                       # single merged bucket
+    assert catch_all[0]["prompt_tokens"] == 8        # 5 + 3
+    assert catch_all[0]["completion_tokens"] == 3    # 1 + 2
+    assert catch_all[0]["name"] == "web/session"
+
+    keyed = [r for r in rows if r["key"] == str(key.id)]
+    assert len(keyed) == 1 and keyed[0]["prompt_tokens"] == 10
