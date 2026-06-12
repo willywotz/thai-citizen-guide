@@ -65,7 +65,7 @@ async def _with_health(agency: Agency) -> AgencyResponse:
 
 @router.get("", response_model=AgencyListResponse, summary="List agencies")
 async def list_agencies(
-    status_filter: Literal["active", "inactive", "draft", "maintenance", "disabled", "all"] = Query(
+    status_filter: Literal["active", "draft", "maintenance", "disabled", "all"] = Query(
         "all", alias="status", description="Filter by agency status"
     ),
     connection_type: str | None = Query(None, description="Filter by connection type: MCP, API, A2A"),

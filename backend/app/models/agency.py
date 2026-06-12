@@ -16,7 +16,6 @@ class AgencyStatus(str, Enum):
     active = "active"
     maintenance = "maintenance"
     disabled = "disabled"
-    inactive = "inactive"  # legacy; retained so pre-redesign rows still load
 
 
 class Agency(Model):
