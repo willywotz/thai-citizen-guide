@@ -126,7 +126,7 @@ def _deserialize(raw: str, annotation: type):
 
 
 def assert_production_secrets(s: "Settings") -> None:
-    if s.ENV == "production" and s.JWT_SECRET == DEFAULT_JWT_SECRET:
+    if s.ENV.strip().lower() == "production" and s.JWT_SECRET == DEFAULT_JWT_SECRET:
         raise RuntimeError("JWT_SECRET must be changed when ENV=production")
 
 
