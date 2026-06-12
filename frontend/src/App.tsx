@@ -20,6 +20,7 @@ import HistoryPage from "@/features/history/HistoryPage";
 import ArchitecturePage from "@/features/architecture/ArchitecturePage";
 import ConnectionLogsPage from "@/features/connection-logs/ConnectionLogsPage";
 import PublicPortal from "@/features/public/PublicPortal";
+import StatusPage from "@/features/status/StatusPage";
 import LoginPage from "@/features/auth/LoginPage";
 import SignupPage from "@/features/auth/SignupPage";
 import ForgotPasswordPage from "@/features/auth/ForgotPasswordPage";
@@ -42,6 +43,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<PublicPortal />} />
+              <Route path="/status" element={<StatusPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />

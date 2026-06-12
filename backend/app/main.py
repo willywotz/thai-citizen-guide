@@ -35,7 +35,7 @@ from app.config import settings, load_settings_from_db, assert_production_secret
 from app.errors import register_error_handlers
 from app.database import init_db, close_db
 from app.mcp.server import mcp
-from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, users, settings as settings_router
+from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, public_status, users, settings as settings_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
@@ -129,6 +129,7 @@ app.include_router(connection_logs.router, prefix="/api/v1")
 app.include_router(api_key.router, prefix="/api/v1")
 app.include_router(executive_summary.router, prefix="/api/v1")
 app.include_router(insight.router, prefix="/api/v1")
+app.include_router(public_status.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
