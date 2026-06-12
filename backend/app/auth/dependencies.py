@@ -20,45 +20,71 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
-from app.auth.security import decode_access_token
-from app.models.user import User
+from app.auth.security import API_KEY_PREFIX, decode_access_token, hash_api_key
+from app.models.user import User, UserAPIKey
+from app.utils import now
 
 _bearer = HTTPBearer(auto_error=True)
 _bearer_optional = HTTPBearer(auto_error=False)
+
+_invalid_credentials = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Invalid or expired credentials",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+
+async def _resolve_token(token: str) -> User | None:
+    """Resolve a bearer token to an active user.
+
+    Accepts either a JWT or a ``tcg_`` API key (distinguished by prefix), so
+    REST endpoints authenticate the same keys the MCP server already does.
+    Returns None when the token is invalid or the user is missing/inactive.
+    """
+    if token.startswith(API_KEY_PREFIX):
+        api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
+        if api_key is None:
+            return None
+        user = await User.filter(id=api_key.user_id, is_active=True).first()
+        if user is not None:
+            api_key.last_used_at = now()
+            await api_key.save(update_fields=["last_used_at"])
+        return user
+
+    try:
+        payload = decode_access_token(token)
+    except JWTError:
+        return None
+    user_id: str = payload.get("sub", "")
+    if not user_id:
+        return None
+    return await User.filter(id=user_id, is_active=True).first()
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> User:
-    token = credentials.credentials
-    exc = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = decode_access_token(token)
-        user_id: str = payload.get("sub", "")
-        if not user_id:
-            raise exc
-    except JWTError:
-        raise exc
-
-    user = await User.filter(id=user_id, is_active=True).first()
-    if not user:
-        raise exc
+    user = await _resolve_token(credentials.credentials)
+    if user is None:
+        raise _invalid_credentials
     return user
+
 
 async def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
 ) -> User | None:
+    # No credential → anonymous.
     if credentials is None:
         return None
-
-    try:
-        return await get_current_user(credentials)
-    except HTTPException:
-        return None
+    token = credentials.credentials
+    user = await _resolve_token(token)
+    # A deliberate API-key auth that fails must NOT silently degrade to anonymous
+    # — that would let a typo'd key bypass rate limits / quotas. A JWT, by
+    # contrast, is a session token a browser auto-attaches; an expired one
+    # degrades to anonymous so optional-auth endpoints (e.g. chat) still work.
+    if user is None and token.startswith(API_KEY_PREFIX):
+        raise _invalid_credentials
+    return user
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:

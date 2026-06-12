@@ -24,25 +24,31 @@ Confirmed against `backend/app/auth/security.py` (`API_KEY_PREFIX = "tcg_"`,
 
 ## Authentication
 
-All protected endpoints use HTTP Bearer authentication:
+All protected endpoints use HTTP Bearer authentication. The Bearer token may be
+**either** a `tcg_...` API key (recommended for programmatic/API consumers) **or**
+a JWT access token from the `POST /api/v1/auth/login` flow (used by the web app):
 
 ```
-Authorization: Bearer <your-key>
+Authorization: Bearer tcg_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-The REST chat endpoints (`/api/v1/chat`, `/api/v1/chat/stream`) and conversation
-history endpoint (`/api/v1/conversations`) accept a **JWT access token** issued by the
-`POST /api/v1/auth/login` flow. They use `get_current_user_optional`, which only
-resolves JWT tokens; unauthenticated requests are allowed but rate limiting and quota
-checks are skipped for anonymous users.
+The REST routes and the MCP endpoints both resolve `tcg_` API keys the same way
+(hash lookup in `UserAPIKey`); using an API key stamps its `last_used_at`. A key
+inherits its owning user's role, so an admin's key works on admin-only endpoints.
 
-The **MCP endpoints** (`GET /sse`, `POST /messages/`, `/mcp/`) additionally accept
-a `tcg_...` API key as the Bearer token — the MCP `AuthMiddleware` hashes it and
-looks it up in `UserAPIKey`. The standard REST routes do **not** currently resolve
-`tcg_` API keys.
+Behavior on the optional-auth endpoints (chat, `/api/v1/conversations`):
 
-Confirmed against `backend/app/auth/dependencies.py` (JWT-only Bearer decode) and
-`backend/app/mcp/server.py` (API-key lookup in `AuthMiddleware`).
+- **No `Authorization` header** → anonymous (allowed; rate limits and quotas are
+  not applied to anonymous traffic).
+- **A valid API key or JWT** → authenticated as that user; rate limits and quotas
+  apply.
+- **A present-but-invalid `tcg_` key** → `401` (a deliberate auth attempt that
+  fails is rejected, so a typo'd key can't silently bypass limits).
+- **An expired/invalid JWT** → treated as anonymous (a browser's stale session
+  token degrades gracefully rather than breaking anonymous-allowed endpoints).
+
+Confirmed against `backend/app/auth/dependencies.py` (`_resolve_token` accepts both
+token types) and `backend/app/mcp/server.py`.
 
 ---
 
@@ -146,7 +152,8 @@ Source: `backend/app/routers/chat.py` — `chat_stream`, `_sse_event`, `event_ge
 
 ### `GET /api/v1/conversations` — List conversations
 
-Returns the current user's conversation history. Requires authentication (JWT Bearer).
+Returns the current user's conversation history. Requires authentication (a `tcg_`
+API key or a JWT as the Bearer token).
 
 **Query parameters**
 
@@ -300,7 +307,7 @@ Source: `backend/app/main.py` (`docs_url="/docs"`, `redoc_url="/redoc"`).
 
 ```bash
 BASE_URL="http://localhost:8080"
-TOKEN="<your-jwt-token>"
+TOKEN="tcg_your-api-key"   # an API key (tcg_...) or a JWT both work
 
 curl -s -X POST "$BASE_URL/api/v1/chat" \
   -H "Authorization: Bearer $TOKEN" \
@@ -337,7 +344,7 @@ Example response:
 import httpx
 
 BASE_URL = "http://localhost:8080"
-TOKEN = "<your-jwt-token>"
+TOKEN = "tcg_your-api-key"   # an API key (tcg_...) or a JWT both work
 
 with httpx.Client(base_url=BASE_URL) as client:
     resp = client.post(
@@ -371,7 +378,7 @@ To continue a conversation, pass the returned `conversation_id`:
 
 ```javascript
 const BASE_URL = "http://localhost:8080";
-const token = "<your-jwt-token>";
+const token = "tcg_your-api-key"; // an API key (tcg_...) or a JWT both work
 
 const resp = await fetch(`${BASE_URL}/api/v1/chat`, {
   method: "POST",
