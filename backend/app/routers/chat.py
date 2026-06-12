@@ -54,10 +54,18 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     cached = await find_similar_question(query=query, embedding=embedding)
     if cached:
         user_msg, asst_msg, _ = cached
+        conversation_id = body.conversation_id or str(generate_uuid())
+        new_asst_msg = await _copy_cached_answer(
+            query=query,
+            conversation_id=conversation_id,
+            user=user,
+            user_msg=user_msg,
+            asst_msg=asst_msg,
+        )
         return {
             "success": True,
             "data": {
-                "message_id": asst_msg.id,
+                "message_id": new_asst_msg.id,
                 "answer": asst_msg.content,
                 "references": asst_msg.sources if asst_msg.sources else [],
                 "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
@@ -65,7 +73,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
                 "confidence": settings.SIMILARITY_THRESHOLD,
                 "cached": True,
             },
-            "conversation_id": str(user_msg.conversation_id),
+            "conversation_id": conversation_id,
             "responseTime": 0,
         }
 
@@ -160,10 +168,17 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             if cached:
                 user_msg, asst_msg, _ = cached
                 span.set_attribute("cache_hit", True)
+                new_asst_msg = await _copy_cached_answer(
+                    query=query,
+                    conversation_id=conversation_id,
+                    user=user,
+                    user_msg=user_msg,
+                    asst_msg=asst_msg,
+                )
                 return {
                     "success": True,
                     "data": {
-                        "message_id": asst_msg.id,
+                        "message_id": new_asst_msg.id,
                         "answer": asst_msg.content,
                         "references": asst_msg.sources if asst_msg.sources else [],
                         "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
@@ -171,7 +186,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                         "confidence": settings.SIMILARITY_THRESHOLD,
                         "cached": True,
                     },
-                    "conversation_id": str(user_msg.conversation_id),
+                    "conversation_id": conversation_id,
                     "responseTime": 0,
                 }
         else:
@@ -296,7 +311,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                         answer_data = json.loads(conn_log.response_body)
                     except Exception:
                         answer_data = {"answer": asst_msg.content}
-                    await _save_stream_conversation(
+                    assistant_id = await _save_stream_conversation(
                         query=query,
                         conversation_id=conversation_id,
                         answer_data=answer_data,
@@ -307,7 +322,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                         background_tasks=background_tasks,
                     )
                     yield _sse_event("answer", {"answer": asst_msg.content})
-                    yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
+                    yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0, "message_id": str(assistant_id)})
 
                 return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
         else:
@@ -327,6 +342,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
             answer_data = None
             session_id = None
             total_ms = None
+            done_event_data = None
             start_ns = time.perf_counter_ns()
             log_latency_ms = 0
 
@@ -360,12 +376,11 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                                 elif event_name == "done":
                                     session_id = event_data.get("session_id")
                                     total_ms = event_data.get("total_ms")
+                                    done_event_data = event_data
                                 with tracer.start_as_current_span("event") as event_span:
                                     event_span.set_attribute("stream_event", event_name)
                                     event_span.set_attribute("event_data", json.dumps(event_data)[:500])
-                                if event_name == "done":
-                                    yield _sse_event(event_name, {**event_data, "session_id": conversation_id})
-                                else:
+                                if event_name != "done":
                                     yield _sse_event(event_name, event_data)
 
             except httpx.ReadTimeout:
@@ -380,7 +395,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                 return
 
             if answer_data:
-                await _save_stream_conversation(
+                assistant_id = await _save_stream_conversation(
                     query=query,
                     conversation_id=conversation_id,
                     answer_data=answer_data,
@@ -390,6 +405,9 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
                     user=user,
                     background_tasks=background_tasks,
                 )
+                yield _sse_event("done", {**(done_event_data or {}), "session_id": conversation_id, "message_id": str(assistant_id)})
+            elif done_event_data is not None:
+                yield _sse_event("done", {**done_event_data, "session_id": conversation_id})
 
         return StreamingResponse(event_generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
@@ -424,6 +442,55 @@ def _parse_sse_block(block: str) -> tuple[str, Any] | None:
         return None
 
 
+async def _copy_cached_answer(
+    *,
+    query: str,
+    conversation_id: str,
+    user: User | None,
+    user_msg: Message,
+    asst_msg: Message,
+) -> Message:
+    """Copy a cached answer into a fresh message owned by `conversation_id`.
+
+    Copies are intentionally NOT cache sources: no embedding is stored and no
+    ConnectionLog is created, so neither vector search (filters on
+    embedding IS NOT NULL) nor the text fallback (requires a ConnectionLog in
+    find_similar_question) will ever resurface a copy.
+    """
+    try:
+        conv = await Conversation.get(id=conversation_id)
+        conv.message_count += 2  # 1 user + 1 assistant message per turn
+        await conv.save()
+    except Exception:
+        await Conversation.create(
+            id=conversation_id,
+            title=query[:settings.TITLE_MAX_LENGTH],
+            preview=query[:settings.PREVIEW_MAX_LENGTH],
+            agencies=[],
+            status="success",
+            message_count=2,  # 1 user + 1 assistant message per turn
+            response_time=0,
+            user_id=user.id if user else None,
+        )
+
+    new_user_msg = await Message.create(
+        conversation_id=conversation_id,
+        role="user",
+        content=query,
+        category=user_msg.category,
+    )
+    return await Message.create(
+        parent_id=new_user_msg.id,
+        conversation_id=conversation_id,
+        role="assistant",
+        content=asst_msg.content,
+        sources=asst_msg.sources,
+        agent_steps=asst_msg.agent_steps,
+        agency_ids=asst_msg.agency_ids,
+        response_time=0,
+    )
+
+
 async def _save_stream_conversation(
     *,
     query: str,
@@ -434,7 +501,7 @@ async def _save_stream_conversation(
     latency_ms: int,
     user: User | None,
     background_tasks: BackgroundTasks,
-) -> None:
+) -> Any:
     answer = answer_data.get("answer", "").strip()
     errors = answer_data.get("errors", [])
     sections = answer_data.get("sections", [])
@@ -490,3 +557,5 @@ async def _save_stream_conversation(
 
     background_tasks.add_task(classify_message_category, str(query_msg.id), query, answer)
     background_tasks.add_task(store_embedding, str(query_msg.id), query)
+
+    return assistant_msg.id
