@@ -47,6 +47,9 @@ class UserAPIKey(Model):
     key_hash = fields.CharField(max_length=64, unique=True, null=True)
     key_prefix = fields.CharField(max_length=16, default="")
     last_used_at = fields.DatetimeField(null=True)
+    expires_at = fields.DatetimeField(null=True)       # null = never expires
+    revoked_at = fields.DatetimeField(null=True)       # set when revoked; null = active
+    rate_limit_rpm = fields.IntField(null=True)        # null = no per-key limit
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
