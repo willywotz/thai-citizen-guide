@@ -4,6 +4,7 @@ Auth utilities — password hashing and JWT creation/verification.
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -51,6 +52,21 @@ def decode_access_token(token: str) -> dict:
 
 def generate_reset_token() -> str:
     return secrets.token_urlsafe(settings.RESET_TOKEN_BYTES)
+
+
+# ---------------------------------------------------------------------------
+# API key generation and hashing
+# ---------------------------------------------------------------------------
+
+API_KEY_PREFIX = "tcg_"
+
+
+def generate_api_key() -> str:
+    return API_KEY_PREFIX + secrets.token_urlsafe(32)
+
+
+def hash_api_key(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def reset_token_expiry() -> datetime:

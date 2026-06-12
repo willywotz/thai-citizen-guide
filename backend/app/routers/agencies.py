@@ -42,6 +42,7 @@ from app.schemas.agency import (
     StatusUpdateRequest,
 )
 from app.services.agency_health import embedded_health, health_history
+from app.services.log_sanitize import sanitize_body
 from app.services.mcp_discovery import discover_tools
 from app.services.agency_lifecycle import is_legal_transition
 
@@ -333,7 +334,7 @@ async def test_connection_endpoint(agency_id: uuid.UUID, _: User = Depends(requi
         connection_type=agency.connection_type,
         status="success" if response.success else "error",
         latency_ms=latency_ms,
-        detail=response.error or (f"HTTP {response.status_code}" if response.status_code else response.protocol),
+        detail=sanitize_body(response.error or (f"HTTP {response.status_code}" if response.status_code else response.protocol)),
     )
 
     return response

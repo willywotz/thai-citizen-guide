@@ -22,9 +22,10 @@ from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from starlette.datastructures import URLPath
 
+from app.auth.security import hash_api_key
 from app.models.agency import Agency
-from app.models.user import User
-from app.utils import generate_uuid
+from app.models.user import User, UserAPIKey
+from app.utils import generate_uuid, now
 
 mcp = FastMCP(
     name="AI Chatbot Portal MCP",
@@ -47,8 +48,12 @@ class AuthMiddleware(Middleware):
         conversation_id = await ctx.fastmcp_context.get_state("conversation_id") or None
 
         if not user:
-            token = get_http_request().headers.get("Authorization", "Bearer anonymous")
-            user = await User.filter(api_keys__key=token.split(" ")[-1]).first()
+            token = get_http_request().headers.get("Authorization", "Bearer anonymous").split(" ")[-1]
+            api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
+            if api_key:
+                api_key.last_used_at = now()
+                await api_key.save(update_fields=["last_used_at"])
+                user = await User.filter(id=api_key.user_id).first()
             if user: await ctx.fastmcp_context.set_state("user_id", user.id)
             if user: await ctx.fastmcp_context.set_state("user_is_admin", user.is_admin)
 

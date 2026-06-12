@@ -32,6 +32,7 @@ from app.services.chat.graph import build_graph
 from app.services.chat.llm import classify_message_category, extract_tag, store_embedding
 from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
+from app.services.log_sanitize import sanitize_body
 from app.services.session import ensure_session_warmed
 from app.utils import generate_uuid, now
 
@@ -256,9 +257,9 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             connection_type="external_chat",
             status="success",
             latency_ms=response_time,
-            detail=f"Query: {query}\n\nAnswer: {raw_data}",
-            request_body=json.dumps(payload),
-            response_body=json.dumps(raw_data),
+            detail=sanitize_body(f"Query: {query}\n\nAnswer: {raw_data}"),
+            request_body=sanitize_body(json.dumps(payload)),
+            response_body=sanitize_body(json.dumps(raw_data)),
             message_id=query_msg.id,
             assistant_message_id=response_msg.id,
         )
@@ -548,9 +549,9 @@ async def _save_stream_conversation(
         connection_type="external_chat_v4",
         status="success",
         latency_ms=latency_ms,
-        detail=f"v4 stream query: {query[:100]}",
-        request_body=json.dumps({"query": query, "session_id": conversation_id}),
-        response_body=json.dumps(answer_data, ensure_ascii=False),
+        detail=sanitize_body(f"v4 stream query: {query[:100]}"),
+        request_body=sanitize_body(json.dumps({"query": query, "session_id": conversation_id})),
+        response_body=sanitize_body(json.dumps(answer_data, ensure_ascii=False)),
         message_id=query_msg.id,
         assistant_message_id=assistant_msg.id,
     )
