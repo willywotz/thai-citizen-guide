@@ -99,6 +99,24 @@ export async function sendChatQuerySSE(
   const decoder = new TextDecoder();
   let buffer = '';
 
+  const dispatch = (block: string) => {
+    if (!block.trim()) return;
+    const parsed = parseSSEBlock(block);
+    if (!parsed) return;
+    switch (parsed.event) {
+      case 'step': callbacks.onStep?.(parsed.data as StepEvent); break;
+      case 'agencies': callbacks.onAgencies?.(parsed.data as AgenciesEvent); break;
+      case 'intent': callbacks.onIntent?.(parsed.data as IntentEvent); break;
+      case 'routing': callbacks.onRouting?.(parsed.data as RoutingEvent); break;
+      case 'agency_start': callbacks.onAgencyStart?.(parsed.data as AgencyStartEvent); break;
+      case 'agency_responded': callbacks.onAgencyResponded?.(parsed.data as AgencyRespondedEvent); break;
+      case 'agency_verified': callbacks.onAgencyVerified?.(parsed.data as AgencyVerifiedEvent); break;
+      case 'answer': callbacks.onAnswer?.(parsed.data as AnswerEvent); break;
+      case 'done': callbacks.onDone?.(parsed.data as DoneEvent); break;
+      case 'error': callbacks.onError?.(parsed.data as ErrorEvent); break;
+    }
+  };
+
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -107,48 +125,13 @@ export async function sendChatQuerySSE(
       buffer += decoder.decode(value, { stream: true });
       const parts = buffer.split('\n\n');
       buffer = parts.pop()!; // last incomplete chunk stays in buffer
-
-      for (const part of parts) {
-        if (!part.trim()) continue;
-        const parsed = parseSSEBlock(part);
-        if (!parsed) continue;
-
-        switch (parsed.event) {
-          case 'step':
-            callbacks.onStep?.(parsed.data as StepEvent);
-            break;
-          case 'agencies':
-            callbacks.onAgencies?.(parsed.data as AgenciesEvent);
-            break;
-          case 'intent':
-            callbacks.onIntent?.(parsed.data as IntentEvent);
-            break;
-          case 'routing':
-            callbacks.onRouting?.(parsed.data as RoutingEvent);
-            break;
-          case 'agency_start':
-            callbacks.onAgencyStart?.(parsed.data as AgencyStartEvent);
-            break;
-          case 'agency_responded':
-            callbacks.onAgencyResponded?.(parsed.data as AgencyRespondedEvent);
-            break;
-          case 'agency_verified':
-            callbacks.onAgencyVerified?.(parsed.data as AgencyVerifiedEvent);
-            break;
-          case 'answer':
-            callbacks.onAnswer?.(parsed.data as AnswerEvent);
-            break;
-          case 'done':
-            callbacks.onDone?.(parsed.data as DoneEvent);
-            break;
-          case 'error':
-            callbacks.onError?.(parsed.data as ErrorEvent);
-            break;
-        }
-      }
+      for (const part of parts) dispatch(part);
     }
   } finally {
     reader.releaseLock();
+
+    // Flush any event not terminated with \n\n
+    dispatch(buffer);
   }
 
   return true;
