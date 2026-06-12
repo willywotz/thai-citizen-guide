@@ -50,8 +50,6 @@ class AuthMiddleware(Middleware):
         if not user:
             token = get_http_request().headers.get("Authorization", "Bearer anonymous").split(" ")[-1]
             api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
-            if api_key is None:
-                api_key = await UserAPIKey.filter(key=token).first()  # legacy plaintext fallback
             if api_key:
                 api_key.last_used_at = now()
                 await api_key.save(update_fields=["last_used_at"])
