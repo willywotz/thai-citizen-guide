@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.auth.security import generate_api_key, hash_api_key
 from app.models.user import User, UserAPIKey
 from app.utils import now
@@ -63,3 +63,19 @@ async def test_no_per_key_limit_when_unset(db):
     raw = await _key(u)  # rate_limit_rpm is None
     for _ in range(5):
         assert (await get_current_user(_creds(raw))).id == u.id
+
+
+async def test_optional_revoked_key_raises_401(db):
+    u = await User.create(email="or@x.com", hashed_password="h")
+    raw = await _key(u, revoked_at=now())
+    with pytest.raises(HTTPException) as e:
+        await get_current_user_optional(_creds(raw))
+    assert e.value.status_code == 401
+
+
+async def test_optional_expired_key_raises_401(db):
+    u = await User.create(email="oe@x.com", hashed_password="h")
+    raw = await _key(u, expires_at=now() - timedelta(seconds=1))
+    with pytest.raises(HTTPException) as e:
+        await get_current_user_optional(_creds(raw))
+    assert e.value.status_code == 401

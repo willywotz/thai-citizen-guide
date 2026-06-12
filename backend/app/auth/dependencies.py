@@ -46,16 +46,8 @@ async def _resolve_token(token: str) -> User | None:
         api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
         if api_key is None:
             return None
-        if api_key.revoked_at is not None:
+        if not api_key.is_usable():
             return None
-        if api_key.expires_at is not None:
-            expires = api_key.expires_at
-            # SQLite returns naive datetimes; coerce to UTC-aware for comparison.
-            if expires.tzinfo is None:
-                from datetime import timezone
-                expires = expires.replace(tzinfo=timezone.utc)
-            if expires <= now():
-                return None
         user = await User.filter(id=api_key.user_id, is_active=True).first()
         if user is None:
             return None

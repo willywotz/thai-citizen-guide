@@ -50,9 +50,7 @@ class AuthMiddleware(Middleware):
         if not user:
             token = get_http_request().headers.get("Authorization", "Bearer anonymous").split(" ")[-1]
             api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
-            if api_key and api_key.revoked_at is None and not (
-                api_key.expires_at is not None and api_key.expires_at <= now()
-            ):
+            if api_key and api_key.is_usable():
                 api_key.last_used_at = now()
                 await api_key.save(update_fields=["last_used_at"])
                 user = await User.filter(id=api_key.user_id, is_active=True).first()
