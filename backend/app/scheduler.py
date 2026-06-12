@@ -10,6 +10,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.config import settings
 from app.models import Agency, ConnectionLog
 from app.services.agency import test_connection
+from app.services.agency_reconcile import reconcile_statuses
 from app.services.analytics import regenerate_weekly_brief
 from app.utils import generate_uuid, now
 
@@ -78,6 +79,7 @@ async def agency_chat_item(agency: Agency) -> None:
 async def agency_chat_test() -> None:
     agencies = await Agency.all()
     await asyncio.gather(*[agency_chat_item(ag) for ag in agencies])
+    await reconcile_statuses()
 
 
 async def regenerate_brief_job() -> None:
