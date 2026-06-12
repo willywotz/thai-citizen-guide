@@ -1,15 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
-import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity } from "lucide-react";
-import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "./useDashboard";
-import { useAgencies } from "@/features/agencies/useAgencies";
-import { cn } from "@/shared/lib/utils";
+import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity, ThumbsDown } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useTheme } from "next-themes";
-import { FeedbackAnalytics } from "./FeedbackAnalytics";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { useAgencies } from "@/features/agencies/useAgencies";
+import { FeedbackSummaryCards } from "@/features/feedback/FeedbackSummaryCards";
+import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
+import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "./useDashboard";
 import { DashboardStatsRow } from "./DashboardStatsRow";
 import { DashboardAgencyStatus } from "./DashboardAgencyStatus";
 
@@ -36,6 +38,7 @@ export default function DashboardPage() {
   const { data: weeklyTrend } = useWeeklyTrend();
   const { data: categoryStats } = useCategoryData();
   const { data: agencies = [] } = useAgencies();
+  const { data: feedbackStats } = useFeedbackStats();
 
   const chartColors = useMemo(() => ({
     grid: isDark ? "hsl(220 15% 25%)" : "hsl(214 25% 92%)",
@@ -189,7 +192,26 @@ export default function DashboardPage() {
         <DashboardAgencyStatus agencies={agencies} />
       </div>
 
-      <FeedbackAnalytics />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-foreground">📊 Feedback</h3>
+          <Link to="/feedback" className="text-xs text-primary hover:underline">ดูทั้งหมด →</Link>
+        </div>
+        <FeedbackSummaryCards />
+        {feedbackStats && feedbackStats.lowRatedQuestions.length > 0 && (
+          <div className="space-y-2">
+            {feedbackStats.lowRatedQuestions.slice(0, 3).map((q, i) => (
+              <div key={`${q.created_at}-${q.content}`} className="flex items-start gap-3 p-3 bg-destructive/5 border border-destructive/10 rounded-lg">
+                <ThumbsDown className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-foreground line-clamp-1">{q.content}</p>
+                  <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full mt-1 inline-block">{q.agency}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

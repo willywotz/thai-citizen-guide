@@ -3,13 +3,19 @@ import { http, HttpResponse } from "msw";
 import { LEGAL_TRANSITIONS } from "@/features/agencies/lifecycle";
 import type { AgencyLifecycleStatus, AgencyRow, HealthWindow } from "@/shared/types/agency";
 
-import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies, row } from "./fixtures";
+import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies, mockFeedbackStats, row } from "./fixtures";
 
 function findAgency(id: string): AgencyRow | undefined {
   return mockAgencies.find((a) => a.id === id);
 }
 
 export const handlers = [
+  http.get("*/api/v1/feedback/stats", () => HttpResponse.json(mockFeedbackStats)),
+
+  http.patch("*/api/v1/messages/:id/rating", ({ params }) =>
+    HttpResponse.json({ success: true, messageId: params.id }),
+  ),
+
   http.get("*/api/v1/agencies", () =>
     HttpResponse.json({ data: mockAgencies, total: mockAgencies.length }),
   ),
