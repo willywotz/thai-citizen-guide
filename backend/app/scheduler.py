@@ -12,6 +12,7 @@ from app.models import Agency, ConnectionLog
 from app.services.agency import test_connection
 from app.services.agency_reconcile import reconcile_statuses
 from app.services.analytics import regenerate_weekly_brief
+from app.services.log_sanitize import sanitize_body
 from app.utils import generate_uuid, now
 
 scheduler = AsyncIOScheduler()
@@ -53,9 +54,9 @@ async def agency_chat_item(agency: Agency) -> None:
                         connection_type="API",
                         status="success" if resp.status_code == 200 else "error",
                         latency_ms=latency,
-                        detail=f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}",
-                        request_body=json.dumps(payload),
-                        response_body=resp.text,
+                        detail=sanitize_body(f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}"),
+                        request_body=sanitize_body(json.dumps(payload)),
+                        response_body=sanitize_body(resp.text),
                     )
             elif agency.connection_type in ("MCP", "A2A"):
                 result = await test_connection(agency.connection_type, agency)
@@ -70,7 +71,7 @@ async def agency_chat_item(agency: Agency) -> None:
                     connection_type=agency.connection_type,
                     status="success" if result.get("success") else "error",
                     latency_ms=latency,
-                    detail=result.get("error") or "ok",
+                    detail=sanitize_body(result.get("error") or "ok"),
                 )
     except Exception as e:
         print(f"Error testing agency {agency.name}: {e}")
