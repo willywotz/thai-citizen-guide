@@ -31,7 +31,7 @@ const navItems = [
 ];
 
 const adminItems = [
-  { title: "ความคิดเห็น", url: "/feedback", icon: MessageSquareWarning },
+  { title: "ความคิดเห็นและความพึงพอใจ", url: "/feedback", icon: MessageSquareWarning },
   { title: "จัดการผู้ใช้", url: "/users", icon: Users },
   { title: "ตั้งค่าระบบ", url: "/settings", icon: Settings },
 ];
