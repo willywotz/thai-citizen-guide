@@ -29,3 +29,4 @@ class SlidingWindowLimiter:
 
 agency_limiter = SlidingWindowLimiter()
 user_limiter = SlidingWindowLimiter()
+api_key_limiter = SlidingWindowLimiter()
