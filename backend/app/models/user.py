@@ -2,7 +2,7 @@ import uuid
 
 from tortoise import fields
 from tortoise.models import Model
-from app.utils import generate_uuid
+from app.utils import generate_uuid, now
 
 class User(Model):
     """
@@ -47,8 +47,18 @@ class UserAPIKey(Model):
     key_hash = fields.CharField(max_length=64, unique=True, null=True)
     key_prefix = fields.CharField(max_length=16, default="")
     last_used_at = fields.DatetimeField(null=True)
+    expires_at = fields.DatetimeField(null=True)       # null = never expires
+    revoked_at = fields.DatetimeField(null=True)       # set when revoked; null = active
+    rate_limit_rpm = fields.IntField(null=True)        # null = no per-key limit
     created_at = fields.DatetimeField(auto_now_add=True)
+
+    def is_usable(self) -> bool:
+        """True when the key is neither revoked nor expired."""
+        if self.revoked_at is not None:
+            return False
+        if self.expires_at is not None and self.expires_at <= now():
+            return False
+        return True
 
     class Meta:
         table = "user_api_keys"
-        

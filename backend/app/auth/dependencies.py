@@ -22,6 +22,7 @@ from jose import JWTError
 
 from app.auth.security import API_KEY_PREFIX, decode_access_token, hash_api_key
 from app.models.user import User, UserAPIKey
+from app.services.rate_limit import api_key_limiter
 from app.utils import now
 
 _bearer = HTTPBearer(auto_error=True)
@@ -45,10 +46,22 @@ async def _resolve_token(token: str) -> User | None:
         api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
         if api_key is None:
             return None
+        if not api_key.is_usable():
+            return None
         user = await User.filter(id=api_key.user_id, is_active=True).first()
-        if user is not None:
-            api_key.last_used_at = now()
-            await api_key.save(update_fields=["last_used_at"])
+        if user is None:
+            return None
+        rpm = api_key.rate_limit_rpm or 0
+        if rpm:
+            key = f"apikey:{api_key.id}"
+            if not api_key_limiter.allow(key, limit=rpm):
+                raise HTTPException(
+                    status_code=429,
+                    detail="API key rate limit exceeded",
+                    headers={"Retry-After": str(api_key_limiter.retry_after(key))},
+                )
+        api_key.last_used_at = now()
+        await api_key.save(update_fields=["last_used_at"])
         return user
 
     try:

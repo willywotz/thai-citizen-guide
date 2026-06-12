@@ -21,16 +21,24 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Label } from "@/shared/components/ui/label";
-import { Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Ban, Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   listAPIKeys,
   createAPIKey,
   updateAPIKey,
+  revokeAPIKey,
   deleteAPIKey,
   type APIKey,
+  type APIKeyStatus,
   type CreatedAPIKey,
 } from "@/features/api-keys/apiKeyApi";
+
+const STATUS_META: Record<APIKeyStatus, { label: string; className: string }> = {
+  active: { label: "ใช้งานอยู่", className: "bg-green-100 text-green-700" },
+  expired: { label: "หมดอายุ", className: "bg-amber-100 text-amber-700" },
+  revoked: { label: "ถูกเพิกถอน", className: "bg-red-100 text-red-700" },
+};
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
@@ -43,17 +51,51 @@ export default function ApiKeysPage() {
   // Create
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createExpiresInDays, setCreateExpiresInDays] = useState("");
+  const [createRateLimit, setCreateRateLimit] = useState("");
   const [newKey, setNewKey] = useState<CreatedAPIKey | null>(null);
+  const resetCreateForm = useCallback(() => {
+    setCreateName("");
+    setCreateExpiresInDays("");
+    setCreateRateLimit("");
+  }, []);
   const createMutation = useMutation({
-    mutationFn: () => createAPIKey(createName.trim()),
+    mutationFn: () => {
+      const expiresInDays = createExpiresInDays.trim();
+      const rateLimit = createRateLimit.trim();
+      return createAPIKey({
+        name: createName.trim(),
+        ...(expiresInDays ? { expires_in_days: Number(expiresInDays) } : {}),
+        ...(rateLimit ? { rate_limit_rpm: Number(rateLimit) } : {}),
+      });
+    },
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["apiKeys"] });
       setCreateOpen(false);
-      setCreateName("");
+      resetCreateForm();
       setNewKey(created);
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Revoke
+  const revokeMutation = useMutation({
+    mutationFn: (id: string) => revokeAPIKey(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["apiKeys"] });
+      toast.success("เพิกถอน API Key เรียบร้อย");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleRevoke = useCallback(
+    (key: APIKey) => {
+      if (window.confirm("เพิกถอนคีย์นี้? คีย์จะใช้งานไม่ได้อีกต่อไป")) {
+        revokeMutation.mutate(key.id);
+      }
+    },
+    [revokeMutation],
+  );
 
   // Edit
   const [editTarget, setEditTarget] = useState<APIKey | null>(null);
@@ -118,9 +160,26 @@ export default function ApiKeysPage() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{k.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground truncate">{k.name}</p>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_META[k.status].className}`}
+                      >
+                        {STATUS_META[k.status].label}
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground font-mono mt-1">
                       {k.key_prefix}…
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      วันหมดอายุ{" "}
+                      {k.expires_at
+                        ? new Date(k.expires_at).toLocaleString("th-TH")
+                        : "ไม่มีวันหมดอายุ"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      จำกัดอัตรา{" "}
+                      {k.rate_limit_rpm != null ? `${k.rate_limit_rpm} ครั้ง/นาที` : "—"}
                     </p>
                     {k.last_used_at && (
                       <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -139,6 +198,16 @@ export default function ApiKeysPage() {
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
+                    {k.status !== "revoked" && (
+                      <button
+                        onClick={() => handleRevoke(k)}
+                        disabled={revokeMutation.isPending}
+                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                        aria-label="เพิกถอน"
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => setDeleteTarget(k)}
                       className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
@@ -155,20 +224,44 @@ export default function ApiKeysPage() {
       )}
 
       {/* Create dialog */}
-      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setCreateName(""); }}>
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) resetCreateForm(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>สร้าง API Key ใหม่</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="create-name">ชื่อ</Label>
-            <Input
-              id="create-name"
-              placeholder="เช่น Production, Dev, Testing"
-              value={createName}
-              onChange={(e) => setCreateName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && createName.trim()) createMutation.mutate(); }}
-            />
+          <div className="space-y-3 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="create-name">ชื่อ</Label>
+              <Input
+                id="create-name"
+                placeholder="เช่น Production, Dev, Testing"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && createName.trim()) createMutation.mutate(); }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-expires">หมดอายุใน (วัน)</Label>
+              <Input
+                id="create-expires"
+                type="number"
+                min={1}
+                placeholder="เว้นว่างไว้หากไม่มีวันหมดอายุ"
+                value={createExpiresInDays}
+                onChange={(e) => setCreateExpiresInDays(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-rate-limit">จำกัดอัตรา (ครั้ง/นาที)</Label>
+              <Input
+                id="create-rate-limit"
+                type="number"
+                min={1}
+                placeholder="เว้นว่างไว้หากไม่จำกัด"
+                value={createRateLimit}
+                onChange={(e) => setCreateRateLimit(e.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createMutation.isPending}>
