@@ -526,7 +526,7 @@ class ParseSpecRequest(BaseModel):
 
 
 @router.post("/parse-spec", summary="Parse an OpenAPI spec via LLM and extract structured metadata")
-async def parse_api_spec(body: ParseSpecRequest):
+async def parse_api_spec(body: ParseSpecRequest, _: User = Depends(get_current_user)):
     if not body.spec_text.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="spec_text is required")
 
