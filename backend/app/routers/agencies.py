@@ -15,6 +15,7 @@ Endpoints
   GET    /agencies/{id}/connection-logs     List connection logs for an agency
 """
 
+import logging
 import uuid
 from typing import Any, Literal
 
@@ -28,6 +29,7 @@ from tortoise.exceptions import DoesNotExist
 from app.models.agency import Agency
 from app.models.connection_log import ConnectionLog
 from app.services.agency import parse_spec, test_connection
+from app.services.cache_flush import flush_similarity_cache
 from app.schemas.agency import (
     AgencyCreate,
     AgencyHealthEmbed,
@@ -45,6 +47,8 @@ from app.services.agency_health import embedded_health, health_history
 from app.services.log_sanitize import sanitize_body
 from app.services.mcp_discovery import discover_tools
 from app.services.agency_lifecycle import is_legal_transition
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
 
@@ -184,6 +188,10 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, _: User = Dep
     data["response_schema"] = [f.model_dump() for f in body.response_schema]
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
     await agency.update_from_dict(data).save()
+    try:
+        await flush_similarity_cache()
+    except Exception:
+        logger.exception("failed to flush similarity cache after agency update")
     return await _with_health(agency)
 
 
@@ -218,6 +226,10 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, _: User = Depe
         ]
 
     await agency.update_from_dict(update_data).save()
+    try:
+        await flush_similarity_cache()
+    except Exception:
+        logger.exception("failed to flush similarity cache after agency update")
     return await _with_health(agency)
 
 

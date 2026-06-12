@@ -1,6 +1,17 @@
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+_FIXED_CUTOFF = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+
+def _patch_cutoff(similarity):
+    return patch.object(
+        similarity,
+        "effective_cutoff",
+        new=AsyncMock(return_value=_FIXED_CUTOFF),
+    )
 
 
 @pytest.mark.asyncio
@@ -12,7 +23,8 @@ async def test_find_similar_uses_vector_search_when_embedding_present():
     conv = MagicMock(id="c1", status="success")
     conn_log = MagicMock()
 
-    with patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)) as mvec, \
+    with _patch_cutoff(similarity), \
+         patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)) as mvec, \
          patch.object(similarity, "_text_fallback_search", new=AsyncMock()) as mtext, \
          patch.object(similarity, "Message") as MockMessage, \
          patch.object(similarity, "Conversation") as MockConv, \
@@ -31,7 +43,8 @@ async def test_find_similar_uses_vector_search_when_embedding_present():
 async def test_find_similar_uses_text_fallback_when_no_embedding():
     from app.services import similarity
 
-    with patch.object(similarity, "_vector_search", new=AsyncMock()) as mvec, \
+    with _patch_cutoff(similarity), \
+         patch.object(similarity, "_vector_search", new=AsyncMock()) as mvec, \
          patch.object(similarity, "_text_fallback_search", new=AsyncMock(return_value=None)) as mtext, \
          patch.object(similarity, "Message"), \
          patch.object(similarity, "Conversation"), \
@@ -48,7 +61,8 @@ async def test_find_similar_returns_none_when_no_assistant():
     from app.services import similarity
 
     match_msg = MagicMock(id="m1", conversation_id="c1")
-    with patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
+    with _patch_cutoff(similarity), \
+         patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
          patch.object(similarity, "Message") as MockMessage, \
          patch.object(similarity, "Conversation"), \
          patch.object(similarity, "ConnectionLog"):
@@ -65,7 +79,8 @@ async def test_find_similar_returns_none_when_conversation_not_success():
     match_msg = MagicMock(id="m1", conversation_id="c1")
     assistant = MagicMock(id="a1")
     conv = MagicMock(id="c1", status="error")
-    with patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
+    with _patch_cutoff(similarity), \
+         patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
          patch.object(similarity, "Message") as MockMessage, \
          patch.object(similarity, "Conversation") as MockConv, \
          patch.object(similarity, "ConnectionLog"):
@@ -83,7 +98,8 @@ async def test_find_similar_returns_none_when_conn_log_missing():
     match_msg = MagicMock(id="m1", conversation_id="c1")
     assistant = MagicMock(id="a1")
     conv = MagicMock(id="c1", status="success")
-    with patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
+    with _patch_cutoff(similarity), \
+         patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
          patch.object(similarity, "Message") as MockMessage, \
          patch.object(similarity, "Conversation") as MockConv, \
          patch.object(similarity, "ConnectionLog") as MockCL:

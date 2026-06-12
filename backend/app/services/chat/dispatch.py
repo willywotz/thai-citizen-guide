@@ -14,6 +14,7 @@ from fastmcp import Client
 
 from app.config import settings
 from app.services.rate_limit import agency_limiter
+from app.utils.retry import retry_async
 
 # Priority-ordered property names that map to the sub-question
 _QUERY_PROPS = ("query", "question", "message", "text", "input")
@@ -131,16 +132,20 @@ def extract_mcp_text(result) -> str:
 
 async def dispatch_a2a(route: dict, conversation_id: str) -> dict:
     sub_q = route["sub_question"]
-    async with httpx.AsyncClient(timeout=settings.A2A_DISPATCH_TIMEOUT) as client:
-        resp = await client.post(
-            route["endpoint_url"],
-            json={
-                "session_id": str(uuid.uuid4()),
-                "query": f"ให้ระบุแหล่งที่มาของข้อมูลในคำตอบด้วยเสมอ\n\nคำถาม: {sub_q}",
-            },
-            headers={"Content-Type": "application/json"},
-        )
-        return {"agency": route["agency_name"], "response": resp.json(), "status": "ok"}
+
+    async def _call():
+        async with httpx.AsyncClient(timeout=settings.A2A_DISPATCH_TIMEOUT) as client:
+            return await client.post(
+                route["endpoint_url"],
+                json={
+                    "session_id": str(uuid.uuid4()),
+                    "query": f"ให้ระบุแหล่งที่มาของข้อมูลในคำตอบด้วยเสมอ\n\nคำถาม: {sub_q}",
+                },
+                headers={"Content-Type": "application/json"},
+            )
+
+    resp = await retry_async(_call)
+    return {"agency": route["agency_name"], "response": resp.json(), "status": "ok"}
 
 
 async def dispatch_api(route: dict, conversation_id: str) -> dict:
@@ -150,15 +155,19 @@ async def dispatch_api(route: dict, conversation_id: str) -> dict:
         route["sub_question"],
         conversation_id,
     )
-    async with httpx.AsyncClient(timeout=_dispatch_timeout(route)) as client:
-        resp = await client.post(route["endpoint_url"], headers=headers, json=payload)
-        if resp.status_code == 200:
-            return {"agency": route["agency_name"], "response": resp.json(), "status": "ok"}
-        return {
-            "agency": route["agency_name"],
-            "response": f"HTTP {resp.status_code}: {resp.text}",
-            "status": "error",
-        }
+
+    async def _call():
+        async with httpx.AsyncClient(timeout=_dispatch_timeout(route)) as client:
+            return await client.post(route["endpoint_url"], headers=headers, json=payload)
+
+    resp = await retry_async(_call)
+    if resp.status_code == 200:
+        return {"agency": route["agency_name"], "response": resp.json(), "status": "ok"}
+    return {
+        "agency": route["agency_name"],
+        "response": f"HTTP {resp.status_code}: {resp.text}",
+        "status": "error",
+    }
 
 
 async def dispatch_mcp(route: dict, sub_question: str) -> dict:

@@ -53,17 +53,23 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 });
 
-// -- Response interceptor: surface FastAPI detail as Error ------------------
+// -- Response interceptor: surface FastAPI error message as Error ------------
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
-    const detail = error?.response?.data?.detail;
+    const data = error?.response?.data;
+    // New envelope shape: {"error": {"code", "message", "retryable"}}
+    const envelopeMessage = data?.error?.message;
+    // Legacy shape fallback: {"detail": "..."} or [{"msg": "..."}] (422 validation)
+    const detail = data?.detail;
     const message =
-      typeof detail === 'string'
-        ? detail
-        : Array.isArray(detail)
-          ? detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join(', ')
-          : error.message ?? 'Request failed';
+      typeof envelopeMessage === 'string'
+        ? envelopeMessage
+        : typeof detail === 'string'
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join(', ')
+            : error.message ?? 'Request failed';
     return Promise.reject(new Error(message));
   }
 );
