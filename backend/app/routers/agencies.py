@@ -145,7 +145,8 @@ async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, 
             detail=f"Illegal status transition: {agency.status.value} → {body.status}",
         )
     agency.status = body.status
-    await agency.save(update_fields=["status", "updated_at"])
+    agency.auto_maintenance = False
+    await agency.save(update_fields=["status", "auto_maintenance", "updated_at"])
     return await _with_health(agency)
 
 
