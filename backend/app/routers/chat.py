@@ -33,6 +33,8 @@ from app.services.chat.llm import classify_message_category, extract_tag, store_
 from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
+from app.services.quota import QuotaExceeded, check_global_budget, check_user_quota
+from app.services.rate_limit import user_limiter
 from app.services.session import ensure_session_warmed
 from app.utils import generate_uuid, now
 
@@ -41,10 +43,28 @@ tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
 
+def enforce_user_rate_limit(user) -> None:
+    key = f"user:{user.id}"
+    if not user_limiter.allow(key, limit=settings.USER_RATE_LIMIT_RPM):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded",
+            headers={"Retry-After": str(user_limiter.retry_after(key))},
+        )
+
+
 # ─── Internal endpoint (LangGraph pipeline) ────────────────────────────────────
 
 @router.post("/internal", summary="Send a query and get a synthesised AI response")
 async def chat_internal(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+    if user is not None:
+        enforce_user_rate_limit(user)
+    try:
+        await check_global_budget()
+        if user is not None:
+            await check_user_quota(user.id)
+    except QuotaExceeded as e:
+        raise HTTPException(status_code=429, detail=str(e))
     start = time.time()
     query = body.query.strip()
 
@@ -149,6 +169,14 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 
 @router.post("/external", summary="Send a query and get a synthesised AI response")
 async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+    if user is not None:
+        enforce_user_rate_limit(user)
+    try:
+        await check_global_budget()
+        if user is not None:
+            await check_user_quota(user.id)
+    except QuotaExceeded as e:
+        raise HTTPException(status_code=429, detail=str(e))
     with tracer.start_as_current_span("chat_external_endpoint") as span:
         query = body.query.strip()
         conversation_id = body.conversation_id or str(generate_uuid())
@@ -287,6 +315,14 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
 @router.post("/stream", summary="Send a query and receive SSE streaming response (v4)")
 async def chat_stream(body: ChatRequest, request: Request, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)):
     """Proxy to OneChat v4 SSE endpoint, re-emit events to client, save conversation after answer."""
+    if user is not None:
+        enforce_user_rate_limit(user)
+    try:
+        await check_global_budget()
+        if user is not None:
+            await check_user_quota(user.id)
+    except QuotaExceeded as e:
+        raise HTTPException(status_code=429, detail=str(e))
     query = body.query.strip()
     conversation_id = body.conversation_id or str(generate_uuid())
 

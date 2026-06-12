@@ -6,6 +6,7 @@ import httpx
 from app.config import settings
 from app.models.conversation import Message
 from app.services.embedding import encode_embedding, generate_embedding
+from app.services.llm_client import openrouter_chat
 
 logger = logging.getLogger(__name__)
 
@@ -106,12 +107,7 @@ async def classify_message_category(message_id: str, query: str, answer: str) ->
         "model": settings.CLASSIFICATION_MODEL,
         "messages": [{"role": "user", "content": content}],
     }
-    async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
-        resp = await client.post(
-            settings.OPENROUTER_API_URL,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"},
-            json=payload,
-        )
+    resp = await openrouter_chat(payload, purpose="classification")
     try:
         category = resp.json()["choices"][0]["message"]["content"].strip()
         await Message.filter(id=message_id).update(category=category)

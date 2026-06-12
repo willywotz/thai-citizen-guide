@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchDashboardStats, fetchAgencyUsage, fetchWeeklyTrend, fetchCategoryData } from '@/features/dashboard/dashboardApi';
+import { fetchDashboardStats, fetchAgencyUsage, fetchWeeklyTrend, fetchCategoryData, fetchLlmUsage } from '@/features/dashboard/dashboardApi';
 
 const REFETCH_INTERVAL = 30 * 1000;
 
@@ -31,6 +31,14 @@ export function useCategoryData() {
   return useQuery({
     queryKey: ['dashboard', 'categoryData'],
     queryFn: fetchCategoryData,
+    refetchInterval: REFETCH_INTERVAL,
+  });
+}
+
+export function useLlmUsage(groupBy: string = "model") {
+  return useQuery({
+    queryKey: ['dashboard', 'llmUsage', groupBy],
+    queryFn: () => fetchLlmUsage(groupBy),
     refetchInterval: REFETCH_INTERVAL,
   });
 }

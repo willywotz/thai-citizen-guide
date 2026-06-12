@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     MCP_CLIENT_VERSION: str = "1.0"
 
     # ── Chat ─────────────────────────────────────────────────────────────────
+    USER_RATE_LIMIT_RPM: int = 30
     A2A_DISPATCH_TIMEOUT: int = 30
     V4_STREAM_TIMEOUT: float = 300.0
     EXTERNAL_CHAT_TIMEOUT: float = 180.0
@@ -89,6 +90,10 @@ class Settings(BaseSettings):
     FEEDBACK_TREND_DAYS: int = 14
     BUSINESS_HOURS_START: int = 8
     BUSINESS_HOURS_END: int = 18
+
+    # ── Quota ────────────────────────────────────────────────────────────────
+    USER_MONTHLY_TOKEN_QUOTA: int = 0      # 0 = unlimited
+    GLOBAL_DAILY_COST_LIMIT_USD: float = 0.0  # 0 = unlimited
 
     # ── Embedding / similarity ──────────────────────────────────────────────
     EMBEDDING_API_URL: str = "https://api.openai.com/v1/embeddings"
@@ -142,11 +147,12 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
     "Parse spec": ["PARSE_SPEC_URL", "PARSE_SPEC_API_KEY", "PARSE_SPEC_TIMEOUT", "PARSE_SPEC_LLM_MODEL"],
     "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "MCP_ENDPOINT_URL"],
     "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
-    "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS"],
+    "Chat": ["USER_RATE_LIMIT_RPM", "A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS"],
     "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS"],
     "Executive summary": ["BRIEF_REGEN_INTERVAL_HOURS", "WEEKLY_BRIEF_TIMEOUT"],
     "Analytics": ["AVG_LATENCY_WINDOW_DAYS", "FEEDBACK_TREND_DAYS", "BUSINESS_HOURS_START", "BUSINESS_HOURS_END"],
     "Embedding / similarity": ["EMBEDDING_API_URL", "EMBEDDING_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_DIMENSIONS", "EMBEDDING_TIMEOUT", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_FALLBACK"],
+    "Quota": ["USER_MONTHLY_TOKEN_QUOTA", "GLOBAL_DAILY_COST_LIMIT_USD"],
 }
 
 SECRET_FIELD_NAMES: set[str] = {

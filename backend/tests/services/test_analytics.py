@@ -123,21 +123,21 @@ async def test_get_executive_summary_smoke():
     conv.filter.return_value = conv
     conv.count = AsyncMock(return_value=0)
 
-    httpx_client = MagicMock()
+    openrouter_mock = AsyncMock()
 
     with (
         patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)),
         patch.object(analytics, "Message", msg),
         patch.object(analytics, "Conversation", conv),
         patch.object(analytics, "_latest_brief", new=AsyncMock(return_value="brief")),
-        patch.object(analytics.httpx, "AsyncClient", httpx_client),
+        patch.object(analytics, "openrouter_chat", openrouter_mock),
     ):
         result = await analytics.get_executive_summary()
 
     assert isinstance(result, ExecutiveData)
     assert result.weeklyBrief == "brief"
     # GET must read the cached brief from the DB and never call the LLM.
-    httpx_client.assert_not_called()
+    openrouter_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -169,21 +169,11 @@ async def test_regenerate_weekly_brief_persists_ok_row():
     resp = MagicMock()
     resp.json.return_value = {"choices": [{"message": {"content": "  generated brief  "}}]}
 
-    class _Client:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        async def post(self, *args, **kwargs):
-            return resp
-
     with (
         patch.object(analytics, "_compute_executive_metrics", new=AsyncMock(return_value={})),
         patch.object(analytics, "_build_brief_prompt", return_value="prompt"),
         patch.object(analytics, "ExecutiveBrief", brief_model),
-        patch("app.services.analytics.httpx.AsyncClient", return_value=_Client()),
+        patch.object(analytics, "openrouter_chat", new=AsyncMock(return_value=resp)),
     ):
         result = await analytics.regenerate_weekly_brief()
 
@@ -202,21 +192,11 @@ async def test_regenerate_weekly_brief_persists_error_row_on_http_failure():
     brief_model = MagicMock()
     brief_model.create = AsyncMock(return_value=MagicMock())
 
-    class _RaisingClient:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        async def post(self, *args, **kwargs):
-            raise RuntimeError("network error")
-
     with (
         patch.object(analytics, "_compute_executive_metrics", new=AsyncMock(return_value={})),
         patch.object(analytics, "_build_brief_prompt", return_value="prompt"),
         patch.object(analytics, "ExecutiveBrief", brief_model),
-        patch("app.services.analytics.httpx.AsyncClient", return_value=_RaisingClient()),
+        patch.object(analytics, "openrouter_chat", new=AsyncMock(side_effect=RuntimeError("network error"))),
     ):
         await analytics.regenerate_weekly_brief()
 

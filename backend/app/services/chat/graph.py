@@ -52,6 +52,7 @@ async def route_query(state: AgentState) -> dict:
         route["api_headers"] = ag.get("api_headers", route.get("api_headers", []))
         route["priority"] = ag.get("priority")
         route["dispatch_timeout_s"] = ag.get("dispatch_timeout_s")
+        route["rate_limit_rpm"] = ag.get("rate_limit_rpm")
 
     # Sort by priority (lower number = higher priority); None last.
     routes.sort(key=lambda r: (r.get("priority") is None, r.get("priority") or 0))

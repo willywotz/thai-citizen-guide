@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui
 import { useAgencies } from "@/features/agencies/useAgencies";
 import { FeedbackSummaryCards } from "@/features/feedback/FeedbackSummaryCards";
 import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
-import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "./useDashboard";
+import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData, useLlmUsage } from "./useDashboard";
 import { DashboardStatsRow } from "./DashboardStatsRow";
 import { DashboardAgencyStatus } from "./DashboardAgencyStatus";
 
@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const { data: categoryStats } = useCategoryData();
   const { data: agencies = [] } = useAgencies();
   const { data: feedbackStats } = useFeedbackStats();
+  const { data: llmUsage = [] } = useLlmUsage("model");
 
   const chartColors = useMemo(() => ({
     grid: isDark ? "hsl(220 15% 25%)" : "hsl(214 25% 92%)",
@@ -191,6 +192,41 @@ export default function DashboardPage() {
 
         <DashboardAgencyStatus agencies={agencies} />
       </div>
+
+      <Card className="animate-fade-in" style={{ animationDelay: "560ms", animationFillMode: "both" }}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">LLM cost (by model)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {llmUsage.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No data</p>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold text-foreground mb-3">
+                ${llmUsage.reduce((sum, r) => sum + r.cost_usd, 0).toFixed(4)}
+              </p>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground">
+                    <th className="text-left pb-1">Model</th>
+                    <th className="text-right pb-1">Cost (USD)</th>
+                    <th className="text-right pb-1">Tokens</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {llmUsage.map((row) => (
+                    <tr key={row.key} className="border-t border-border/50">
+                      <td className="py-1 text-foreground">{row.key}</td>
+                      <td className="py-1 text-right text-muted-foreground">${row.cost_usd.toFixed(4)}</td>
+                      <td className="py-1 text-right text-muted-foreground">{(row.prompt_tokens + row.completion_tokens).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
