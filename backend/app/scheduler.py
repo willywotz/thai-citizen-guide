@@ -2,6 +2,7 @@ import asyncio
 import json
 import random
 import time
+from datetime import timedelta
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -93,6 +94,11 @@ async def regenerate_brief_job() -> None:
         print(f"Error regenerating weekly brief: {e}")
 
 
+async def purge_old_connection_logs() -> int:
+    cutoff = now() - timedelta(days=settings.CONNECTION_LOG_RETENTION_DAYS)
+    return await ConnectionLog.filter(created_at__lt=cutoff).delete()
+
+
 async def start_scheduler() -> None:
     global sem
     sem = asyncio.Semaphore(settings.AGENCY_CHAT_CONCURRENCY)
@@ -100,6 +106,7 @@ async def start_scheduler() -> None:
     asyncio.create_task(regenerate_brief_job())
     scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES))
     scheduler.add_job(regenerate_brief_job, IntervalTrigger(hours=settings.BRIEF_REGEN_INTERVAL_HOURS))
+    scheduler.add_job(purge_old_connection_logs, IntervalTrigger(hours=24))
     scheduler.start()
 
 
