@@ -28,9 +28,8 @@ async def error_window(agency_id: UUID) -> tuple[int, int]:
     """Return (checks, failures) over the trailing 24h for an agency."""
     since = now() - timedelta(hours=24)
     rows = await _rows(agency_id, since)
-    total = len(rows)
     failures = sum(1 for r in rows if r["status"] != "success")
-    return total, failures
+    return len(rows), failures
 
 
 async def embedded_health(agency_id: UUID) -> dict:
