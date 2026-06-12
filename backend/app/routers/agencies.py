@@ -21,8 +21,9 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.auth.authz import authorize_or_403
+from app.auth.authz import authorize_or_403, grant
 from app.auth.dependencies import get_current_user, require_admin
+from app.models.relationship import Relationship
 from app.models.user import User
 from pydantic import BaseModel
 from tortoise.exceptions import DoesNotExist
@@ -106,6 +107,35 @@ async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin
     except Exception as exc:  # noqa: BLE001 — surface any MCP/connection failure to the client
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"MCP discovery failed: {exc}")
     return McpDiscoverResponse(tools=[McpToolInfo(**t) for t in tools])
+
+
+# ---------------------------------------------------------------------------
+# Owner-scoped endpoints
+#
+# NOTE: must be registered BEFORE any "/{agency_id}" route, otherwise FastAPI
+# matches "mine" as an agency_id UUID path parameter.
+# ---------------------------------------------------------------------------
+
+class AddOwnerRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/{agency_id}/owners", summary="Assign an owner to an agency (admin)")
+async def add_agency_owner(agency_id: str, body: AddOwnerRequest, user: User = Depends(get_current_user)):
+    agency = await Agency.get_or_none(id=agency_id)
+    if agency is None:
+        raise HTTPException(status_code=404, detail="Agency not found")
+    await authorize_or_403(user, "user:manage", agency)
+    await grant(body.user_id, "owner", "agency", agency.id)
+    return {"detail": "owner added"}
+
+
+@router.get("/mine", summary="Agencies owned by the current user")
+async def list_my_agencies(user: User = Depends(get_current_user)) -> list:
+    ids = await Relationship.filter(
+        subject_type="user", subject_id=user.id, relation="owner", object_type="agency"
+    ).values_list("object_id", flat=True)
+    return await Agency.filter(id__in=list(ids))
 
 
 # ---------------------------------------------------------------------------

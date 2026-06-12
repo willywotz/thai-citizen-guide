@@ -5,7 +5,8 @@ from pydantic import BaseModel, ConfigDict
 from tortoise.functions import Avg
 from tortoise.exceptions import DoesNotExist
 from app.models import Agency, ConnectionLog, User
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import get_current_user, require_admin
+from app.models import Relationship
 from datetime import datetime, timedelta
 from app.config import settings
 from app.utils import now
@@ -50,16 +51,24 @@ async def list_connection_logs(
     agency_id: str | None = Query(None, description="Filter by agency ID"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_admin),
-)-> ListConnectionLogResponse:
-    
-    start = time.time()
+    user: User = Depends(get_current_user),
+) -> ListConnectionLogResponse:
 
-    qs = ConnectionLog.all()
+    if user.role == "agency_owner":
+        owned_ids = await Relationship.filter(
+            subject_type="user", subject_id=user.id, relation="owner", object_type="agency"
+        ).values_list("object_id", flat=True)
+        qs = ConnectionLog.filter(agency_id__in=list(owned_ids))
+    elif user.role == "admin":
+        qs = ConnectionLog.all()
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    start = time.time()
 
     if search:
         qs = qs.filter(detail__icontains=search)
-    
+
     if agency_id:
         try:
             agency_uuid = uuid.UUID(agency_id)
