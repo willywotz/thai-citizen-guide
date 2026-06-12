@@ -460,7 +460,6 @@ async def _copy_cached_answer(
     try:
         conv = await Conversation.get(id=conversation_id)
         conv.message_count += 2  # 1 user + 1 assistant message per turn
-        conv.updated_at = now()
         await conv.save()
     except Exception:
         await Conversation.create(
