@@ -5,6 +5,7 @@ import httpx
 
 from app.config import settings
 from app.models import LlmUsage
+from app.services.usage_context import current_api_key_id, current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,10 @@ async def _record_usage(resp, payload, purpose, user_id, agency_id, conversation
             prompt_tokens=usage.get("prompt_tokens", 0),
             completion_tokens=usage.get("completion_tokens", 0),
             cost_usd=usage.get("cost"),
-            user_id=user_id,
+            user_id=user_id if user_id is not None else current_user_id.get(),
             agency_id=agency_id,
             conversation_id=conversation_id,
+            api_key_id=current_api_key_id.get(),
         )
     except Exception:  # accounting must never break the chat path
         logger.exception("failed to record llm usage")

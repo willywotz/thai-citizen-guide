@@ -27,3 +27,27 @@ async def test_openrouter_chat_records_usage(db, monkeypatch):
     row = await LlmUsage.first()
     assert row.prompt_tokens == 10 and row.completion_tokens == 5
     assert row.cost_usd == 0.00002 and row.purpose == "classification"
+
+
+async def test_records_attribution_from_context(db, monkeypatch):
+    from uuid import uuid4
+    from app.services.usage_context import current_user_id, current_api_key_id
+
+    async def fake_post(self, url, **kwargs):
+        return _FakeResponse()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    uid, kid = uuid4(), uuid4()
+    ut = current_user_id.set(uid)
+    kt = current_api_key_id.set(kid)
+    try:
+        await llm_client.openrouter_chat(
+            {"model": "m", "messages": []}, purpose="classification",
+        )
+    finally:
+        current_user_id.reset(ut)
+        current_api_key_id.reset(kt)
+
+    row = await LlmUsage.first()
+    assert row.user_id == uid
+    assert row.api_key_id == kid
