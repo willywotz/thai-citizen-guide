@@ -1,17 +1,42 @@
 from datetime import timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from tortoise.expressions import RawSQL
-from tortoise.functions import Count
+from tortoise.functions import Count, Sum
 from tortoise.transactions import in_transaction
 
+from app.auth.dependencies import require_admin
 from app.config import settings
-from app.utils import now
+from app.models import Agency, Conversation, LlmUsage, Message
+from app.models.user import User
 from app.schemas.insight import AnalyticsInsightsData, AgencyHealthData, BusiestInsight, HeatmapInsights, UsageHeatmapData, HeatmapRange
-from app.models import Agency, Conversation, Message
 from app.services.analytics import get_agency_health
+from app.utils import now
 
 router = APIRouter(tags=["insight"])
+
+_GROUP_FIELDS = {"purpose": "purpose", "model": "model", "user": "user_id"}
+
+
+async def usage_summary(group_by: str = "purpose") -> list[dict]:
+    field = _GROUP_FIELDS.get(group_by, "purpose")
+    rows = (
+        await LlmUsage.all()
+        .annotate(prompt=Sum("prompt_tokens"), completion=Sum("completion_tokens"), cost=Sum("cost_usd"))
+        .group_by(field)
+        .values(field, "prompt", "completion", "cost")
+    )
+    return [
+        {
+            "key": str(r[field]),
+            "prompt_tokens": r["prompt"] or 0,
+            "completion_tokens": r["completion"] or 0,
+            "cost_usd": round(r["cost"] or 0.0, 6),
+        }
+        for r in rows
+    ]
+
+
 days_labels = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"]
 hours_labels = list(range(24))
 
@@ -177,3 +202,8 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
             ),
             generatedAt=now()
         )
+
+
+@router.get("/insight/usage", summary="LLM token/cost usage grouped")
+async def get_usage(group_by: str = "purpose", _admin: User = Depends(require_admin)):
+    return await usage_summary(group_by=group_by)
