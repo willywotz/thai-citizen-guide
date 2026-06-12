@@ -92,7 +92,10 @@ async def update_user(
         changed.append("display_name")
     if changed:
         await user.save(update_fields=changed)
-    await record_audit(admin, "user.update", object_type="user", object_id=user.id, detail={"role": user.role})
+        await record_audit(
+            admin, "user.update", object_type="user", object_id=user.id,
+            detail={"changed": changed, "role": user.role},
+        )
     return UserResponse.from_user(user)
 
 
