@@ -28,6 +28,7 @@ import ResetPasswordPage from "@/features/auth/ResetPasswordPage";
 import ApiKeysPage from "@/features/api-keys/ApiKeysPage";
 import SettingsPage from "@/features/settings/SettingsPage";
 import UsersPage from "@/features/users/UsersPage";
+import AuditLogPage from "@/features/audit/AuditLogPage";
 import FeedbackPage from "@/features/feedback/FeedbackPage";
 import NotFound from "@/shared/NotFound";
 
@@ -66,6 +67,7 @@ const App = () => (
                 <Route path="/api-keys" element={<ApiKeysPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
+                <Route path="/audit-log" element={<ProtectedRoute requireAdmin><AuditLogPage /></ProtectedRoute>} />
                 <Route path="/feedback" element={<ProtectedRoute requireAdmin><FeedbackPage /></ProtectedRoute>} />
               </Route>
 
