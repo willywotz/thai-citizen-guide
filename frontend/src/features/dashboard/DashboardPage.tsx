@@ -1,16 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
 import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity } from "lucide-react";
-import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "./useDashboard";
-import { useAgencies } from "@/features/agencies/useAgencies";
-import { cn } from "@/shared/lib/utils";
-import { useTheme } from "next-themes";
 import { Link } from "react-router-dom";
+import { useTheme } from "next-themes";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { useAgencies } from "@/features/agencies/useAgencies";
 import { FeedbackSummaryCards } from "@/features/feedback/FeedbackSummaryCards";
+import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "./useDashboard";
 import { DashboardStatsRow } from "./DashboardStatsRow";
 import { DashboardAgencyStatus } from "./DashboardAgencyStatus";
 
