@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     BUSINESS_HOURS_START: int = 8
     BUSINESS_HOURS_END: int = 18
 
+    # ── Quota ────────────────────────────────────────────────────────────────
+    USER_MONTHLY_TOKEN_QUOTA: int = 0      # 0 = unlimited
+    GLOBAL_DAILY_COST_LIMIT_USD: float = 0.0  # 0 = unlimited
+
     # ── Embedding / similarity ──────────────────────────────────────────────
     EMBEDDING_API_URL: str = "https://api.openai.com/v1/embeddings"
     EMBEDDING_API_KEY: str = ""
@@ -148,6 +152,7 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
     "Executive summary": ["BRIEF_REGEN_INTERVAL_HOURS", "WEEKLY_BRIEF_TIMEOUT"],
     "Analytics": ["AVG_LATENCY_WINDOW_DAYS", "FEEDBACK_TREND_DAYS", "BUSINESS_HOURS_START", "BUSINESS_HOURS_END"],
     "Embedding / similarity": ["EMBEDDING_API_URL", "EMBEDDING_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_DIMENSIONS", "EMBEDDING_TIMEOUT", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_FALLBACK"],
+    "Quota": ["USER_MONTHLY_TOKEN_QUOTA", "GLOBAL_DAILY_COST_LIMIT_USD"],
 }
 
 SECRET_FIELD_NAMES: set[str] = {
