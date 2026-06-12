@@ -21,20 +21,19 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Label } from "@/shared/components/ui/label";
-import { Copy, Eye, EyeOff, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { listAPIKeys, createAPIKey, updateAPIKey, deleteAPIKey, type APIKey } from "@/features/api-keys/apiKeyApi";
+import {
+  listAPIKeys,
+  createAPIKey,
+  updateAPIKey,
+  deleteAPIKey,
+  type APIKey,
+  type CreatedAPIKey,
+} from "@/features/api-keys/apiKeyApi";
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
-  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
-  const toggleReveal = useCallback((id: string) => {
-    setRevealedKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
 
   const { data: keys = [], isLoading } = useQuery({
     queryKey: ["apiKeys"],
@@ -44,13 +43,14 @@ export default function ApiKeysPage() {
   // Create
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [newKey, setNewKey] = useState<CreatedAPIKey | null>(null);
   const createMutation = useMutation({
     mutationFn: () => createAPIKey(createName.trim()),
-    onSuccess: () => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["apiKeys"] });
-      toast.success("สร้าง API Key เรียบร้อย");
       setCreateOpen(false);
       setCreateName("");
+      setNewKey(created);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -80,17 +80,15 @@ export default function ApiKeysPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const openEdit = (key: APIKey) => {
+  const openEdit = useCallback((key: APIKey) => {
     setEditTarget(key);
     setEditName(key.name);
-  };
+  }, []);
 
   const copyKey = (key: string) => {
     navigator.clipboard.writeText(key);
     toast.success("คัดลอกแล้ว");
   };
-
-  const maskKey = (key: string) => `${key.slice(0, 8)}${"•".repeat(24)}${key.slice(-4)}`;
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -121,26 +119,15 @@ export default function ApiKeysPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{k.name}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <code className="text-xs text-muted-foreground font-mono truncate">
-                        {revealedKeys.has(k.id) ? k.key : maskKey(k.key)}
-                      </code>
-                      <button
-                        onClick={() => toggleReveal(k.id)}
-                        className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                        aria-label={revealedKeys.has(k.id) ? "ซ่อน" : "แสดง"}
-                      >
-                        {revealedKeys.has(k.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                      </button>
-                      <button
-                        onClick={() => copyKey(k.key)}
-                        className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                        aria-label="คัดลอก"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground font-mono mt-1">
+                      {k.key_prefix}…
+                    </p>
+                    {k.last_used_at && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        ใช้ล่าสุด {new Date(k.last_used_at).toLocaleString("th-TH")}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
                       สร้างเมื่อ {new Date(k.created_at).toLocaleString("th-TH")}
                     </p>
                   </div>
@@ -194,6 +181,35 @@ export default function ApiKeysPage() {
               {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               สร้าง
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New key reveal dialog — shown once after creation */}
+      <Dialog open={!!newKey} onOpenChange={(o) => { if (!o) setNewKey(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>สร้าง API Key เรียบร้อย</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-amber-600 font-medium">
+              คัดลอก API Key นี้ไว้ทันที คุณจะไม่สามารถดูได้อีกครั้ง
+            </p>
+            <div className="flex items-center gap-2 bg-muted rounded-md p-3">
+              <code className="text-xs font-mono flex-1 break-all select-all">
+                {newKey?.key}
+              </code>
+              <button
+                onClick={() => newKey && copyKey(newKey.key)}
+                className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                aria-label="คัดลอก"
+              >
+                <Copy className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setNewKey(null)}>รับทราบ</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
