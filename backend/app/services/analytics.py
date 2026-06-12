@@ -1,7 +1,6 @@
 import logging
 from datetime import timedelta
 
-import httpx
 from tortoise.expressions import RawSQL
 from tortoise.functions import Count
 from tortoise.transactions import in_transaction
@@ -11,6 +10,7 @@ from app.utils import now
 from app.models import Agency, Conversation, ExecutiveBrief, Message, ConnectionLog
 from app.schemas.insight import AgencyHealthData, Agency as AgencyHealth
 from app.schemas.executive_summary import ExecutiveData, ExecutiveKPIs
+from app.services.llm_client import openrouter_chat
 
 logger = logging.getLogger(__name__)
 
@@ -176,13 +176,8 @@ _BRIEF_FALLBACK = "ไม่สามารถสร้างสรุปปร�
 async def _generate_brief_content(prompt: str) -> tuple[str, str]:
     """Call the LLM for the brief. Returns (content, status) where status is 'ok' | 'error'."""
     try:
-        url = settings.OPENROUTER_API_URL
-        header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
         payload = {"model": settings.CLASSIFICATION_MODEL, "messages": [{"role": "user", "content": prompt}]}
-
-        async with httpx.AsyncClient(timeout=settings.WEEKLY_BRIEF_TIMEOUT) as client:
-            resp = await client.post(url, headers=header, json=payload)
-
+        resp = await openrouter_chat(payload, purpose="brief", timeout=settings.WEEKLY_BRIEF_TIMEOUT)
         return resp.json()["choices"][0]["message"]["content"].strip(), "ok"
     except Exception as e:
         logger.error("Error generating weekly brief: %s", e)
