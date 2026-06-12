@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck, ScrollText } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck, BarChart3, ScrollText } from "lucide-react";
 import { NavLink } from "@/shared/components/NavLink";
 import {
   Sidebar,
@@ -38,6 +38,7 @@ const adminItems = [
   { title: "ความคิดเห็นและความพึงพอใจ", url: "/feedback", icon: MessageSquareWarning },
   { title: "จัดการผู้ใช้", url: "/users", icon: Users },
   { title: "บันทึกการตรวจสอบ", url: "/audit-log", icon: ScrollText },
+  { title: "การใช้งาน API Key", url: "/usage", icon: BarChart3 },
   { title: "ตั้งค่าระบบ", url: "/settings", icon: Settings },
 ];
 
