@@ -12,6 +12,10 @@ function findAgency(id: string): AgencyRow | undefined {
 export const handlers = [
   http.get("*/api/v1/feedback/stats", () => HttpResponse.json(mockFeedbackStats)),
 
+  http.patch("*/api/v1/messages/:id/rating", ({ params }) =>
+    HttpResponse.json({ success: true, messageId: params.id }),
+  ),
+
   http.get("*/api/v1/agencies", () =>
     HttpResponse.json({ data: mockAgencies, total: mockAgencies.length }),
   ),
