@@ -205,6 +205,11 @@ export default function DashboardPage() {
                 <ThumbsDown className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-foreground line-clamp-1">{q.content}</p>
+                  {q.feedback_text && (
+                    <p className="text-xs text-muted-foreground mt-1 italic">
+                      &ldquo;{q.feedback_text}&rdquo;
+                    </p>
+                  )}
                   <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full mt-1 inline-block">{q.agency}</span>
                 </div>
               </div>
