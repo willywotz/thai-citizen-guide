@@ -160,10 +160,17 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             if cached:
                 user_msg, asst_msg, _ = cached
                 span.set_attribute("cache_hit", True)
+                new_asst_msg = await _copy_cached_answer(
+                    query=query,
+                    conversation_id=conversation_id,
+                    user=user,
+                    user_msg=user_msg,
+                    asst_msg=asst_msg,
+                )
                 return {
                     "success": True,
                     "data": {
-                        "message_id": asst_msg.id,
+                        "message_id": new_asst_msg.id,
                         "answer": asst_msg.content,
                         "references": asst_msg.sources if asst_msg.sources else [],
                         "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
@@ -171,7 +178,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                         "confidence": settings.SIMILARITY_THRESHOLD,
                         "cached": True,
                     },
-                    "conversation_id": str(user_msg.conversation_id),
+                    "conversation_id": conversation_id,
                     "responseTime": 0,
                 }
         else:
@@ -422,6 +429,56 @@ def _parse_sse_block(block: str) -> tuple[str, Any] | None:
         return event_name, json.loads(data_line)
     except json.JSONDecodeError:
         return None
+
+
+async def _copy_cached_answer(
+    *,
+    query: str,
+    conversation_id: str,
+    user: User | None,
+    user_msg: Message,
+    asst_msg: Message,
+) -> Message:
+    """Copy a cached answer into a fresh message owned by `conversation_id`.
+
+    Copies are intentionally NOT cache sources: no embedding is stored and no
+    ConnectionLog is created, so neither vector search (filters on
+    embedding IS NOT NULL) nor the text fallback (requires a ConnectionLog in
+    find_similar_question) will ever resurface a copy.
+    """
+    try:
+        conv = await Conversation.get(id=conversation_id)
+        conv.message_count += 2  # 1 user + 1 assistant message per turn
+        conv.updated_at = now()
+        await conv.save()
+    except Exception:
+        await Conversation.create(
+            id=conversation_id,
+            title=query[:settings.TITLE_MAX_LENGTH],
+            preview=query[:settings.PREVIEW_MAX_LENGTH],
+            agencies=[],
+            status="success",
+            message_count=2,  # 1 user + 1 assistant message per turn
+            response_time=0,
+            user_id=user.id if user else None,
+        )
+
+    new_user_msg = await Message.create(
+        conversation_id=conversation_id,
+        role="user",
+        content=query,
+        category=user_msg.category,
+    )
+    return await Message.create(
+        parent_id=new_user_msg.id,
+        conversation_id=conversation_id,
+        role="assistant",
+        content=asst_msg.content,
+        sources=asst_msg.sources,
+        agent_steps=asst_msg.agent_steps,
+        agency_ids=asst_msg.agency_ids,
+        response_time=0,
+    )
 
 
 async def _save_stream_conversation(
