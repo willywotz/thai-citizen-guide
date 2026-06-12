@@ -28,6 +28,7 @@ from tortoise.exceptions import DoesNotExist
 from app.models.agency import Agency
 from app.models.connection_log import ConnectionLog
 from app.services.agency import parse_spec, test_connection
+from app.services.cache_flush import flush_similarity_cache
 from app.schemas.agency import (
     AgencyCreate,
     AgencyHealthEmbed,
@@ -184,6 +185,7 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, _: User = Dep
     data["response_schema"] = [f.model_dump() for f in body.response_schema]
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
     await agency.update_from_dict(data).save()
+    await flush_similarity_cache()
     return await _with_health(agency)
 
 
@@ -218,6 +220,7 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, _: User = Depe
         ]
 
     await agency.update_from_dict(update_data).save()
+    await flush_similarity_cache()
     return await _with_health(agency)
 
 

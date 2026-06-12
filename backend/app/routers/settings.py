@@ -19,6 +19,7 @@ from app.schemas.settings import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
+from app.services.cache_flush import flush_similarity_cache
 
 router = APIRouter(tags=["Settings"])
 
@@ -110,3 +111,9 @@ def _group_for_key(key: str) -> str:
         if key in keys:
             return group_name
     return "App"
+
+
+@router.post("/settings/cache/flush", dependencies=[Depends(require_admin)])
+async def flush_cache():
+    await flush_similarity_cache()
+    return {"detail": "cache flushed"}

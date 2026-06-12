@@ -7,6 +7,7 @@ from tortoise import Tortoise
 from app.config import settings
 from app.models.conversation import Message, Conversation
 from app.models.connection_log import ConnectionLog
+from app.services.cache_flush import effective_cutoff
 from app.services.embedding import encode_embedding
 from app.utils import now
 
@@ -27,7 +28,7 @@ async def find_similar_question(
     None otherwise.
     """
     threshold = settings.SIMILARITY_THRESHOLD
-    cutoff = now() - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS)
+    cutoff = await effective_cutoff(now() - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS))
 
     if embedding is not None:
         match = await _vector_search(query, embedding, threshold, cutoff)
