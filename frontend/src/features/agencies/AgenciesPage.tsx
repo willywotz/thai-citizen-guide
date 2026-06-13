@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
+import { useAuth } from "@/features/auth/useAuth";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import type { Agency, AgencyLifecycleStatus } from "@/shared/types/agency";
@@ -26,6 +27,7 @@ const TYPE_FILTERS: TypeFilter[] = ["all", "API", "MCP", "A2A"];
 
 export default function AgenciesPage() {
   const { data: agencies = [], isLoading } = useAgencies();
+  const { isReadOnly } = useAuth();
   const deleteMutation = useDeleteAgency();
   const testMutation = useTestConnection();
   const statusMutation = useUpdateAgencyStatus();
@@ -96,11 +98,13 @@ export default function AgenciesPage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{filtered.length} หน่วยงาน</span>
-          <Button size="sm" asChild>
-            <Link to="/agencies/new">
-              <Plus className="h-4 w-4 mr-1" /> เพิ่มหน่วยงาน
-            </Link>
-          </Button>
+          {!isReadOnly && (
+            <Button size="sm" asChild>
+              <Link to="/agencies/new">
+                <Plus className="h-4 w-4 mr-1" /> เพิ่มหน่วยงาน
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
