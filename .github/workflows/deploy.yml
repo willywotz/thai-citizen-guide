@@ -40,11 +40,9 @@ jobs:
     if: ${{ needs.check-deploy.outputs.deploy == 'true' }}
 
     steps:
-      - name: checkout code
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-      - name: Create Production .env File
-        run: |
+      - run: |
           cat > .env << 'EOF'
           EXTERNAL_HTTP_PORT=80
           EXTERNAL_POSTGRES_PORT=5432
@@ -52,6 +50,4 @@ jobs:
           OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
           EOF
 
-      - name: Deploy Stack
-        run: |
-          docker compose -f docker-compose.yaml up -d --build --remove-orphans
+      - run: docker compose -f docker-compose.yaml up -d --build --remove-orphans
