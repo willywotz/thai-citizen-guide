@@ -1,5 +1,10 @@
 """The basic-user allowlist maps 1:1 to the Chat + Architecture pages."""
-from app.auth.dependencies import _is_allowed_for_basic_user, _resolve_role
+import pytest
+from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
+from starlette.requests import Request
+
+from app.auth.dependencies import _is_allowed_for_basic_user, _resolve_role, enforce_basic_user_allowlist
 from app.auth.security import create_access_token, generate_api_key, hash_api_key
 from app.models.user import User, UserAPIKey
 
@@ -86,3 +91,56 @@ async def test_resolve_role_unusable_api_key_returns_none(db):
         revoked_at=now(),
     )
     assert await _resolve_role(raw) is None
+
+
+def _request(method: str, path: str) -> Request:
+    return Request(
+        {"type": "http", "method": method, "path": path,
+         "headers": [], "query_string": b""}
+    )
+
+
+def _creds(token: str) -> HTTPAuthorizationCredentials:
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+
+async def _token_for(email: str, role: str) -> str:
+    user = await User.create(email=email, hashed_password="h", role=role)
+    return create_access_token({"sub": str(user.id)})
+
+
+async def test_basic_user_blocked_on_restricted_page(db):
+    token = await _token_for("b1@x.com", "user")
+    with pytest.raises(HTTPException) as e:
+        await enforce_basic_user_allowlist(
+            _request("GET", "/api/v1/dashboard/stats"), _creds(token)
+        )
+    assert e.value.status_code == 403
+
+
+async def test_basic_user_allowed_on_chat(db):
+    token = await _token_for("b2@x.com", "user")
+    # No raise == allowed.
+    assert await enforce_basic_user_allowlist(
+        _request("POST", "/api/v1/chat"), _creds(token)
+    ) is None
+
+
+async def test_admin_unaffected(db):
+    token = await _token_for("b3@x.com", "admin")
+    assert await enforce_basic_user_allowlist(
+        _request("GET", "/api/v1/dashboard/stats"), _creds(token)
+    ) is None
+
+
+async def test_agency_owner_unaffected(db):
+    token = await _token_for("b4@x.com", "agency_owner")
+    assert await enforce_basic_user_allowlist(
+        _request("GET", "/api/v1/connection-logs"), _creds(token)
+    ) is None
+
+
+async def test_anonymous_unaffected(db):
+    assert await enforce_basic_user_allowlist(
+        _request("GET", "/api/v1/dashboard/stats"), None
+    ) is None

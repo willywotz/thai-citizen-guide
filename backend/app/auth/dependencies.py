@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
@@ -164,3 +164,25 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
             detail="Admin privileges required",
         )
     return user
+
+
+async def enforce_basic_user_allowlist(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
+) -> None:
+    """Chokepoint: a ``user``-role caller may only reach chat + architecture.
+
+    Anonymous, ``admin`` and ``agency_owner`` callers pass straight through;
+    their access is governed by each endpoint's own auth. Wired as a global
+    dependency in ``app.main`` so it runs once per request.
+    """
+    if credentials is None:
+        return
+    role = await _resolve_role(credentials.credentials)
+    if role != "user":
+        return
+    if not _is_allowed_for_basic_user(request.method, request.url.path):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This role may only access chat and architecture",
+        )
