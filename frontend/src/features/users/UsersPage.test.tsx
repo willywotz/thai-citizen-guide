@@ -38,4 +38,9 @@ describe("UsersPage create control", () => {
     renderPage();
     expect(screen.queryByText("เพิ่มผู้ใช้")).not.toBeInTheDocument();
   });
+
+  it("renders the role filter defaulting to all roles", async () => {
+    renderPage();
+    expect(await screen.findByText("บทบาททั้งหมด")).toBeInTheDocument();
+  });
 });

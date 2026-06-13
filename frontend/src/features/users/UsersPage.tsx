@@ -5,17 +5,26 @@ import {
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/shared/components/ui/select';
 import { UserPlus } from 'lucide-react';
 import { useAuth } from '@/features/auth/useAuth';
 import { useUsers } from './useUsers';
-import type { ManagedUser } from './userApi';
+import type { ManagedUser, UserRole } from './userApi';
+import { ROLE_LABEL, ROLE_ORDER } from './roleLabels';
 import { UserFormDialog } from './UserFormDialog';
 import { DeactivateUserDialog } from './DeactivateUserDialog';
 
 export default function UsersPage() {
   const { isReadOnly } = useAuth();
   const [search, setSearch] = useState('');
-  const { data: users = [], isLoading, isError } = useUsers({ search: search || undefined, status: 'all' });
+  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const { data: users = [], isLoading, isError } = useUsers({
+    search: search || undefined,
+    role: roleFilter === 'all' ? undefined : roleFilter,
+    status: 'all',
+  });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [toggling, setToggling] = useState<ManagedUser | null>(null);
@@ -30,12 +39,23 @@ export default function UsersPage() {
         {!isReadOnly && <Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>}
       </div>
 
-      <Input
-        placeholder="ค้นหาอีเมลหรือชื่อ..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          placeholder="ค้นหาอีเมลหรือชื่อ..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as UserRole | 'all')}>
+          <SelectTrigger className="w-[12rem]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">บทบาททั้งหมด</SelectItem>
+            {ROLE_ORDER.map((r) => (
+              <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <Table>
         <TableHeader>
@@ -64,7 +84,7 @@ export default function UsersPage() {
               <TableCell>{u.displayName}</TableCell>
               <TableCell>
                 <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
-                  {u.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้'}
+                  {ROLE_LABEL[u.role] ?? u.role}
                 </Badge>
               </TableCell>
               <TableCell>
