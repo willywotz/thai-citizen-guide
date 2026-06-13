@@ -9,7 +9,7 @@ Endpoint
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from app.auth.dependencies import require_admin, get_current_user
+from app.auth.dependencies import get_current_user
 from app.models.user import User
 from tortoise.functions import Count, Sum
 from tortoise.expressions import Case, When, RawSQL, F
@@ -57,10 +57,11 @@ async def get_agency_low_rated(agency_id: str, user: User = Depends(get_current_
 
 
 @router.get("/stats", response_model=FeedbackStats, summary="Get feedback and satisfaction metrics")
-async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStats:
-    if not user.is_admin:
-        raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงข้อมูลนี้ได้")
-        
+async def feedback_stats(_user: User = Depends(get_current_user)) -> FeedbackStats:
+    # Authorization is enforced by the global role allowlist: viewer/auditor are
+    # entitled to read feedback stats (Dashboard/Feedback pages); admin/agency_owner
+    # pass the allowlist. A plain `user` is blocked upstream.
+
     # All rated messages, newest first
     # rated_messages = await (
     #     Message.filter(role="user", rating__not_isnull=True)

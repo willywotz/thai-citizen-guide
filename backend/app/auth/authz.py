@@ -22,7 +22,9 @@ class Decision:
 
 
 _ADMIN_ONLY = {"agency:change_status", "settings:edit", "user:manage", "agency:delete"}
-_AUDITOR_READ = {"conversation:read"}
+# Read actions an auditor may perform globally (audit capability), independent of
+# ownership. Writes (agency:edit, conversation:delete) still fall through to denial.
+_AUDITOR_READ = {"conversation:read", "agency:read_logs"}
 
 _RELATION_FOR = {
     "agency:edit": ("owner", "agency"),

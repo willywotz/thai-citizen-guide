@@ -8,7 +8,7 @@ Endpoint
 
 import time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import get_current_user
 from app.models.user import User
@@ -17,11 +17,11 @@ from app.services.analytics import get_dashboard_stats
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 
+# Authorization is enforced by the global role allowlist (enforce_role_allowlist):
+# viewer/auditor are entitled to read this Dashboard endpoint; admin/agency_owner
+# pass the allowlist and are governed here. A plain `user` is blocked upstream.
 @router.get("/stats", summary="Get dashboard statistics and charts data")
-async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
-    if not user.is_admin:
-        raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงข้อมูลนี้ได้")
-
+async def dashboard_stats(_user: User = Depends(get_current_user)) -> dict:
     start = time.time()
     data = await get_dashboard_stats()
     return {"success": True, "data": data, "responseTime": int((time.time() - start) * 1000)}
