@@ -1,6 +1,18 @@
-"""In-process sliding-window rate limiter (single-worker deployment)."""
+"""Rate limiters: in-process (single worker) and Redis-backed (multi worker)."""
 import time
 from collections import defaultdict, deque
+from typing import NamedTuple, Protocol
+
+
+class RateLimitResult(NamedTuple):
+    allowed: bool
+    retry_after: int
+
+
+class RateLimiter(Protocol):
+    async def check(
+        self, key: str, *, limit: int, window_s: float = 60.0
+    ) -> RateLimitResult: ...
 
 
 class SlidingWindowLimiter:
@@ -27,6 +39,15 @@ class SlidingWindowLimiter:
         return max(0, int(q[0] + window_s - self._now()) + 1)
 
 
-agency_limiter = SlidingWindowLimiter()
-user_limiter = SlidingWindowLimiter()
-api_key_limiter = SlidingWindowLimiter()
+class InProcessLimiter:
+    """Async adapter over SlidingWindowLimiter for the RateLimiter interface."""
+
+    def __init__(self, now_fn=time.monotonic):
+        self._impl = SlidingWindowLimiter(now_fn=now_fn)
+
+    async def check(
+        self, key: str, *, limit: int, window_s: float = 60.0
+    ) -> RateLimitResult:
+        allowed = self._impl.allow(key, limit=limit, window_s=window_s)
+        retry = 0 if allowed else self._impl.retry_after(key, window_s=window_s)
+        return RateLimitResult(allowed, retry)
