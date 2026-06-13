@@ -3,7 +3,7 @@ import type { UserRole } from "./userApi";
 /** Short Thai labels for each role — used by the users table badge and role filter. */
 export const ROLE_LABEL: Record<UserRole, string> = {
   user: "ผู้ใช้",
-  viewer: "ผู้ชม",
+  viewer: "ผู้บริหาร",
   auditor: "ผู้ตรวจสอบ",
   agency_owner: "เจ้าของหน่วยงาน",
   admin: "ผู้ดูแลระบบ",
