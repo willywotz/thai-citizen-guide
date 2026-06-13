@@ -1,6 +1,6 @@
 import { api } from '@/shared/lib/apiClient';
 
-export type UserRole = 'user' | 'admin';
+export type UserRole = 'user' | 'viewer' | 'auditor' | 'agency_owner' | 'admin';
 
 export interface ManagedUser {
   id: string;
