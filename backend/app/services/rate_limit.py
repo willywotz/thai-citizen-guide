@@ -90,7 +90,9 @@ class RedisHealth:
     """Tracks the rate limiter's Redis fail-open state for one worker.
 
     Single-threaded per worker (asyncio event loop, no await between the
-    read-modify-writes here), so no locking is needed.
+    read-modify-writes here), so no locking is needed. These methods MUST stay
+    synchronous and await-free — that invariant is what makes them lock-free
+    correct under concurrent requests on one loop.
     """
 
     def __init__(self):
@@ -116,6 +118,9 @@ class RedisHealth:
         return None
 
 
+# Shared by all three limiters below: they use one Redis client, so reachability
+# is a single fact per worker. An outage on any limiter flips this state, and the
+# next successful call on any limiter clears it.
 _redis_health = RedisHealth()
 
 
