@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatbot"
 
+    # ── Redis (distributed rate limiting) ────────────────────────────────────
+    REDIS_URL: str = ""           # empty = in-process limiter (single worker)
+    REDIS_SOCKET_TIMEOUT_MS: int = 100
+
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"]
 
