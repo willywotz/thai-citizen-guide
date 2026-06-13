@@ -41,12 +41,31 @@ _MESSAGE_RATING_PATH = re.compile(r"^/api/v1/messages/[^/]+/rating$")
 # Matches the collection and /{id} only — sub-resources like /{id}/messages are intentionally excluded; only HistoryPage uses them and it's gated at the frontend.
 _CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/[^/]+)?$")
 
+# GET endpoints backing the pages a `viewer` may open (Architecture, Dashboard,
+# Executive, Health, Heatmap, analytics insights, Usage, Feedback). Detail/admin
+# endpoints are deliberately excluded — viewer is narrower than auditor.
+_VIEWER_GET_EXACT = frozenset({
+    "/api/v1/agencies",            # Architecture list
+    "/api/v1/dashboard/stats",     # Dashboard
+    "/api/v1/executive-summary",   # Executive
+    "/api/v1/agency-health",       # Agency Health
+    "/api/v1/usage-heatmap",       # Usage Heatmap
+    "/api/v1/analytics-insights",  # Dashboard insights
+    "/api/v1/insight/usage",       # Usage analytics
+    "/api/v1/feedback/stats",      # Feedback
+})
+_VIEWER_GET_PATTERN = [
+    re.compile(r"^/api/v1/agencies/[^/]+/health/history$"),       # Health detail
+    re.compile(r"^/api/v1/feedback/agencies/[^/]+/low-rated$"),   # Feedback detail
+]
+_SETTINGS_PREFIX = "/api/v1/settings"
 
-def _is_allowed_for_basic_user(method: str, path: str) -> bool:
-    """Allowlist of (method, path) a plain ``user`` role may reach.
 
-    Maps 1:1 to the Chat and Architecture pages, plus the auth/self endpoints
-    every authenticated session needs. Everything else is forbidden.
+def _is_shared_write(method: str, path: str) -> bool:
+    """Writes every authenticated role (incl. read-only ones) may perform.
+
+    Chat, message rating, own-conversation management, and the self/auth
+    endpoints. Everything else is a privileged write.
     """
     if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
         return True
@@ -54,9 +73,36 @@ def _is_allowed_for_basic_user(method: str, path: str) -> bool:
         return True
     if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
         return True
+    if _CONVERSATION_PATH.match(path):  # all verbs: manage own conversation history
+        return True
+    return False
+
+
+def _is_allowed_for_basic_user(method: str, path: str) -> bool:
+    """A plain ``user`` role: chat + architecture list + the shared writes."""
+    if _is_shared_write(method, path):
+        return True
     if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
         return True
-    if _CONVERSATION_PATH.match(path):  # all verbs: a user may manage their own conversation history
+    return False
+
+
+def _is_allowed_for_viewer(method: str, path: str) -> bool:
+    """``viewer``: read-only on its operational/analytics pages, plus chat."""
+    if _is_shared_write(method, path):
+        return True
+    if method == "GET" and (
+        path in _VIEWER_GET_EXACT or any(p.match(path) for p in _VIEWER_GET_PATTERN)
+    ):
+        return True
+    return False
+
+
+def _is_allowed_for_auditor(method: str, path: str) -> bool:
+    """``auditor``: read-only on everything except Settings, plus chat."""
+    if _is_shared_write(method, path):
+        return True
+    if method == "GET" and not path.startswith(_SETTINGS_PREFIX):
         return True
     return False
 
