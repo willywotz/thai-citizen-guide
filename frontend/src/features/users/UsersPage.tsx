@@ -6,12 +6,14 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
 import { UserPlus } from 'lucide-react';
+import { useAuth } from '@/features/auth/useAuth';
 import { useUsers } from './useUsers';
 import type { ManagedUser } from './userApi';
 import { UserFormDialog } from './UserFormDialog';
 import { DeactivateUserDialog } from './DeactivateUserDialog';
 
 export default function UsersPage() {
+  const { isReadOnly } = useAuth();
   const [search, setSearch] = useState('');
   const { data: users = [], isLoading, isError } = useUsers({ search: search || undefined, status: 'all' });
   const [formOpen, setFormOpen] = useState(false);
@@ -25,7 +27,7 @@ export default function UsersPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">จัดการผู้ใช้</h1>
-        <Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>
+        {!isReadOnly && <Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>}
       </div>
 
       <Input
@@ -72,10 +74,14 @@ export default function UsersPage() {
               </TableCell>
               <TableCell>{new Date(u.createdAt).toLocaleDateString('th-TH')}</TableCell>
               <TableCell className="text-right space-x-2">
-                <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>แก้ไข</Button>
-                <Button variant="ghost" size="sm" onClick={() => setToggling(u)}>
-                  {u.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
-                </Button>
+                {!isReadOnly && (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>แก้ไข</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setToggling(u)}>
+                      {u.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                    </Button>
+                  </>
+                )}
               </TableCell>
             </TableRow>
           ))}
