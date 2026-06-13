@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from tortoise.functions import Avg
 from tortoise.exceptions import DoesNotExist
 from app.models import Agency, ConnectionLog, User
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import get_current_user, require_admin_or_auditor
 from app.models import Relationship
 from datetime import datetime, timedelta
 from app.config import settings
@@ -59,7 +59,7 @@ async def list_connection_logs(
             subject_type="user", subject_id=user.id, relation="owner", object_type="agency"
         ).values_list("object_id", flat=True)
         qs = ConnectionLog.filter(agency_id__in=list(owned_ids))
-    elif user.role == "admin":
+    elif user.role in ("admin", "auditor"):
         qs = ConnectionLog.all()
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
@@ -119,7 +119,7 @@ async def list_connection_logs(
     )
 
 @router.get("/items/{id}", summary="Get connection log detail", response_model=ConnectionLogItem)
-async def get_connection_log_detail(id: str, _: User = Depends(require_admin)) -> ConnectionLogItem:
+async def get_connection_log_detail(id: str, _: User = Depends(require_admin_or_auditor)) -> ConnectionLogItem:
     try:
         log = await ConnectionLog.get(id=id)
     except DoesNotExist:
@@ -143,7 +143,7 @@ class ConnectionLogInfoResponse(BaseModel):
     average_latency_ms: int
 
 @router.get("/info", summary="Get connection log info", response_model=ConnectionLogInfoResponse)
-async def get_connection_log_info(_: User = Depends(require_admin)) -> ConnectionLogInfoResponse:
+async def get_connection_log_info(_: User = Depends(require_admin_or_auditor)) -> ConnectionLogInfoResponse:
     total_connections = await ConnectionLog.all().count()
     successful_connections = await ConnectionLog.filter(status="success").count()
     failed_connections = await ConnectionLog.filter(status="error").count()

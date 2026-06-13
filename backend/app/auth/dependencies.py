@@ -215,6 +215,16 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+async def require_admin_or_auditor(user: User = Depends(get_current_user)) -> User:
+    """Read-only management access: full admins and read-only auditors."""
+    if user.role not in ("admin", "auditor"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or auditor privileges required",
+        )
+    return user
+
+
 _ROLE_ALLOWLIST = {
     "user": _is_allowed_for_basic_user,
     "viewer": _is_allowed_for_viewer,
