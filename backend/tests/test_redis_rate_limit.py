@@ -1,5 +1,6 @@
 import asyncio
 import os
+import uuid
 
 import pytest
 import pytest_asyncio
@@ -42,10 +43,13 @@ async def test_unlimited_when_limit_zero(redis_client):
 
 async def test_window_slides(redis_client):
     lim = RedisSlidingWindowLimiter(redis_client)
-    assert (await lim.check("k", limit=1, window_s=1.0)).allowed is True
-    assert (await lim.check("k", limit=1, window_s=1.0)).allowed is False
-    await asyncio.sleep(1.1)
-    assert (await lim.check("k", limit=1, window_s=1.0)).allowed is True
+    key = uuid.uuid4().hex  # unique key so no other test's events can leak in
+    # Back-to-back calls are sub-millisecond apart, well within the 1s window.
+    assert (await lim.check(key, limit=1, window_s=1.0)).allowed is True
+    assert (await lim.check(key, limit=1, window_s=1.0)).allowed is False
+    # Sleep generously past the window; extra delay only frees the slot sooner.
+    await asyncio.sleep(2.0)
+    assert (await lim.check(key, limit=1, window_s=1.0)).allowed is True
 
 
 async def test_shared_budget_across_instances(redis_client):

@@ -5,6 +5,8 @@ import uuid
 from collections import defaultdict, deque
 from typing import NamedTuple, Protocol
 
+from redis.exceptions import RedisError
+
 from app.config import settings
 
 
@@ -102,10 +104,12 @@ class RedisSlidingWindowLimiter:
         window_us = int(window_s * 1_000_000)
         member = uuid.uuid4().hex
         try:
+            # The script returns {allowed, retry_after}; retry_after is always
+            # >= 1 when blocked (the oldest in-window event expires in the future).
             allowed, retry = await self._script(
                 keys=[f"rl:{key}"], args=[limit, window_us, member]
             )
-        except Exception:  # RedisError, connection/timeout — fail open
+        except (RedisError, OSError):  # connection refused/reset, timeout — fail open
             logger.warning("rate limiter: Redis unavailable, failing open", exc_info=True)
             return RateLimitResult(True, 0)
         return RateLimitResult(bool(allowed), int(retry))
