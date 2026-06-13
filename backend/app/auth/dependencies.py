@@ -102,7 +102,9 @@ def _is_allowed_for_auditor(method: str, path: str) -> bool:
     """``auditor``: read-only on everything except Settings, plus chat."""
     if _is_shared_write(method, path):
         return True
-    if method == "GET" and not path.startswith(_SETTINGS_PREFIX):
+    if method == "GET" and not (
+        path == _SETTINGS_PREFIX or path.startswith(_SETTINGS_PREFIX + "/")
+    ):
         return True
     return False
 

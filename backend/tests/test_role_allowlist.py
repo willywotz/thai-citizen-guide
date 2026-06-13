@@ -67,3 +67,11 @@ def test_auditor_blocks_all_non_chat_writes():
     assert not _is_allowed_for_auditor("PATCH", "/api/v1/users/abc-123")
     assert not _is_allowed_for_auditor("PUT", "/api/v1/settings")
     assert not _is_allowed_for_auditor("POST", "/api/v1/executive-summary/regenerate")
+
+
+def test_auditor_settings_block_is_exact():
+    # Real settings routes blocked:
+    assert not _is_allowed_for_auditor("GET", "/api/v1/settings")
+    assert not _is_allowed_for_auditor("GET", "/api/v1/settings/cache/flush")
+    # A different route that merely shares the prefix is NOT blocked:
+    assert _is_allowed_for_auditor("GET", "/api/v1/settings-extended")
