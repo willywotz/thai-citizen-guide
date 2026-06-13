@@ -22,6 +22,7 @@ class Decision:
 
 
 _ADMIN_ONLY = {"agency:change_status", "settings:edit", "user:manage", "agency:delete"}
+_AUDITOR_READ = {"conversation:read"}
 
 _RELATION_FOR = {
     "agency:edit": ("owner", "agency"),
@@ -59,6 +60,9 @@ async def authorize(user: User, action: str, resource: Any) -> Decision:
     # RBAC
     if user.role == "admin":
         return _log(user, action, Decision(True, "rbac", "admin"))
+    # Auditors have global read-only access (audit capability); writes still fall through to denial.
+    if user.role == "auditor" and action in _AUDITOR_READ:
+        return _log(user, action, Decision(True, "rbac", "auditor read-only"))
     if action in _ADMIN_ONLY:
         return _log(user, action, Decision(False, "rbac", "admin required"))
 
