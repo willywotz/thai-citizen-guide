@@ -83,7 +83,7 @@ async def update_user(
     changed: list[str] = []
     if body.role is not None and body.role != user.role:
         user_service.ensure_not_self(admin.id, user.id)
-        if user.role == "admin" and body.role == "user":
+        if user.role == "admin" and body.role != "admin":
             await user_service.ensure_not_last_admin(user)
         user.role = body.role
         changed.append("role")
