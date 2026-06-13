@@ -38,6 +38,7 @@ _invalid_credentials = HTTPException(
 )
 
 _MESSAGE_RATING_PATH = re.compile(r"^/api/v1/messages/[^/]+/rating$")
+# Matches the collection and /{id} only — sub-resources like /{id}/messages are intentionally excluded; only HistoryPage uses them and it's gated at the frontend.
 _CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/[^/]+)?$")
 
 

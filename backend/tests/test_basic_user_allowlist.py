@@ -116,6 +116,7 @@ async def test_basic_user_blocked_on_restricted_page(db):
             _request("GET", "/api/v1/dashboard/stats"), _creds(token)
         )
     assert e.value.status_code == 403
+    assert "chat" in e.value.detail
 
 
 async def test_basic_user_allowed_on_chat(db):
