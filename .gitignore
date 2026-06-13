@@ -4,3 +4,13 @@
 # Python build artifacts
 __pycache__/
 *.pyc
+
+# Test suites
+.env.test
+blackbox/node_modules
+e2e/node_modules
+e2e/.auth
+playwright-report
+test-results
+node_modules
+.venv
