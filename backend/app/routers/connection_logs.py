@@ -143,13 +143,25 @@ class ConnectionLogInfoResponse(BaseModel):
     average_latency_ms: int
 
 @router.get("/info", summary="Get connection log info", response_model=ConnectionLogInfoResponse)
-async def get_connection_log_info(_: User = Depends(require_admin_or_auditor)) -> ConnectionLogInfoResponse:
-    total_connections = await ConnectionLog.all().count()
-    successful_connections = await ConnectionLog.filter(status="success").count()
-    failed_connections = await ConnectionLog.filter(status="error").count()
-    
+async def get_connection_log_info(user: User = Depends(get_current_user)) -> ConnectionLogInfoResponse:
+    # Scope by role, mirroring the list endpoint: an agency_owner sees stats only
+    # for agencies it owns; admin/auditor see all. Other roles are forbidden.
+    if user.role == "agency_owner":
+        owned_ids = await Relationship.filter(
+            subject_type="user", subject_id=user.id, relation="owner", object_type="agency"
+        ).values_list("object_id", flat=True)
+        qs = ConnectionLog.filter(agency_id__in=list(owned_ids))
+    elif user.role in ("admin", "auditor"):
+        qs = ConnectionLog.all()
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    total_connections = await qs.count()
+    successful_connections = await qs.filter(status="success").count()
+    failed_connections = await qs.filter(status="error").count()
+
     last_day_date = now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)
-    average_latency_ms = await ConnectionLog.filter(created_at__gte=last_day_date).annotate(avg=Avg("latency_ms")).values("avg")
+    average_latency_ms = await qs.filter(created_at__gte=last_day_date).annotate(avg=Avg("latency_ms")).values("avg")
     average_latency_ms = int(average_latency_ms[0]["avg"] or 0) if average_latency_ms else 0
 
     return ConnectionLogInfoResponse(

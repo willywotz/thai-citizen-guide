@@ -5,7 +5,7 @@ from tortoise.expressions import RawSQL
 from tortoise.functions import Count, Sum
 from tortoise.transactions import in_transaction
 
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import get_current_user
 from app.config import settings
 from app.models import Agency, Conversation, LlmUsage, Message
 from app.models.user import User, UserAPIKey
@@ -249,6 +249,8 @@ async def get_usage(
     group_by: str = "purpose",
     date_from: datetime | None = Query(None, alias="from"),
     date_to: datetime | None = Query(None, alias="to"),
-    _admin: User = Depends(require_admin),
+    _user: User = Depends(get_current_user),
 ):
+    # Governed by the global role allowlist: viewer/auditor are entitled to read
+    # usage analytics; admin/agency_owner pass the allowlist. `user` is blocked upstream.
     return await usage_summary(group_by=group_by, date_from=date_from, date_to=date_to)
