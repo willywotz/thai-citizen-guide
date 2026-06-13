@@ -16,7 +16,9 @@ Usage
 
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, status
+import re
+
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
@@ -34,6 +36,55 @@ _invalid_credentials = HTTPException(
     detail="Invalid or expired credentials",
     headers={"WWW-Authenticate": "Bearer"},
 )
+
+_MESSAGE_RATING_PATH = re.compile(r"^/api/v1/messages/[^/]+/rating$")
+# Matches the collection and /{id} only — sub-resources like /{id}/messages are intentionally excluded; only HistoryPage uses them and it's gated at the frontend.
+_CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/[^/]+)?$")
+
+
+def _is_allowed_for_basic_user(method: str, path: str) -> bool:
+    """Allowlist of (method, path) a plain ``user`` role may reach.
+
+    Maps 1:1 to the Chat and Architecture pages, plus the auth/self endpoints
+    every authenticated session needs. Everything else is forbidden.
+    """
+    if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
+        return True
+    if method == "POST" and path in ("/api/v1/chat", "/api/v1/chat/stream"):
+        return True
+    if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
+        return True
+    if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
+        return True
+    if _CONVERSATION_PATH.match(path):  # all verbs: a user may manage their own conversation history
+        return True
+    return False
+
+
+# NOTE: token-branching mirrors _resolve_token; kept separate to stay side-effect-free.
+async def _resolve_role(token: str) -> str | None:
+    """Return the caller's role without the side effects of ``_resolve_token``.
+
+    Used only by the basic-user chokepoint. Deliberately skips API-key rate
+    limiting and ``last_used_at`` stamping so wiring it globally never double-
+    charges those — it only needs the role.
+    """
+    if token.startswith(API_KEY_PREFIX):
+        api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
+        if api_key is None or not api_key.is_usable():
+            return None
+        user = await User.filter(id=api_key.user_id, is_active=True).first()
+        return user.role if user else None
+
+    try:
+        payload = decode_access_token(token)
+    except JWTError:
+        return None
+    user_id: str = payload.get("sub", "")
+    if not user_id:
+        return None
+    user = await User.filter(id=user_id, is_active=True).first()
+    return user.role if user else None
 
 
 async def _resolve_token(token: str) -> User | None:
@@ -114,3 +165,25 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
             detail="Admin privileges required",
         )
     return user
+
+
+async def enforce_basic_user_allowlist(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
+) -> None:
+    """Chokepoint: a ``user``-role caller may only reach chat + architecture.
+
+    Anonymous, ``admin`` and ``agency_owner`` callers pass straight through;
+    their access is governed by each endpoint's own auth. Wired as a global
+    dependency in ``app.main`` so it runs once per request.
+    """
+    if credentials is None:
+        return
+    role = await _resolve_role(credentials.credentials)
+    if role != "user":
+        return
+    if not _is_allowed_for_basic_user(request.method, request.url.path):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This role may only access chat and architecture",
+        )

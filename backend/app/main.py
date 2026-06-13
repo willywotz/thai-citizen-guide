@@ -25,7 +25,7 @@ logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.sse import SseServerTransport
 from starlette.requests import Request
@@ -36,6 +36,7 @@ from app.errors import register_error_handlers
 from app.database import init_db, close_db
 from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
+from app.auth.dependencies import enforce_basic_user_allowlist
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, public_status, users, settings as settings_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.scheduler import start_scheduler, stop_scheduler
@@ -100,6 +101,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
+    dependencies=[Depends(enforce_basic_user_allowlist)],
 )
 register_error_handlers(app)
 

@@ -30,6 +30,9 @@ const navItems = [
   { title: "API Keys", url: "/api-keys", icon: KeyRound },
 ];
 
+// Routes a "user"-role person may see. Keep in sync with the route guard (ProtectedRoute requireNonBasic in App.tsx) and the backend allowlist (_is_allowed_for_basic_user in backend/app/auth/dependencies.py).
+const BASIC_USER_ROUTES = new Set(["/chat", "/architecture"]);
+
 const ownerItems = [
   { title: "หน่วยงานของฉัน", url: "/my-agencies", icon: BadgeCheck },
 ];
@@ -47,6 +50,11 @@ export function AppSidebar() {
   const { data: agencies = [] } = useAgencies();
   const { user, signOut } = useAuth();
   const collapsed = state === "collapsed";
+
+  const visibleNavItems =
+    user?.role === "user"
+      ? navItems.filter((item) => BASIC_USER_ROUTES.has(item.url))
+      : navItems;
 
   const initials = (user?.displayName || user?.email || "U")
     .split(" ")
@@ -78,7 +86,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>เมนูหลัก</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
                     <NavLink

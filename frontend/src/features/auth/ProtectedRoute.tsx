@@ -5,9 +5,10 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  requireNonBasic?: boolean;
 }
 
-export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireAdmin = false, requireNonBasic = false }: ProtectedRouteProps) {
   const { user, isAdmin, isLoading } = useAuth();
 
   if (isLoading) {
@@ -24,6 +25,11 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // "basic" = the plain "user" role; admin and agency_owner are non-basic and pass through.
+  if (requireNonBasic && user.role === "user") {
+    return <Navigate to="/chat" replace />;
   }
 
   if (requireAdmin && !isAdmin) {
