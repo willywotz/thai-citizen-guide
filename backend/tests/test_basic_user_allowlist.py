@@ -5,10 +5,12 @@ from app.auth.dependencies import _is_allowed_for_basic_user
 def test_chat_endpoints_allowed():
     assert _is_allowed_for_basic_user("POST", "/api/v1/chat")
     assert _is_allowed_for_basic_user("POST", "/api/v1/chat/stream")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/chat")
 
 
 def test_message_rating_allowed():
     assert _is_allowed_for_basic_user("PATCH", "/api/v1/messages/abc-123/rating")
+    assert not _is_allowed_for_basic_user("PATCH", "/api/v1/messages/abc-123/rating/extra")
 
 
 def test_agencies_list_allowed_but_not_mutations():

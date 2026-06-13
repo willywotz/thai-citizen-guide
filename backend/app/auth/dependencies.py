@@ -47,7 +47,7 @@ def _is_allowed_for_basic_user(method: str, path: str) -> bool:
     Maps 1:1 to the Chat and Architecture pages, plus the auth/self endpoints
     every authenticated session needs. Everything else is forbidden.
     """
-    if path.startswith("/api/v1/auth/"):
+    if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
         return True
     if method == "POST" and path in ("/api/v1/chat", "/api/v1/chat/stream"):
         return True
@@ -55,7 +55,7 @@ def _is_allowed_for_basic_user(method: str, path: str) -> bool:
         return True
     if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
         return True
-    if _CONVERSATION_PATH.match(path):  # the user's own chat history
+    if _CONVERSATION_PATH.match(path):  # all verbs: a user may manage their own conversation history
         return True
     return False
 
