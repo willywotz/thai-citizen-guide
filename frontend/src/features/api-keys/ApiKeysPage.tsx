@@ -33,6 +33,7 @@ import {
   type APIKeyStatus,
   type CreatedAPIKey,
 } from "@/features/api-keys/apiKeyApi";
+import { useAuth } from "@/features/auth/useAuth";
 
 const STATUS_META: Record<APIKeyStatus, { label: string; className: string }> = {
   active: { label: "ใช้งานอยู่", className: "bg-green-100 text-green-700" },
@@ -42,6 +43,7 @@ const STATUS_META: Record<APIKeyStatus, { label: string; className: string }> = 
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
+  const { isReadOnly } = useAuth();
 
   const { data: keys = [], isLoading } = useQuery({
     queryKey: ["apiKeys"],
@@ -136,10 +138,12 @@ export default function ApiKeysPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">API Keys</h2>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          สร้าง API Key
-        </Button>
+        {!isReadOnly && (
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            สร้าง API Key
+          </Button>
+        )}
       </div>
 
       {isLoading && (
@@ -190,32 +194,34 @@ export default function ApiKeysPage() {
                       สร้างเมื่อ {new Date(k.created_at).toLocaleString("th-TH")}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => openEdit(k)}
-                      className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label="แก้ไข"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    {k.status !== "revoked" && (
+                  {!isReadOnly && (
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => handleRevoke(k)}
-                        disabled={revokeMutation.isPending}
-                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-                        aria-label="เพิกถอน"
+                        onClick={() => openEdit(k)}
+                        className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="แก้ไข"
                       >
-                        <Ban className="h-3.5 w-3.5" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </button>
-                    )}
-                    <button
-                      onClick={() => setDeleteTarget(k)}
-                      className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                      aria-label="ลบ"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                      {k.status !== "revoked" && (
+                        <button
+                          onClick={() => handleRevoke(k)}
+                          disabled={revokeMutation.isPending}
+                          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                          aria-label="เพิกถอน"
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setDeleteTarget(k)}
+                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        aria-label="ลบ"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
