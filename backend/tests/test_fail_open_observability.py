@@ -60,3 +60,32 @@ async def test_recovery_logs_with_count(caplog):
              and "recovered" in r.getMessage()]
     assert len(infos) == 1
     assert "2 request" in infos[0].getMessage()
+
+
+def test_fail_open_adds_span_event():
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("test")
+
+    import asyncio
+
+    lim = RedisSlidingWindowLimiter(FakeClient(FakeScript(fail_n=1)))
+    with tracer.start_as_current_span("request"):
+        # asyncio.run copies the current context (incl. the active span) into
+        # the task, so get_current_span() inside check() sees this span.
+        asyncio.run(lim.check("k", limit=5))
+
+    spans = exporter.get_finished_spans()
+    events = [e for s in spans for e in s.events]
+    assert any(e.name == "rate_limit.fail_open" for e in events)
+    fail_event = next(e for e in events if e.name == "rate_limit.fail_open")
+    assert fail_event.attributes["error"] == "ConnectionError"
+    assert fail_event.attributes["key"] == "k"

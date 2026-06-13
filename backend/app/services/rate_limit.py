@@ -5,6 +5,7 @@ import uuid
 from collections import defaultdict, deque
 from typing import NamedTuple, Protocol
 
+from opentelemetry import trace
 from redis.exceptions import RedisError
 
 from app.config import settings
@@ -143,6 +144,9 @@ class RedisSlidingWindowLimiter:
                 keys=[f"rl:{key}"], args=[limit, window_us, member]
             )
         except (RedisError, OSError) as exc:  # connection/timeout — fail open
+            trace.get_current_span().add_event(
+                "rate_limit.fail_open", {"key": key, "error": type(exc).__name__}
+            )
             if _redis_health.record_failure():
                 logger.warning(
                     "rate limiter: Redis unavailable, failing open — "
