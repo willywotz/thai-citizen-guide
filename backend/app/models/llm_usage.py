@@ -15,6 +15,7 @@ class LlmUsage(Model):
     user_id = fields.UUIDField(null=True)
     agency_id = fields.UUIDField(null=True)
     conversation_id = fields.UUIDField(null=True)
+    api_key_id = fields.UUIDField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
