@@ -37,5 +37,5 @@ export function canAccess(role: Role, path: string): boolean {
 }
 
 export function isReadOnlyRole(role: Role | undefined): boolean {
-  return role === "viewer" || role === "auditor";
+  return role !== undefined && READ_ONLY_ROLES.includes(role);
 }

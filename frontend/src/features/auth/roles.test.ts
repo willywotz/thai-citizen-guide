@@ -31,4 +31,8 @@ describe("role map", () => {
     expect(READ_ONLY_ROLES).not.toContain("agency_owner");
     expect(READ_ONLY_ROLES).not.toContain("admin");
   });
+
+  it("allows unknown paths by default", () => {
+    expect(canAccess("user", "/some/unknown/path")).toBe(true);
+  });
 });
