@@ -5,6 +5,7 @@ import uuid
 from collections import defaultdict, deque
 from typing import NamedTuple, Protocol
 
+from opentelemetry import trace
 from redis.exceptions import RedisError
 
 from app.config import settings
@@ -85,6 +86,44 @@ return {1, 0}
 """
 
 
+class RedisHealth:
+    """Tracks the rate limiter's Redis fail-open state for one worker.
+
+    Single-threaded per worker (asyncio event loop, no await between the
+    read-modify-writes here), so no locking is needed. These methods MUST stay
+    synchronous and await-free — that invariant is what makes them lock-free
+    correct under concurrent requests on one loop.
+    """
+
+    def __init__(self):
+        self.failing = False
+        self.fail_open_total = 0
+        self._since = 0
+
+    def record_failure(self) -> bool:
+        """Count a fail-open. Return True only on a healthy -> failing change."""
+        self.fail_open_total += 1
+        if not self.failing:
+            self.failing = True
+            self._since = self.fail_open_total - 1
+            return True
+        return False
+
+    def record_success(self) -> int | None:
+        """Note a healthy call. On failing -> healthy, return how many requests
+        failed open during the outage; otherwise None."""
+        if self.failing:
+            self.failing = False
+            return self.fail_open_total - self._since
+        return None
+
+
+# Shared by all three limiters below: they use one Redis client, so reachability
+# is a single fact per worker. An outage on any limiter flips this state, and the
+# next successful call on any limiter clears it.
+_redis_health = RedisHealth()
+
+
 class RedisSlidingWindowLimiter:
     """Sliding-window rate limiter backed by a Redis sorted set.
 
@@ -109,9 +148,23 @@ class RedisSlidingWindowLimiter:
             allowed, retry = await self._script(
                 keys=[f"rl:{key}"], args=[limit, window_us, member]
             )
-        except (RedisError, OSError):  # connection refused/reset, timeout — fail open
-            logger.warning("rate limiter: Redis unavailable, failing open", exc_info=True)
+        except (RedisError, OSError) as exc:  # connection/timeout — fail open
+            trace.get_current_span().add_event(
+                "rate_limit.fail_open", {"key": key, "error": type(exc).__name__}
+            )
+            if _redis_health.record_failure():
+                logger.warning(
+                    "rate limiter: Redis unavailable, failing open — "
+                    "requests are NOT being rate-limited",
+                    exc_info=exc,
+                )
             return RateLimitResult(True, 0)
+        recovered = _redis_health.record_success()
+        if recovered is not None:
+            logger.info(
+                "rate limiter: Redis recovered after %d request(s) failed open",
+                recovered,
+            )
         return RateLimitResult(bool(allowed), int(retry))
 
 
