@@ -5,6 +5,8 @@ import uuid
 from collections import defaultdict, deque
 from typing import NamedTuple, Protocol
 
+from app.config import settings
+
 
 class RateLimitResult(NamedTuple):
     allowed: bool
@@ -107,3 +109,43 @@ class RedisSlidingWindowLimiter:
             logger.warning("rate limiter: Redis unavailable, failing open", exc_info=True)
             return RateLimitResult(True, 0)
         return RateLimitResult(bool(allowed), int(retry))
+
+
+_redis_client = None
+
+
+def _get_redis_client(url: str):
+    """Create (once) the shared async Redis client, or None when url is empty."""
+    global _redis_client
+    if not url:
+        return None
+    if _redis_client is None:
+        import redis.asyncio as aioredis
+
+        timeout_s = settings.REDIS_SOCKET_TIMEOUT_MS / 1000
+        _redis_client = aioredis.from_url(
+            url,
+            socket_timeout=timeout_s,
+            socket_connect_timeout=timeout_s,
+        )
+    return _redis_client
+
+
+def build_limiter(url: str | None = None):
+    """Return a Redis-backed limiter when REDIS_URL is set, else in-process."""
+    url = settings.REDIS_URL if url is None else url
+    client = _get_redis_client(url)
+    return RedisSlidingWindowLimiter(client) if client is not None else InProcessLimiter()
+
+
+async def close_limiter_client() -> None:
+    """Close the shared Redis client on application shutdown."""
+    global _redis_client
+    if _redis_client is not None:
+        await _redis_client.aclose()
+        _redis_client = None
+
+
+agency_limiter = build_limiter()
+user_limiter = build_limiter()
+api_key_limiter = build_limiter()

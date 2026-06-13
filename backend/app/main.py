@@ -34,6 +34,7 @@ from starlette.responses import Response
 from app.config import settings, load_settings_from_db, assert_production_secrets
 from app.errors import register_error_handlers
 from app.database import init_db, close_db
+from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, public_status, users, settings as settings_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
@@ -79,6 +80,7 @@ async def lifespan(app: FastAPI):
         yield
 
     await stop_scheduler()
+    await close_limiter_client()
     await close_db()
 
 
