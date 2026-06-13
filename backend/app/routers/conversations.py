@@ -87,7 +87,7 @@ async def list_conversations(
 
     qs = Conversation.all()
 
-    if not user.is_admin:
+    if not (user.is_admin or user.role == "auditor"):
         qs = qs.filter(user_id=user.id)
 
     if search:

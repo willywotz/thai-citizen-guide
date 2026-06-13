@@ -1,14 +1,15 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import type { Role } from "@/features/auth/roles";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
-  requireNonBasic?: boolean;
+  allowedRoles?: Role[];
 }
 
-export function ProtectedRoute({ children, requireAdmin = false, requireNonBasic = false }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireAdmin = false, allowedRoles }: ProtectedRouteProps) {
   const { user, isAdmin, isLoading } = useAuth();
 
   if (isLoading) {
@@ -27,8 +28,8 @@ export function ProtectedRoute({ children, requireAdmin = false, requireNonBasic
     return <Navigate to="/login" replace />;
   }
 
-  // "basic" = the plain "user" role; admin and agency_owner are non-basic and pass through.
-  if (requireNonBasic && user.role === "user") {
+  // A role not permitted for this route is sent to /chat (reachable by every authenticated role).
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/chat" replace />;
   }
 

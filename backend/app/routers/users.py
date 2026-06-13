@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from tortoise.exceptions import DoesNotExist
 from tortoise.expressions import Q
 
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import require_admin, require_admin_or_auditor
 from app.models.user import User
 from app.schemas.user import Role, UserCreate, UserCreateResponse, UserListResponse, UserResponse, UserUpdate
 from app.services import user as user_service
@@ -36,7 +36,7 @@ async def list_users(
     status_filter: Literal["active", "inactive", "all"] = Query(
         "all", alias="status", description="Filter by active status"
     ),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin_or_auditor),
 ) -> UserListResponse:
     qs = User.all()
     if search:
@@ -63,7 +63,7 @@ async def create_user(body: UserCreate, admin: User = Depends(require_admin)) ->
 
 
 @router.get("/{user_id}", response_model=UserResponse, summary="Get user by ID")
-async def get_user(user_id: uuid.UUID, admin: User = Depends(require_admin)) -> UserResponse:
+async def get_user(user_id: uuid.UUID, admin: User = Depends(require_admin_or_auditor)) -> UserResponse:
     try:
         user = await User.get(id=user_id)
     except DoesNotExist:
@@ -83,7 +83,7 @@ async def update_user(
     changed: list[str] = []
     if body.role is not None and body.role != user.role:
         user_service.ensure_not_self(admin.id, user.id)
-        if user.role == "admin" and body.role == "user":
+        if user.role == "admin" and body.role != "admin":
             await user_service.ensure_not_last_admin(user)
         user.role = body.role
         changed.append("role")

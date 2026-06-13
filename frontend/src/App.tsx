@@ -52,31 +52,48 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                {/* Basic users (role "user") may access only these */}
+                {/* Every authenticated role */}
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
 
-                {/* Requires a non-basic role (agency_owner or admin) */}
-                <Route element={<ProtectedRoute requireNonBasic><Outlet /></ProtectedRoute>}>
+                {/* viewer + auditor + agency_owner + admin */}
+                <Route element={<ProtectedRoute allowedRoles={["viewer", "auditor", "agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/executive" element={<ExecutivePage />} />
                   <Route path="/health" element={<HealthPage />} />
                   <Route path="/heatmap" element={<HeatmapPage />} />
+                </Route>
+
+                {/* viewer + auditor + admin (no agency_owner) */}
+                <Route element={<ProtectedRoute allowedRoles={["viewer", "auditor", "admin"]}><Outlet /></ProtectedRoute>}>
+                  <Route path="/usage" element={<UsageAnalyticsPage />} />
+                  <Route path="/feedback" element={<FeedbackPage />} />
+                </Route>
+
+                {/* auditor (read-only) + agency_owner + admin */}
+                <Route element={<ProtectedRoute allowedRoles={["auditor", "agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/agencies" element={<AgenciesPage />} />
-                  <Route path="/my-agencies" element={<MyAgenciesPage />} />
-                  <Route path="/agencies/new" element={<AgencyWizardPage />} />
-                  <Route path="/agencies/:id/setup" element={<AgencyWizardPage />} />
                   <Route path="/agencies/:id" element={<AgencyDetailPage />} />
                   <Route path="/history" element={<HistoryPage />} />
                   <Route path="/connection-logs" element={<ConnectionLogsPage />} />
                   <Route path="/api-keys" element={<ApiKeysPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  {/* Admin only */}
-                  <Route path="/users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
-                  <Route path="/audit-log" element={<ProtectedRoute requireAdmin><AuditLogPage /></ProtectedRoute>} />
-                  <Route path="/usage" element={<ProtectedRoute requireAdmin><UsageAnalyticsPage /></ProtectedRoute>} />
-                  <Route path="/feedback" element={<ProtectedRoute requireAdmin><FeedbackPage /></ProtectedRoute>} />
                 </Route>
+
+                {/* agency_owner + admin only (owner-personal / write flows) */}
+                <Route element={<ProtectedRoute allowedRoles={["agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
+                  <Route path="/my-agencies" element={<MyAgenciesPage />} />
+                  <Route path="/agencies/new" element={<AgencyWizardPage />} />
+                  <Route path="/agencies/:id/setup" element={<AgencyWizardPage />} />
+                </Route>
+
+                {/* auditor (read-only) + admin */}
+                <Route element={<ProtectedRoute allowedRoles={["auditor", "admin"]}><Outlet /></ProtectedRoute>}>
+                  <Route path="/users" element={<UsersPage />} />
+                  <Route path="/audit-log" element={<AuditLogPage />} />
+                </Route>
+
+                {/* admin only */}
+                <Route path="/settings" element={<ProtectedRoute requireAdmin><SettingsPage /></ProtectedRoute>} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

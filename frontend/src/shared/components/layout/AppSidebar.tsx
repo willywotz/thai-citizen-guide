@@ -13,6 +13,7 @@ import {
 } from "@/shared/components/ui/sidebar";
 import { useAgencies } from "@/features/agencies/useAgencies";
 import { useAuth } from "@/features/auth/useAuth";
+import { canAccess } from "@/features/auth/roles";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 import { AppLogo } from "@/shared/components/ui/AppLogo";
@@ -24,20 +25,11 @@ const navItems = [
   { title: "Agency Health", url: "/health", icon: Activity },
   { title: "Usage Heatmap", url: "/heatmap", icon: Flame },
   { title: "จัดการหน่วยงาน", url: "/agencies", icon: Building2 },
+  { title: "หน่วยงานของฉัน", url: "/my-agencies", icon: BadgeCheck },
   { title: "ประวัติการสนทนา", url: "/history", icon: History },
   { title: "ประวัติการเชื่อมต่อ", url: "/connection-logs", icon: Activity },
   { title: "Architecture", url: "/architecture", icon: Network },
   { title: "API Keys", url: "/api-keys", icon: KeyRound },
-];
-
-// Routes a "user"-role person may see. Keep in sync with the route guard (ProtectedRoute requireNonBasic in App.tsx) and the backend allowlist (_is_allowed_for_basic_user in backend/app/auth/dependencies.py).
-const BASIC_USER_ROUTES = new Set(["/chat", "/architecture"]);
-
-const ownerItems = [
-  { title: "หน่วยงานของฉัน", url: "/my-agencies", icon: BadgeCheck },
-];
-
-const adminItems = [
   { title: "ความคิดเห็นและความพึงพอใจ", url: "/feedback", icon: MessageSquareWarning },
   { title: "จัดการผู้ใช้", url: "/users", icon: Users },
   { title: "บันทึกการตรวจสอบ", url: "/audit-log", icon: ScrollText },
@@ -51,10 +43,9 @@ export function AppSidebar() {
   const { user, signOut } = useAuth();
   const collapsed = state === "collapsed";
 
-  const visibleNavItems =
-    user?.role === "user"
-      ? navItems.filter((item) => BASIC_USER_ROUTES.has(item.url))
-      : navItems;
+  const visibleNavItems = user
+    ? navItems.filter((item) => canAccess(user.role, item.url))
+    : [];
 
   const initials = (user?.displayName || user?.email || "U")
     .split(" ")
@@ -92,34 +83,6 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/chat"}
-                      className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {(user?.role === "agency_owner" || user?.role === "admin") && ownerItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink
-                      to={item.url}
-                      className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {user?.role === "admin" && adminItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink
-                      to={item.url}
                       className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                     >
