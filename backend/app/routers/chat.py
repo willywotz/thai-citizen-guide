@@ -46,13 +46,14 @@ tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
 
-def enforce_user_rate_limit(user) -> None:
+async def enforce_user_rate_limit(user) -> None:
     key = f"user:{user.id}"
-    if not user_limiter.allow(key, limit=settings.USER_RATE_LIMIT_RPM):
+    result = await user_limiter.check(key, limit=settings.USER_RATE_LIMIT_RPM)
+    if not result.allowed:
         raise HTTPException(
             status_code=429,
             detail="Rate limit exceeded",
-            headers={"Retry-After": str(user_limiter.retry_after(key))},
+            headers={"Retry-After": str(result.retry_after)},
         )
 
 
@@ -61,7 +62,7 @@ def enforce_user_rate_limit(user) -> None:
 @router.post("/internal", include_in_schema=False)  # internal LangGraph pipeline
 async def chat_internal(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     if user is not None:
-        enforce_user_rate_limit(user)
+        await enforce_user_rate_limit(user)
     try:
         await check_global_budget()
         if user is not None:
@@ -173,7 +174,7 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 @router.post("/external", include_in_schema=False, deprecated=True)  # alias; use POST /chat
 async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     if user is not None:
-        enforce_user_rate_limit(user)
+        await enforce_user_rate_limit(user)
     try:
         await check_global_budget()
         if user is not None:
@@ -319,7 +320,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
 async def chat_stream(body: ChatRequest, request: Request, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)):
     """Proxy to OneChat v4 SSE endpoint, re-emit events to client, save conversation after answer."""
     if user is not None:
-        enforce_user_rate_limit(user)
+        await enforce_user_rate_limit(user)
     try:
         await check_global_budget()
         if user is not None:

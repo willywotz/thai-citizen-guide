@@ -188,8 +188,10 @@ async def dispatch_one(route: dict, conversation_id: str) -> dict:
     conn = route["connection_type"]
     name = route["agency_name"]
     rpm = route.get("rate_limit_rpm") or 0
-    if rpm and not agency_limiter.allow(f"agency:{route.get('agency_id')}", limit=rpm):
-        return {"agency": name, "response": "rate limit exceeded", "status": "rate_limited"}
+    if rpm:
+        result = await agency_limiter.check(f"agency:{route.get('agency_id')}", limit=rpm)
+        if not result.allowed:
+            return {"agency": name, "response": "rate limit exceeded", "status": "rate_limited"}
     try:
         if conn == "A2A":
             return await dispatch_a2a(route, conversation_id)

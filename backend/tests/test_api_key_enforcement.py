@@ -46,9 +46,8 @@ async def test_future_expiry_key_works(db):
 
 async def test_per_key_rate_limit(db, monkeypatch):
     import app.auth.dependencies as dep
-    from app.services.rate_limit import SlidingWindowLimiter
-    t = [0.0]
-    monkeypatch.setattr(dep, "api_key_limiter", SlidingWindowLimiter(now_fn=lambda: t[0]))
+    from app.services.rate_limit import InProcessLimiter
+    monkeypatch.setattr(dep, "api_key_limiter", InProcessLimiter())
     u = await User.create(email="rl@x.com", hashed_password="h")
     raw = await _key(u, rate_limit_rpm=1)
     await get_current_user(_creds(raw))  # 1st ok
