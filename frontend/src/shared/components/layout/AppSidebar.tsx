@@ -30,6 +30,7 @@ const navItems = [
   { title: "API Keys", url: "/api-keys", icon: KeyRound },
 ];
 
+// Routes a "user"-role person may see. Keep in sync with the route guard (ProtectedRoute requireNonBasic in App.tsx) and the backend allowlist (_is_allowed_for_basic_user in backend/app/auth/dependencies.py).
 const BASIC_USER_ROUTES = new Set(["/chat", "/architecture"]);
 
 const ownerItems = [
