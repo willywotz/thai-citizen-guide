@@ -585,9 +585,9 @@ async def test_dispatch_a2a_posts_and_returns_ok():
 @pytest.mark.asyncio
 async def test_dispatch_one_rate_limited(monkeypatch):
     import app.services.chat.dispatch as d
-    from app.services.rate_limit import SlidingWindowLimiter
+    from app.services.rate_limit import InProcessLimiter
 
-    monkeypatch.setattr(d, "agency_limiter", SlidingWindowLimiter())
+    monkeypatch.setattr(d, "agency_limiter", InProcessLimiter())
 
     route = {
         "connection_type": "API",

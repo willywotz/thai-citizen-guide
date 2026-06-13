@@ -55,11 +55,12 @@ async def _resolve_token(token: str) -> User | None:
         rpm = api_key.rate_limit_rpm or 0
         if rpm:
             key = f"apikey:{api_key.id}"
-            if not api_key_limiter.allow(key, limit=rpm):
+            result = await api_key_limiter.check(key, limit=rpm)
+            if not result.allowed:
                 raise HTTPException(
                     status_code=429,
                     detail="API key rate limit exceeded",
-                    headers={"Retry-After": str(api_key_limiter.retry_after(key))},
+                    headers={"Retry-After": str(result.retry_after)},
                 )
         api_key.last_used_at = now()
         await api_key.save(update_fields=["last_used_at"])
