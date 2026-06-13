@@ -85,6 +85,39 @@ return {1, 0}
 """
 
 
+class RedisHealth:
+    """Tracks the rate limiter's Redis fail-open state for one worker.
+
+    Single-threaded per worker (asyncio event loop, no await between the
+    read-modify-writes here), so no locking is needed.
+    """
+
+    def __init__(self):
+        self.failing = False
+        self.fail_open_total = 0
+        self._since = 0
+
+    def record_failure(self) -> bool:
+        """Count a fail-open. Return True only on a healthy -> failing change."""
+        self.fail_open_total += 1
+        if not self.failing:
+            self.failing = True
+            self._since = self.fail_open_total - 1
+            return True
+        return False
+
+    def record_success(self) -> int | None:
+        """Note a healthy call. On failing -> healthy, return how many requests
+        failed open during the outage; otherwise None."""
+        if self.failing:
+            self.failing = False
+            return self.fail_open_total - self._since
+        return None
+
+
+_redis_health = RedisHealth()
+
+
 class RedisSlidingWindowLimiter:
     """Sliding-window rate limiter backed by a Redis sorted set.
 
