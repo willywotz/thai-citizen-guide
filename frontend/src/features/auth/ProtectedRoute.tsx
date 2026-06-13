@@ -27,6 +27,7 @@ export function ProtectedRoute({ children, requireAdmin = false, requireNonBasic
     return <Navigate to="/login" replace />;
   }
 
+  // "basic" = the plain "user" role; admin and agency_owner are non-basic and pass through.
   if (requireNonBasic && user.role === "user") {
     return <Navigate to="/chat" replace />;
   }

@@ -3,8 +3,13 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProtectedRoute } from "./ProtectedRoute";
+import type { AuthUser } from "@/features/auth/useAuth";
 
-const auth = { user: null as { role: string } | null, isAdmin: false, isLoading: false };
+const auth: { user: AuthUser | null; isAdmin: boolean; isLoading: boolean } = {
+  user: null,
+  isAdmin: false,
+  isLoading: false,
+};
 vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
 
 function renderAt(initial: string, ui: React.ReactNode) {
@@ -20,7 +25,7 @@ function renderAt(initial: string, ui: React.ReactNode) {
 
 describe("ProtectedRoute requireNonBasic", () => {
   beforeEach(() => {
-    auth.user = { role: "user" };
+    auth.user = { id: "1", email: "u@test.com", displayName: "User", role: "user", avatarUrl: null };
     auth.isAdmin = false;
     auth.isLoading = false;
   });
@@ -32,7 +37,7 @@ describe("ProtectedRoute requireNonBasic", () => {
   });
 
   it("lets an admin through", () => {
-    auth.user = { role: "admin" };
+    auth.user = { id: "2", email: "a@test.com", displayName: "Admin", role: "admin", avatarUrl: null };
     auth.isAdmin = true;
     renderAt("/secret", <ProtectedRoute requireNonBasic><div>secret content</div></ProtectedRoute>);
     expect(screen.getByText("secret content")).toBeInTheDocument();
