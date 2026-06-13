@@ -6,38 +6,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-deploy:
-    runs-on: ubuntu-latest
-    outputs:
-      deploy: ${{ steps.checker.outputs.deploy }}
-    steps:
-      - name: Check trigger type and commit message
-        id: checker
-        env:
-          EVENT_NAME: "${{ github.event_name }}"
-          COMMIT_MSG: "${{ github.event.head_commit.message }}"
-        shell: bash
-        run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "Manual trigger detected. Forcing deployment."
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$COMMIT_MSG" =~ ^deploy ]]; then
-            echo "Commit message starts with 'deploy'. Proceeding."
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Commit message does not start with 'deploy'. Skipping deployment."
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-          fi
-
   test:
-    needs: check-deploy
-    if: ${{ needs.check-deploy.outputs.deploy == 'true' }}
     uses: ./.github/workflows/test.yml
 
   deploy:
     runs-on: self-hosted
-    needs: [check-deploy, test]
-    if: ${{ needs.check-deploy.outputs.deploy == 'true' }}
+    needs: [test]
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3

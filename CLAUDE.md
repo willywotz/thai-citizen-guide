@@ -14,6 +14,13 @@ rtk git checkout -b <type>/<short-description>
 
 Use conventional branch names: `feat/`, `fix/`, `chore/`, `refactor/`. Never commit multi-task work directly to `main`.
 
+## CI/CD — Branch Strategy
+
+- **`main`** — Production branch. Deploys to **prod**. Protected: **no direct pushes**; changes land **only via merged pull request**.
+- **`dev`** — Development branch. Deploys to the **dev** environment.
+
+Workflow: branch off `dev` → open a PR into `dev` for development → promote to prod by opening a PR from `dev` into `main`. Never push directly to `main`.
+
 ## TDD — Mandatory
 
 Write failing test → confirm fail → minimal code to pass → confirm pass → refactor. No exceptions.
