@@ -138,17 +138,23 @@ app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(audit_log.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
-# MCP server — streamable-HTTP sub-app (backward compat)
+# MCP transports — intentionally outside the role chokepoint
+#
+# NOTE: enforce_role_allowlist (an app-level FastAPI dependency) does NOT cover
+# these mounts. Mounted sub-apps (app.mount) and raw Starlette routes
+# (app.add_route) bypass FastAPI's dependency injection by design.
+# MCP auth is enforced in app/mcp/server.py via API key: any active user is
+# admitted with no role check, so read-only roles (viewer, auditor) may use
+# MCP chat. Do not "fix" this by gating the mounts without revisiting that
+# intent — see backend/tests/test_mcp_role_access.py for the guard test.
 # ---------------------------------------------------------------------------
 
+# MCP server — streamable-HTTP sub-app (backward compat)
 app.mount("/mcp", mcp_app)
 
-# ---------------------------------------------------------------------------
 # MCP SSE transport — root-level routes (OneChat spec)
 # GET  /sse           → open SSE stream; server emits endpoint URL with session_id
 # POST /messages/     → send MCP JSON-RPC message, ?session_id=<id> required
-# ---------------------------------------------------------------------------
-
 app.add_route("/sse", _sse_handler, methods=["GET"])
 app.mount("/messages", _sse_transport.handle_post_message)
 
