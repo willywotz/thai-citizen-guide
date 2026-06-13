@@ -16,6 +16,8 @@ Usage
 
 from __future__ import annotations
 
+import re
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
@@ -34,6 +36,28 @@ _invalid_credentials = HTTPException(
     detail="Invalid or expired credentials",
     headers={"WWW-Authenticate": "Bearer"},
 )
+
+_MESSAGE_RATING_PATH = re.compile(r"^/api/v1/messages/[^/]+/rating$")
+_CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/[^/]+)?$")
+
+
+def _is_allowed_for_basic_user(method: str, path: str) -> bool:
+    """Allowlist of (method, path) a plain ``user`` role may reach.
+
+    Maps 1:1 to the Chat and Architecture pages, plus the auth/self endpoints
+    every authenticated session needs. Everything else is forbidden.
+    """
+    if path.startswith("/api/v1/auth/"):
+        return True
+    if method == "POST" and path in ("/api/v1/chat", "/api/v1/chat/stream"):
+        return True
+    if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
+        return True
+    if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
+        return True
+    if _CONVERSATION_PATH.match(path):  # the user's own chat history
+        return True
+    return False
 
 
 async def _resolve_token(token: str) -> User | None:
