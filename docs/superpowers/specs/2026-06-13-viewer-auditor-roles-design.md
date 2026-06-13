@@ -20,7 +20,8 @@ write exception. Everything else is read-only and enforced server-side.
 | Page / capability | anonymous | user | **viewer** | **auditor** | agency_owner | admin |
 |---|---|---|---|---|---|---|
 | Public portal, status, auth | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Chat (send messages) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Chat (send messages) | ✅ (public portal) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Rate message / feedback | ✅ (public portal) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Architecture | — | ✅ | ✅ read | ✅ read | ✅ | ✅ |
 | Dashboard / Executive / Health / Heatmap | — | — | ✅ read | ✅ read | ✅ | ✅ |
 | Usage analytics | — | — | ✅ read | ✅ read | — | ✅ |
@@ -28,8 +29,14 @@ write exception. Everything else is read-only and enforced server-side.
 | Agencies mgmt / History / Connection logs / API keys | — | — | — | ✅ read | ✅ | ✅ |
 | Users / Audit log | — | — | — | ✅ read | — | ✅ |
 | Settings | — | — | — | — | — | ✅ |
-| Write actions (create/edit/delete) | — | chat only | chat only | chat only | ✅ | ✅ |
+| Write actions (create/edit/delete) | chat + rating only | chat only | chat only | chat only | ✅ | ✅ |
 
+- **Anonymous (public portal):** unauthenticated visitors at `/` may send chat
+  (`POST /api/v1/chat`, `/api/v1/chat/stream`) and rate messages
+  (`PATCH /api/v1/messages/{id}/rating`) via optional auth. The chokepoint
+  already returns early for anonymous callers, so no enforcement change is
+  needed here — this row documents existing behaviour the new roles must not
+  regress.
 - **Data scope:** `viewer` and `auditor` see organization-wide data across all
   agencies (like admin), read-only. No per-agency association is added.
 - **Write exception (all non-privileged roles):** `POST /api/v1/chat`,
