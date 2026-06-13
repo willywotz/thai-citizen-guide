@@ -60,6 +60,31 @@ def _is_allowed_for_basic_user(method: str, path: str) -> bool:
     return False
 
 
+async def _resolve_role(token: str) -> str | None:
+    """Return the caller's role without the side effects of ``_resolve_token``.
+
+    Used only by the basic-user chokepoint. Deliberately skips API-key rate
+    limiting and ``last_used_at`` stamping so wiring it globally never double-
+    charges those — it only needs the role.
+    """
+    if token.startswith(API_KEY_PREFIX):
+        api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
+        if api_key is None or not api_key.is_usable():
+            return None
+        user = await User.filter(id=api_key.user_id, is_active=True).first()
+        return user.role if user else None
+
+    try:
+        payload = decode_access_token(token)
+    except JWTError:
+        return None
+    user_id: str = payload.get("sub", "")
+    if not user_id:
+        return None
+    user = await User.filter(id=user_id, is_active=True).first()
+    return user.role if user else None
+
+
 async def _resolve_token(token: str) -> User | None:
     """Resolve a bearer token to an active user.
 
