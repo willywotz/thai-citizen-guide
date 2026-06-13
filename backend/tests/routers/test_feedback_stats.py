@@ -1,25 +1,20 @@
-"""Access-control scenario for the feedback-stats endpoint.
+"""Access-control policy for the feedback-stats endpoint.
 
-The aggregation query in `feedback_stats` is Postgres-specific (SET TIME ZONE,
-TO_CHAR) and cannot run against the in-memory SQLite test DB, so this test
-covers the admin gate — which runs before any SQL — confirming non-admins are
-rejected.
+The handler no longer gates on admin: access is governed by the global role
+allowlist (`enforce_role_allowlist`). Viewers and auditors are entitled to read
+it (it backs the Dashboard and Feedback pages); a plain `user` is not. The
+aggregation query is Postgres-specific and cannot run against the SQLite test
+DB, so the policy is asserted at the allowlist layer that runs before any SQL.
 """
 
-import pytest
-from fastapi import HTTPException
+from app.auth.dependencies import _is_allowed_for_basic_user, _is_allowed_for_viewer
 
-from app.models.user import User
-from app.routers import feedback as feedback_router
+_PATH = "/api/v1/feedback/stats"
 
 
-@pytest.mark.asyncio
-async def test_feedback_stats_rejects_non_admin(db):
-    user = await User.create(
-        email="user@example.com", hashed_password="x", role="user"
-    )
+def test_feedback_stats_readable_by_viewer():
+    assert _is_allowed_for_viewer("GET", _PATH)
 
-    with pytest.raises(HTTPException) as exc:
-        await feedback_router.feedback_stats(user=user)
 
-    assert exc.value.status_code == 403
+def test_feedback_stats_blocked_for_basic_user():
+    assert not _is_allowed_for_basic_user("GET", _PATH)
