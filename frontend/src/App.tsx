@@ -52,9 +52,11 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                {/* Basic users (role "user") may access only these */}
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
 
+                {/* Requires a non-basic role (agency_owner or admin) */}
                 <Route element={<ProtectedRoute requireNonBasic><Outlet /></ProtectedRoute>}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/executive" element={<ExecutivePage />} />
@@ -69,6 +71,7 @@ const App = () => (
                   <Route path="/connection-logs" element={<ConnectionLogsPage />} />
                   <Route path="/api-keys" element={<ApiKeysPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  {/* Admin only */}
                   <Route path="/users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
                   <Route path="/audit-log" element={<ProtectedRoute requireAdmin><AuditLogPage /></ProtectedRoute>} />
                   <Route path="/usage" element={<ProtectedRoute requireAdmin><UsageAnalyticsPage /></ProtectedRoute>} />
