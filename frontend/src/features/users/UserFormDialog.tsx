@@ -95,6 +95,9 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="user">ผู้ใช้</SelectItem>
+                <SelectItem value="viewer">ผู้ชม (อ่านอย่างเดียว)</SelectItem>
+                <SelectItem value="auditor">ผู้ตรวจสอบ (อ่านอย่างเดียว)</SelectItem>
+                <SelectItem value="agency_owner">เจ้าของหน่วยงาน</SelectItem>
                 <SelectItem value="admin">ผู้ดูแลระบบ</SelectItem>
               </SelectContent>
             </Select>
