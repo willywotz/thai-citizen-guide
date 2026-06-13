@@ -1,9 +1,17 @@
 """Viewer and auditor allowlists: read-only with a chat write exception."""
+import pytest
+from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
+from starlette.requests import Request
+
 from app.auth.dependencies import (
     _is_allowed_for_auditor,
     _is_allowed_for_viewer,
     _is_shared_write,
+    enforce_role_allowlist,
 )
+from app.auth.security import create_access_token
+from app.models.user import User
 
 
 def test_shared_writes_allowed_for_both():
@@ -75,3 +83,62 @@ def test_auditor_settings_block_is_exact():
     assert not _is_allowed_for_auditor("GET", "/api/v1/settings/cache/flush")
     # A different route that merely shares the prefix is NOT blocked:
     assert _is_allowed_for_auditor("GET", "/api/v1/settings-extended")
+
+
+# ---------------------------------------------------------------------------
+# Chokepoint integration tests
+# ---------------------------------------------------------------------------
+
+
+def _request(method: str, path: str) -> Request:
+    return Request(
+        {"type": "http", "method": method, "path": path, "headers": [], "query_string": b""}
+    )
+
+
+def _creds(token: str) -> HTTPAuthorizationCredentials:
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+
+async def _token_for(email: str, role: str) -> str:
+    user = await User.create(email=email, hashed_password="h", role=role)
+    return create_access_token({"sub": str(user.id)})
+
+
+async def test_viewer_blocked_on_users(db):
+    token = await _token_for("v1@x.com", "viewer")
+    with pytest.raises(HTTPException) as e:
+        await enforce_role_allowlist(_request("GET", "/api/v1/users"), _creds(token))
+    assert e.value.status_code == 403
+
+
+async def test_viewer_allowed_on_dashboard(db):
+    token = await _token_for("v2@x.com", "viewer")
+    assert await enforce_role_allowlist(
+        _request("GET", "/api/v1/dashboard/stats"), _creds(token)
+    ) is None
+
+
+async def test_auditor_allowed_on_users_but_blocked_on_settings(db):
+    token = await _token_for("a1@x.com", "auditor")
+    assert await enforce_role_allowlist(
+        _request("GET", "/api/v1/users"), _creds(token)
+    ) is None
+    with pytest.raises(HTTPException) as e:
+        await enforce_role_allowlist(_request("GET", "/api/v1/settings"), _creds(token))
+    assert e.value.status_code == 403
+
+
+async def test_auditor_blocked_on_write(db):
+    token = await _token_for("a2@x.com", "auditor")
+    with pytest.raises(HTTPException) as e:
+        await enforce_role_allowlist(_request("POST", "/api/v1/agencies"), _creds(token))
+    assert e.value.status_code == 403
+
+
+async def test_admin_and_owner_pass_through(db):
+    for role in ("admin", "agency_owner"):
+        token = await _token_for(f"{role}@x.com", role)
+        assert await enforce_role_allowlist(
+            _request("GET", "/api/v1/users"), _creds(token)
+        ) is None

@@ -215,11 +215,18 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-async def enforce_basic_user_allowlist(
+_ROLE_ALLOWLIST = {
+    "user": _is_allowed_for_basic_user,
+    "viewer": _is_allowed_for_viewer,
+    "auditor": _is_allowed_for_auditor,
+}
+
+
+async def enforce_role_allowlist(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
 ) -> None:
-    """Chokepoint: a ``user``-role caller may only reach chat + architecture.
+    """Chokepoint for read-restricted roles (``user``, ``viewer``, ``auditor``).
 
     Anonymous, ``admin`` and ``agency_owner`` callers pass straight through;
     their access is governed by each endpoint's own auth. Wired as a global
@@ -228,10 +235,11 @@ async def enforce_basic_user_allowlist(
     if credentials is None:
         return
     role = await _resolve_role(credentials.credentials)
-    if role != "user":
+    check = _ROLE_ALLOWLIST.get(role or "")
+    if check is None:  # admin, agency_owner, unknown/None → governed per-endpoint
         return
-    if not _is_allowed_for_basic_user(request.method, request.url.path):
+    if not check(request.method, request.url.path):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This role may only access chat and architecture",
+            detail="This role does not have access to this resource",
         )
