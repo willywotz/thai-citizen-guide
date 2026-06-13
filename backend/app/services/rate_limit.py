@@ -142,9 +142,20 @@ class RedisSlidingWindowLimiter:
             allowed, retry = await self._script(
                 keys=[f"rl:{key}"], args=[limit, window_us, member]
             )
-        except (RedisError, OSError):  # connection refused/reset, timeout — fail open
-            logger.warning("rate limiter: Redis unavailable, failing open", exc_info=True)
+        except (RedisError, OSError) as exc:  # connection/timeout — fail open
+            if _redis_health.record_failure():
+                logger.warning(
+                    "rate limiter: Redis unavailable, failing open — "
+                    "requests are NOT being rate-limited",
+                    exc_info=exc,
+                )
             return RateLimitResult(True, 0)
+        recovered = _redis_health.record_success()
+        if recovered is not None:
+            logger.info(
+                "rate limiter: Redis recovered after %d request(s) failed open",
+                recovered,
+            )
         return RateLimitResult(bool(allowed), int(retry))
 
 
