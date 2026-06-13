@@ -63,3 +63,26 @@ async def test_resolve_role_from_api_key(db):
 async def test_resolve_role_invalid_returns_none(db):
     assert await _resolve_role("not-a-jwt") is None
     assert await _resolve_role("tcg_bogus") is None
+
+
+async def test_resolve_role_inactive_user_returns_none(db):
+    user = await User.create(
+        email="role-inactive@x.com", hashed_password="h", role="user", is_active=False
+    )
+    token = create_access_token({"sub": str(user.id)})
+    assert await _resolve_role(token) is None
+
+
+async def test_resolve_role_unusable_api_key_returns_none(db):
+    from app.utils import now
+
+    user = await User.create(email="role-revoked@x.com", hashed_password="h", role="user")
+    raw = generate_api_key()
+    await UserAPIKey.create(
+        user_id=user.id,
+        name="n",
+        key_hash=hash_api_key(raw),
+        key_prefix=raw[:12],
+        revoked_at=now(),
+    )
+    assert await _resolve_role(raw) is None

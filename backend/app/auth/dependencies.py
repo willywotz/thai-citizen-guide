@@ -60,6 +60,7 @@ def _is_allowed_for_basic_user(method: str, path: str) -> bool:
     return False
 
 
+# NOTE: token-branching mirrors _resolve_token; kept separate to stay side-effect-free.
 async def _resolve_role(token: str) -> str | None:
     """Return the caller's role without the side effects of ``_resolve_token``.
 
