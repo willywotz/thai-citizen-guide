@@ -1,7 +1,31 @@
 # Design: `viewer` and `auditor` roles
 
 **Date:** 2026-06-13
-**Status:** Approved (design), pending implementation plan
+**Status:** Implemented (branch `feat/viewer-auditor-roles`)
+
+## Implementation addendum (2026-06-13)
+
+During final review a **two-gate** reality surfaced: a request must pass BOTH the
+global `enforce_role_allowlist` chokepoint AND each endpoint's own dependency
+(`require_admin`, owner authz, etc.). The chokepoint can only *restrict*, never
+*grant* — so endpoints with their own `require_admin` still 403'd the auditor.
+Three decisions were taken to make `auditor` truly "read everything except
+settings":
+
+1. **Management reads relaxed for auditor.** Added `require_admin_or_auditor`;
+   GET guards on users (list/get), audit-log, and connection-logs (list/detail/
+   info) now admit `auditor`. All writes stay admin-only.
+2. **Auditor reads ALL conversation history** (full audit): `list_conversations`
+   scope and `authz.conversation:read` now allow `auditor`. `conversation:delete`
+   and every other write stay denied (`_AUDITOR_READ = {"conversation:read"}`).
+3. **MCP chat allowed for read-only roles** — no code change: mounted MCP
+   transports (`/mcp`, `/messages`, `/sse`) bypass the app-level chokepoint and
+   the MCP server auth has no role gate. Documented in `main.py` so it isn't
+   "fixed" later.
+
+Known non-issue: `agencies` GET sub-resources `golden-questions`/`eval-results`
+are `agency:edit`-authz'd and would 403 an auditor, but no auditor-visible page
+calls them today.
 
 ## Problem
 
