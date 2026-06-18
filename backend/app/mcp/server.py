@@ -108,7 +108,7 @@ async def _fetch_agencies(ctx: Context) -> dict:
 
     user_is_admin = await ctx.get_state("user_is_admin")
 
-    agencies = await Agency.values(
+    agencies = await Agency.all().values(
         "id",
         "name",
         "status",
