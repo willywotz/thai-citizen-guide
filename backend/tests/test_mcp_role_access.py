@@ -1,8 +1,8 @@
 """Guard test: read-only roles (viewer, auditor) are NOT rejected by MCP auth.
 
-The MCP transports (/mcp, /sse, /messages) are mounted outside FastAPI's
-dependency injection, so the role chokepoint (enforce_role_allowlist) never
-runs for them. The only auth gate is AuthMiddleware in app/mcp/server.py,
+The MCP transport (/mcp) is mounted outside FastAPI's dependency injection, so
+the role chokepoint (enforce_role_allowlist) never runs for it. The only auth
+gate is AuthMiddleware in app/mcp/server.py,
 which checks that the API key is usable and the user is active — no role
 check at all.
 

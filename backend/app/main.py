@@ -8,9 +8,7 @@ Entry-point:
     uvicorn app.main:app --reload
 
 MCP server:
-  - SSE transport  →  GET /sse   (opens stream, server emits session endpoint URL)
-                      POST /messages/  (send JSON-RPC commands, ref session_id query param)
-  - Streamable-HTTP →  /mcp/  (legacy mount, kept for backward compat)
+  - Streamable-HTTP →  /mcp/  (stateless; safe across multiple workers)
 REST API is served under /api/v1
 """
 
@@ -27,9 +25,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from mcp.server.sse import SseServerTransport
-from starlette.requests import Request
-from starlette.responses import Response
 
 from app.config import settings, load_settings_from_db, assert_production_secrets
 from app.errors import register_error_handlers
@@ -42,27 +37,11 @@ from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
 
-mcp_app = mcp.http_app(path="/")
-
-# ---------------------------------------------------------------------------
-# SSE transport — GET /sse + POST /messages/
-# (follows OneChat MCP SSE spec: server generates session_id, no pre-auth needed)
-# ---------------------------------------------------------------------------
-
-_sse_transport = SseServerTransport("/messages/")
-
-
-async def _sse_handler(request: Request) -> Response:
-    """Open an SSE stream; server auto-generates session_id and emits endpoint URL."""
-    async with _sse_transport.connect_sse(
-        request.scope, request.receive, request._send
-    ) as streams:
-        await mcp._mcp_server.run(
-            streams[0],
-            streams[1],
-            mcp._mcp_server.create_initialization_options(),
-        )
-    return Response()
+# stateless_http: production runs uvicorn --workers 4 with no session affinity.
+# Stateful sessions live in one worker's memory, so a follow-up request routed
+# to another worker raises an intermittent "Session terminated". Stateless mode
+# uses a fresh transport per request, so any worker can serve any request.
+mcp_app = mcp.http_app(path="/", stateless_http=True)
 
 # ---------------------------------------------------------------------------
 # Lifespan — startup / shutdown
@@ -94,8 +73,7 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description=(
         "Central AI Chatbot Portal API.\n\n"
-        "**MCP SSE** (OneChat-compatible): `GET /sse` → open stream, `POST /messages/` → send commands.\n\n"
-        "**MCP Streamable-HTTP** (legacy): available at `/mcp`.\n\n"
+        "**MCP Streamable-HTTP** (stateless): available at `/mcp`.\n\n"
         "**REST API** endpoints are under `/api/v1`."
     ),
     docs_url="/docs",
@@ -138,25 +116,18 @@ app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(audit_log.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
-# MCP transports — intentionally outside the role chokepoint
+# MCP transport — intentionally outside the role chokepoint
 #
 # NOTE: enforce_role_allowlist (an app-level FastAPI dependency) does NOT cover
-# these mounts. Mounted sub-apps (app.mount) and raw Starlette routes
-# (app.add_route) bypass FastAPI's dependency injection by design.
-# MCP auth is enforced in app/mcp/server.py via API key: any active user is
-# admitted with no role check, so read-only roles (viewer, auditor) may use
-# MCP chat. Do not "fix" this by gating the mounts without revisiting that
-# intent — see backend/tests/test_mcp_role_access.py for the guard test.
+# this mount. Mounted sub-apps (app.mount) bypass FastAPI's dependency
+# injection by design. MCP auth is enforced in app/mcp/server.py via API key:
+# any active user is admitted with no role check, so read-only roles (viewer,
+# auditor) may use MCP chat. Do not "fix" this by gating the mount without
+# revisiting that intent — see backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------
 
-# MCP server — streamable-HTTP sub-app (backward compat)
+# MCP server — stateless streamable-HTTP sub-app
 app.mount("/mcp", mcp_app)
-
-# MCP SSE transport — root-level routes (OneChat spec)
-# GET  /sse           → open SSE stream; server emits endpoint URL with session_id
-# POST /messages/     → send MCP JSON-RPC message, ?session_id=<id> required
-app.add_route("/sse", _sse_handler, methods=["GET"])
-app.mount("/messages", _sse_transport.handle_post_message)
 
 # ---------------------------------------------------------------------------
 # Health check
