@@ -83,7 +83,7 @@ async def list_agency_tool(ctx: Context = CurrentContext()) -> dict:
     """
     Tool wrapper for list_agency_resource, which returns a JSON string.
     """
-    
+
     agencies = await _fetch_agencies(ctx)
 
     return {"agencies": agencies, "total": len(agencies)}
@@ -95,6 +95,7 @@ async def _fetch_agencies(ctx: Context) -> dict:
     Each item contains:
     - id
     - name
+    - status
     - description
     - connection_type  (MCP | API | A2A)
     - data_scope       list of data categories this agency covers
@@ -106,10 +107,11 @@ async def _fetch_agencies(ctx: Context) -> dict:
     http_host = request.headers.get("X-Forwarded-Host")
 
     user_is_admin = await ctx.get_state("user_is_admin")
-    
-    agencies = await Agency.filter(status="active").values(
+
+    agencies = await Agency.values(
         "id",
         "name",
+        "status",
         "description",
         "connection_type",
         "data_scope",
@@ -121,7 +123,7 @@ async def _fetch_agencies(ctx: Context) -> dict:
     for index, agency in enumerate(agencies):
         if agency["api_headers"] is None:
             agencies[index]["api_headers"] = []
-        
+
         for j, header in enumerate(agency["api_headers"]):
             if header.get("name").lower() == "authorization" and not user_is_admin:
                 # agencies[index]["api_headers"][j]["value"] = "REDACTED"

@@ -1,17 +1,16 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
+  pull_request:
+    types: [closed]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  test:
-    uses: ./.github/workflows/test.yml
-
   deploy:
+    if: github.event.pull_request.merged == true
     runs-on: self-hosted
-    needs: [test]
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
