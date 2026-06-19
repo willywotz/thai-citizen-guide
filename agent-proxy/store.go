@@ -12,7 +12,7 @@ type agency struct {
 }
 
 func getAgency(ctx context.Context, pool *pgxpool.Pool, id string) (agency, error) {
-	const q = "select endpoint_url, api_headers from agencies where id = $1 and status = 'active'"
+	const q = "select endpoint_url, api_headers from agencies where id = $1"
 	var a agency
 	err := pool.QueryRow(ctx, q, id).Scan(&a.endpointURL, &a.apiHeaders)
 	return a, err
