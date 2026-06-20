@@ -8,7 +8,6 @@ import logging
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from opentelemetry import trace
 
 from app.config import settings
 from app.models import Agency, ConnectionLog
@@ -23,7 +22,18 @@ scheduler = AsyncIOScheduler()
 sem: asyncio.Semaphore | None = None
 
 logger = logging.getLogger(__name__)
-tracer = trace.get_tracer(__name__)
+
+# ---------------------------------------------------------------------------
+# Opentelemetry auto-instrumentation
+# ---------------------------------------------------------------------------
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+tracerProvider = TracerProvider(resource=Resource.create({SERVICE_NAME: "backend-scheduler"}))
+tracerProvider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True)))
+tracer = tracerProvider.get_tracer(__name__)
 
 async def agency_chat_item(agency: Agency) -> None:
     logger.info(f"Testing agency {agency.name}...")
