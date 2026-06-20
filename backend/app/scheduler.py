@@ -28,7 +28,7 @@ tracer = trace.get_tracer(__name__)
 async def agency_chat_item(agency: Agency) -> None:
     logger.info(f"Testing agency {agency.name}...")
     async with sem:
-        with tracer.start_as_current_span(f"agency_chat_test") as span:
+        with tracer.start_as_current_span(f"agency_chat_test {agency.name}") as span:
             span.set_attribute("agency.id", str(agency.id))
             span.set_attribute("agency.name", agency.name)
             try:
@@ -58,12 +58,14 @@ async def agency_chat_item(agency: Agency) -> None:
                             if v == "__conversation_id__":
                                 payload[k] = str(generate_uuid())
                         span.set_attribute("agency.api_payload", json.dumps(payload))
-                        start_ns = time.perf_counter_ns()
                         span.set_attribute("agency.api_endpoint", agency.endpoint_url)
+                        start_ns = time.perf_counter_ns()
                         resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
                         end_ns = time.perf_counter_ns()
                         latency = int((end_ns - start_ns) // 1_000_000)
                         span.set_attribute("agency.api_latency_ms", latency)
+                        span.set_attribute("agency.api_status_code", resp.status_code)
+                        span.set_attribute("agency.api_response", sanitize_body(resp.text, max_chars=500))
                         await ConnectionLog.create(
                             id=str(generate_uuid()),
                             agency=agency,
