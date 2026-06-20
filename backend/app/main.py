@@ -37,6 +37,25 @@ from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
 
+# ---------------------------------------------------------------------------
+# Opentelemetry auto-instrumentation
+# ---------------------------------------------------------------------------
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+resource = Resource.create(attributes={
+    SERVICE_NAME: "backend"
+})
+
+tracerProvider = TracerProvider(resource=resource)
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True))
+tracerProvider.add_span_processor(processor)
+trace.set_tracer_provider(tracerProvider)
+
 # stateless_http: production runs uvicorn --workers 4 with no session affinity.
 # Stateful sessions live in one worker's memory, so a follow-up request routed
 # to another worker raises an intermittent "Session terminated". Stateless mode
@@ -138,28 +157,5 @@ async def health_check():
     """Health check endpoint."""
     return "ok\n"
 
-# ---------------------------------------------------------------------------
-# Opentelemetry auto-instrumentation
-# ---------------------------------------------------------------------------
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-resource = Resource.create(attributes={
-    SERVICE_NAME: "backend"
-})
-
-tracerProvider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True))
-tracerProvider.add_span_processor(processor)
-trace.set_tracer_provider(tracerProvider)
-
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 FastAPIInstrumentor.instrument_app(app, excluded_urls="/health,^/health$,/mcp,^/mcp$")
-
-# ---------------------------------------------------------------------------
-# Background scheduler
-# ---------------------------------------------------------------------------
