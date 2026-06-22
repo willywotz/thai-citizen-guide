@@ -24,7 +24,7 @@ async def test_connection_logs_auditor_sees_all(db):
     # Auditor should see all connection logs (like admin), not be 403'd.
     from app.routers.connection_logs import list_connection_logs
     auditor = await User.create(email="aud-cl@x.com", hashed_password="h", role="auditor")
-    resp = await list_connection_logs(search=None, agency_id=None, page=1, limit=20, user=auditor)
+    resp = await list_connection_logs(search=None, agency_id=None, status_filter=None, connection_type=None, page=1, limit=20, page_size=None, user=auditor)
     assert resp is not None  # no 403 raised; returns a response model
 
 
@@ -32,5 +32,5 @@ async def test_connection_logs_plain_user_denied(db):
     from app.routers.connection_logs import list_connection_logs
     plain = await User.create(email="usr-cl@x.com", hashed_password="h", role="user")
     with pytest.raises(HTTPException) as e:
-        await list_connection_logs(search=None, agency_id=None, page=1, limit=20, user=plain)
+        await list_connection_logs(search=None, agency_id=None, status_filter=None, connection_type=None, page=1, limit=20, page_size=None, user=plain)
     assert e.value.status_code == 403
