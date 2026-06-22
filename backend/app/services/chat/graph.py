@@ -1,11 +1,14 @@
 import asyncio
 import json
+import logging
 import operator
 import re
 from dataclasses import dataclass, field
 from typing import Annotated
 
 from langgraph.graph import END, START, StateGraph
+
+logger = logging.getLogger(__name__)
 
 from app.models.agency import Agency
 from app.services.chat.dispatch import dispatch_one
@@ -21,6 +24,19 @@ class AgentState:
     routes: list[dict] = field(default_factory=list)
     results: Annotated[list[dict], operator.add] = field(default_factory=list)
     final_answer: str = ""
+
+
+def _parse_routes(text: str) -> list[dict]:
+    """Parse the router LLM output. Returns [] on any malformed output."""
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        logger.warning("router LLM returned non-JSON output; treating as no routes")
+        return []
+    routes = parsed.get("routes") if isinstance(parsed, dict) else None
+    if not isinstance(routes, list):
+        return []
+    return [r for r in routes if isinstance(r, dict) and r.get("agency_id")]
 
 
 async def load_agencies(state: AgentState) -> dict:
@@ -42,8 +58,9 @@ async def route_query(state: AgentState) -> dict:
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0]
 
-    parsed = json.loads(text)
-    routes = parsed.get("routes", [])
+    routes = _parse_routes(text)
+    if not routes:
+        return {"routes": []}
 
     agency_map = {ag["id"]: ag for ag in state.agencies}
     for route in routes:

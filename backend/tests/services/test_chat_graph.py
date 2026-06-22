@@ -187,3 +187,29 @@ async def test_synthesize_calls_llm_and_trims():
     with patch("app.services.chat.graph.call_llm", new=AsyncMock(return_value={"content": "  คำตอบ  "})):
         result = await synthesize(state)
     assert result["final_answer"] == "คำตอบ"
+
+
+@pytest.mark.asyncio
+async def test_route_query_invalid_json_yields_no_routes(monkeypatch):
+    import app.services.chat.graph as g
+    from app.services.chat.graph import AgentState, route_query
+
+    async def fake_llm(_messages):
+        return {"content": "not json at all"}
+
+    monkeypatch.setattr(g, "call_llm", fake_llm)
+    out = await route_query(AgentState(query="q", agencies=[]))
+    assert out == {"routes": []}
+
+
+@pytest.mark.asyncio
+async def test_route_query_missing_routes_key(monkeypatch):
+    import app.services.chat.graph as g
+    from app.services.chat.graph import AgentState, route_query
+
+    async def fake_llm(_messages):
+        return {"content": '{"foo": 1}'}
+
+    monkeypatch.setattr(g, "call_llm", fake_llm)
+    out = await route_query(AgentState(query="q", agencies=[]))
+    assert out == {"routes": []}
