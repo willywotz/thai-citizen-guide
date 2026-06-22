@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from app.models import Agency
@@ -29,6 +31,35 @@ async def test_snapshot_excludes_inactive():
     assert "Active" in names
     assert "Draft" not in names
     assert "Disabled" not in names
+
+
+@pytest.mark.usefixtures("db")
+async def test_snapshot_refetches_after_ttl_expires(monkeypatch):
+    """Cache should re-query after TTL elapses, not before."""
+    await Agency.create(name="A", status="active")
+    agency_directory.invalidate()
+
+    # Prime the cache.
+    first = await agency_directory.snapshot()
+    assert len(first) == 1
+
+    # Add a second agency without invalidating.
+    await Agency.create(name="B", status="active")
+
+    # Within TTL: still one result from cache.
+    within = await agency_directory.snapshot()
+    assert len(within) == 1
+
+    # Simulate TTL elapsed by fast-forwarding monotonic time.
+    real_monotonic = time.monotonic
+    monkeypatch.setattr(
+        "app.services.agency_directory.time",
+        type("_t", (), {"monotonic": staticmethod(lambda: real_monotonic() + agency_directory._CACHE_TTL_S + 1)})(),
+    )
+
+    # After TTL: fresh query returns both agencies.
+    after_ttl = await agency_directory.snapshot()
+    assert len(after_ttl) == 2
 
 
 def test_prefilter_matches_by_name():

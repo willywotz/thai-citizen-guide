@@ -11,6 +11,7 @@ from app.models.agency import Agency
 _CACHE_TTL_S = 60.0
 _cache: list[dict] | None = None
 _loaded_at = 0.0
+# No async lock needed: single asyncio event loop; awaits are the only yield points.
 
 
 def invalidate() -> None:
