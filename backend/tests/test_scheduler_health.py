@@ -1,5 +1,6 @@
 import asyncio
-from unittest.mock import AsyncMock, patch
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -58,3 +59,49 @@ async def test_health_check_job_reconciles_statuses(db):
     with patch("app.scheduler.reconcile_statuses", AsyncMock()) as rec:
         await scheduler.agency_chat_test()
     rec.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_start_scheduler_uses_spawn_logged(db):
+    """start_scheduler must use spawn_logged (not create_task) for fire-and-forget jobs."""
+    captured = []
+
+    def fake_spawn(coro, *, name):
+        coro.close()  # discard without running
+        captured.append(name)
+        task = asyncio.ensure_future(asyncio.sleep(0))
+        return task
+
+    with (
+        patch("app.scheduler.spawn_logged", side_effect=fake_spawn),
+        patch("app.scheduler.scheduler") as mock_sched,
+    ):
+        mock_sched.add_job = MagicMock()
+        mock_sched.start = MagicMock()
+        await scheduler.start_scheduler()
+
+    assert any("agency_chat_test" in n for n in captured), f"spawn_logged not called for agency_chat_test; got {captured}"
+    assert any("regenerate_brief_job" in n for n in captured), f"spawn_logged not called for regenerate_brief_job; got {captured}"
+
+
+@pytest.mark.asyncio
+async def test_agency_chat_item_times_out(db, caplog):
+    """A hanging _run_agency_item must be cancelled and an error logged."""
+    scheduler.sem = asyncio.Semaphore(5)
+    ag = await Agency.create(
+        name="Slow", short_name="SL", connection_type="MCP",
+        status="active", endpoint_url="https://slow.example",
+    )
+
+    async def hang(_agency):
+        await asyncio.sleep(9999)
+
+    with (
+        patch("app.scheduler._run_agency_item", side_effect=hang),
+        patch("app.scheduler.settings") as mock_settings,
+        caplog.at_level(logging.ERROR, logger="app.scheduler"),
+    ):
+        mock_settings.AGENCY_CHAT_TIMEOUT = 0.01  # 10 ms
+        await scheduler.agency_chat_item(ag)
+
+    assert any("timed out" in r.getMessage().lower() for r in caplog.records if r.levelno >= logging.ERROR)
