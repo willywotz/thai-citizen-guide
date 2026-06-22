@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -14,6 +15,7 @@ from app.services.analytics import get_agency_health
 from app.utils import now
 
 router = APIRouter(tags=["insight"])
+logger = logging.getLogger(__name__)
 
 _GROUP_FIELDS = {"purpose": "purpose", "model": "model", "user": "user_id", "api_key": "api_key_id"}
 
@@ -196,8 +198,8 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
             peakDay = days_labels[int(rawPeakDay[0]["day"])] if len(rawPeakDay) > 0 and rawPeakDay[0]["day"] is not None else ""
             peakHour = f"{int(rawPeakHour[0]['hour']):02d}:00" if len(rawPeakHour) > 0 and rawPeakHour[0]["hour"] is not None else ""
             peakValue = int(rawPeakHour[0]["cnt"]) if len(rawPeakHour) > 0 and rawPeakHour[0]["cnt"] is not None else 0
-        except:
-            pass
+        except Exception:
+            logger.debug("peak-day/hour aggregation failed", exc_info=True)
 
         agencyPeak = {"agency": "", "total": 0, "peakHour": 0}
 
@@ -211,8 +213,8 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
 
             listdata = sorted(listdata, key=lambda x: x["total"], reverse=True)
             agencyPeak = listdata[0] if len(listdata) > 0 else {"agency": "", "total": 0, "peakHour": 0}
-        except:
-            pass
+        except Exception:
+            logger.debug("agency-peak aggregation failed", exc_info=True)
 
         businessHoursPercent = business_hours_count / total_messages * 100 if total_messages > 0 else 0
         businessHoursPercent = round(businessHoursPercent, 2)

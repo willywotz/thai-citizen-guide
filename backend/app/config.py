@@ -1,7 +1,18 @@
 import json
+import logging
+from dataclasses import dataclass, field
 from typing import get_origin
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class OverrideReport:
+    applied: list[str] = field(default_factory=list)
+    unknown: list[str] = field(default_factory=list)
+    invalid: list[str] = field(default_factory=list)
 
 DEFAULT_JWT_SECRET = "change-me-in-production-use-a-long-random-string"
 
@@ -113,16 +124,22 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    def apply_overrides(self, overrides: dict[str, str]) -> None:
+    def apply_overrides(self, overrides: dict[str, str]) -> "OverrideReport":
+        report = OverrideReport()
         for key, raw_value in overrides.items():
-            field_info = self.model_fields.get(key)
+            field_info = self.__class__.model_fields.get(key)
             if field_info is None:
+                report.unknown.append(key)
+                logger.warning("ignoring unknown settings override key: %s", key)
                 continue
             try:
                 parsed = _deserialize(raw_value, field_info.annotation)
                 object.__setattr__(self, key, parsed)
+                report.applied.append(key)
             except Exception:
-                pass
+                report.invalid.append(key)
+                logger.warning("failed to parse override %s=%r; keeping default", key, raw_value)
+        return report
 
 
 def _deserialize(raw: str, annotation: type):
