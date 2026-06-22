@@ -23,6 +23,7 @@ from app.schemas.agency import (
     AgencyResponse,
     AgencyUpdate,
 )
+from app.services import agency_directory
 from app.services.audit import record_audit
 from app.services.cache_flush import flush_similarity_cache
 
@@ -67,6 +68,7 @@ async def create_agency(body: AgencyCreate, _: User = Depends(require_admin)):
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
 
     agency = await Agency.create(**data)
+    agency_directory.invalidate()
     return await _with_health(agency)
 
 
@@ -92,6 +94,7 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = 
     data["response_schema"] = [f.model_dump() for f in body.response_schema]
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
     await agency.update_from_dict(data).save()
+    agency_directory.invalidate()
     try:
         await flush_similarity_cache()
     except Exception:
@@ -127,6 +130,7 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = D
         ]
 
     await agency.update_from_dict(update_data).save()
+    agency_directory.invalidate()
     try:
         await flush_similarity_cache()
     except Exception:
@@ -143,6 +147,7 @@ async def delete_agency(agency_id: uuid.UUID, user: User = Depends(get_current_u
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
     await authorize_or_403(user, "agency:delete", agency)
     await agency.delete()
+    agency_directory.invalidate()
     await record_audit(user, "agency.delete", object_type="agency", object_id=agency_id)
 
 

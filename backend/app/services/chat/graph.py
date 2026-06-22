@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 
 logger = logging.getLogger(__name__)
 
-from app.models.agency import Agency
+from app.services import agency_directory
 from app.services.chat.dispatch import dispatch_one
 from app.services.chat.llm import build_router_prompt, call_llm
 from app.services.circuit_breaker import record_dispatch_result
@@ -40,8 +40,8 @@ def _parse_routes(text: str) -> list[dict]:
 
 
 async def load_agencies(state: AgentState) -> dict:
-    agencies = await Agency.filter(status="active").all().values()
-    return {"agencies": agencies}
+    agencies = await agency_directory.snapshot()
+    return {"agencies": agency_directory.prefilter(agencies, state.query)}
 
 
 async def route_query(state: AgentState) -> dict:
@@ -136,10 +136,10 @@ def should_dispatch(state: AgentState) -> str:
     return "dispatch" if state.routes else "synthesize"
 
 
-def build_graph() -> StateGraph:
+def build_graph(agency_loader=None) -> StateGraph:
     graph = StateGraph(AgentState)
 
-    graph.add_node("load_agencies", load_agencies)
+    graph.add_node("load_agencies", agency_loader or load_agencies)
     graph.add_node("route_query", route_query)
     graph.add_node("dispatch", dispatch_to_agencies)
     graph.add_node("synthesize", synthesize)
