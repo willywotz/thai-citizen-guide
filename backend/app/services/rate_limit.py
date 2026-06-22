@@ -123,6 +123,10 @@ class RedisHealth:
 # next successful call on any limiter clears it.
 _redis_health = RedisHealth()
 
+# Shared per-worker fallback used when Redis is unreachable. One instance so the
+# budget is consistent across all three Redis limiters during an outage.
+_fallback_limiter = InProcessLimiter()
+
 
 class RedisSlidingWindowLimiter:
     """Sliding-window rate limiter backed by a Redis sorted set.
@@ -148,17 +152,19 @@ class RedisSlidingWindowLimiter:
             allowed, retry = await self._script(
                 keys=[f"rl:{key}"], args=[limit, window_us, member]
             )
-        except (RedisError, OSError) as exc:  # connection/timeout — fail open
-            trace.get_current_span().add_event(
+        except (RedisError, OSError) as exc:  # connection/timeout — degrade
+            span = trace.get_current_span()
+            span.add_event(
                 "rate_limit.fail_open", {"key": key, "error": type(exc).__name__}
             )
+            span.add_event("rate_limit.degraded_to_inprocess", {"key": key})
             if _redis_health.record_failure():
                 logger.warning(
-                    "rate limiter: Redis unavailable, failing open — "
-                    "requests are NOT being rate-limited",
+                    "rate limiter: Redis unavailable, degrading to in-process "
+                    "limiter (per-worker budget still enforced)",
                     exc_info=exc,
                 )
-            return RateLimitResult(True, 0)
+            return await _fallback_limiter.check(key, limit=limit, window_s=window_s)
         recovered = _redis_health.record_success()
         if recovered is not None:
             logger.info(
