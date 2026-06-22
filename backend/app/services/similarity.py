@@ -1,12 +1,12 @@
-import json
+import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from tortoise import Tortoise
 
 from app.config import settings
-from app.models.conversation import Message, Conversation
 from app.models.connection_log import ConnectionLog
+from app.models.conversation import Message
 from app.services.cache_flush import effective_cutoff
 from app.services.embedding import encode_embedding
 from app.utils import now
@@ -38,33 +38,54 @@ async def find_similar_question(
     if match is None:
         return None
 
-    # Find the assistant answer for the matched question
+    answer = await _fetch_answer_by_match(match)
+    if answer is None:
+        return None
+
+    assistant_msg, conn_log = answer
+    return (match, assistant_msg, conn_log)
+
+
+async def _fetch_answer_by_match(
+    match: Message,
+) -> tuple[Message, ConnectionLog] | None:
+    """Fetch the assistant message and connection log for a matched user message.
+
+    Uses a single join query that simultaneously verifies the conversation
+    status is 'success', reducing the original 3-query tail to one round trip.
+    The two ORM fetches that follow run concurrently via asyncio.gather.
+    """
+    conn = Tortoise.get_connection("default")
+    if conn.capabilities.dialect == "postgres":
+        p1, p2 = "$1", "$2"
+    else:
+        p1, p2 = "?", "?"
+    sql = f"""
+        SELECT m.id AS asst_id, cl.id AS cl_id
+        FROM messages m
+        JOIN conversations c ON c.id = {p1} AND c.status = 'success'
+        JOIN connection_logs cl ON cl.assistant_message_id = m.id
+        WHERE m.parent_id = {p2}
+          AND m.role = 'assistant'
+        LIMIT 1
+        """
+    rows = await conn.execute_query_dict(sql, [str(match.conversation_id), str(match.id)])
+    if not rows:
+        logger.debug(
+            "No cached answer found for message %s (no assistant or non-success conv)", match.id
+        )
+        return None
+
+    row = rows[0]
     try:
-        assistant_msg = await Message.get(
-            parent_id=match.id,
-            role="assistant",
+        asst_msg, cl = await asyncio.gather(
+            Message.get(id=row["asst_id"]),
+            ConnectionLog.get(id=row["cl_id"]),
         )
     except Exception:
-        logger.info(f"No assistant answer found for message {match.id}")
+        logger.warning("Failed to fetch assistant/conn_log for match %s", match.id)
         return None
-
-    # Only return answers from successful conversations
-    try:
-        conv = await Conversation.get(id=match.conversation_id)
-        if conv.status != "success":
-            logger.info(f"Skipping cached answer from non-success conversation {conv.id}")
-            return None
-    except Exception:
-        logger.warning(f"Conversation {match.conversation_id} not found")
-        return None
-
-    try:
-        conn_log = await ConnectionLog.get(assistant_message_id=assistant_msg.id)
-    except Exception:
-        logger.warning(f"ConnectionLog for message {assistant_msg.id} not found")
-        return None
-
-    return (match, assistant_msg, conn_log)
+    return (asst_msg, cl)
 
 
 async def _text_fallback_search(
