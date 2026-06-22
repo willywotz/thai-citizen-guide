@@ -16,26 +16,19 @@ from app.auth.authz import authorize_or_403
 from app.auth.dependencies import get_current_user, require_admin
 from app.models.agency import Agency
 from app.models.user import User
+from app.routers.agencies._utils import _with_health
 from app.schemas.agency import (
     AgencyCreate,
-    AgencyHealthEmbed,
     AgencyListResponse,
     AgencyResponse,
     AgencyUpdate,
 )
-from app.services.agency_health import embedded_health
 from app.services.audit import record_audit
 from app.services.cache_flush import flush_similarity_cache
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-async def _with_health(agency: Agency) -> AgencyResponse:
-    resp = AgencyResponse.model_validate(agency)
-    resp.health = AgencyHealthEmbed(**(await embedded_health(agency.id)))
-    return resp
 
 
 # list_agencies and create_agency are registered by __init__.py directly

@@ -13,26 +13,20 @@ from app.errors import ApiError
 from app.models.agency import Agency
 from app.models.connection_log import ConnectionLog
 from app.models.user import User
+from app.routers.agencies._utils import _with_health
 from app.schemas.agency import (
-    AgencyHealthEmbed,
     AgencyResponse,
     HealthHistoryBucket,
     HealthHistoryResponse,
     StatusUpdateRequest,
 )
-from app.services.agency_health import embedded_health, health_history
 from app.services.agency import test_connection
+from app.services.agency_health import health_history
 from app.services.agency_lifecycle import is_legal_transition
 from app.services.audit import record_audit
 from app.services.log_sanitize import sanitize_body
 
 router = APIRouter()
-
-
-async def _with_health(agency: Agency) -> AgencyResponse:
-    resp = AgencyResponse.model_validate(agency)
-    resp.health = AgencyHealthEmbed(**(await embedded_health(agency.id)))
-    return resp
 
 
 class TestStep(BaseModel):

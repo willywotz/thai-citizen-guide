@@ -8,17 +8,11 @@ from app.auth.dependencies import get_current_user
 from app.models.agency import Agency
 from app.models.relationship import Relationship
 from app.models.user import User
-from app.schemas.agency import AgencyHealthEmbed, AgencyResponse
-from app.services.agency_health import embedded_health
+from app.routers.agencies._utils import _with_health
+from app.schemas.agency import AgencyResponse
 from app.services.audit import record_audit
 
 router = APIRouter()
-
-
-async def _with_health(agency: Agency) -> AgencyResponse:
-    resp = AgencyResponse.model_validate(agency)
-    resp.health = AgencyHealthEmbed(**(await embedded_health(agency.id)))
-    return resp
 
 
 class AddOwnerRequest(BaseModel):
