@@ -25,6 +25,15 @@ async def db():
 
 
 @pytest_asyncio.fixture(autouse=True)
+async def _clear_embedding_cache():
+    """Reset the embedding TTL cache before every test to prevent cross-test pollution."""
+    from app.services.embedding import _cache_clear
+    _cache_clear()
+    yield
+    _cache_clear()
+
+
+@pytest_asyncio.fixture(autouse=True)
 async def _reset_usage_context():
     from app.services.usage_context import current_api_key_id, current_user_id
     ut = current_user_id.set(None)
