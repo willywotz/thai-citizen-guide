@@ -99,3 +99,17 @@ async def test_save_turn_is_transactional_message_count():
     conv = await Conversation.get(id=cid)
     assert conv.status == "success"
     assert conv.message_count == 2
+
+
+@pytest.mark.usefixtures("db")
+async def test_stream_empty_answer_marks_failed():
+    """After fold: empty answer → status=failed (documented behavior change)."""
+    from app.services.chat.turn import save_turn
+    cid = str(__import__("uuid").uuid4())
+    await save_turn(
+        query="q", conversation_id=cid, answer="", references=[], category=None,
+        agency_ids=[], response_time=0, user=None, succeeded=False,
+        external_session_id=None, errors=[],
+    )
+    conv = await Conversation.get(id=cid)
+    assert conv.status == "failed"  # NEW behavior: empty answer marks failed
