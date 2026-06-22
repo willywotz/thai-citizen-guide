@@ -34,7 +34,7 @@ def _cache_get(key: tuple[str, int, str]) -> list[float] | None:
     if time.monotonic() - inserted_at > _CACHE_TTL_SECONDS:
         del _embedding_cache[key]
         return None
-    return vector
+    return list(vector)
 
 
 def _cache_set(key: tuple[str, int, str], vector: list[float]) -> None:
@@ -42,7 +42,7 @@ def _cache_set(key: tuple[str, int, str], vector: list[float]) -> None:
         # Evict the oldest entry to stay within the size bound.
         oldest_key = min(_embedding_cache, key=lambda k: _embedding_cache[k][1])
         del _embedding_cache[oldest_key]
-    _embedding_cache[key] = (vector, time.monotonic())
+    _embedding_cache[key] = (list(vector), time.monotonic())
 
 
 async def generate_embedding(text: str) -> list[float] | None:
