@@ -13,13 +13,14 @@ router = APIRouter(prefix="/public", tags=["Public"])
 async def public_status() -> list[dict]:
     cutoff = now() - timedelta(hours=24)
     conn = Tortoise.get_connection("default")
+    placeholder = "$1" if conn.capabilities.dialect == "postgres" else "?"
     rows = await conn.execute_query_dict(
-        """
+        f"""
         SELECT agency_id,
                COUNT(*) AS total,
                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS ok
         FROM connection_logs
-        WHERE created_at >= $1
+        WHERE created_at >= {placeholder}
         GROUP BY agency_id
         """,
         [cutoff],

@@ -22,14 +22,21 @@ async def test_query_count_is_constant_not_per_agency(monkeypatch):
         await ConnectionLog.create(agency=ag, connection_type="API", status="success", action="test")
 
     from tortoise import Tortoise
-    conn = Tortoise.get_connection("default")
     calls = {"n": 0}
-    orig = conn.execute_query_dict
+    real_get_connection = Tortoise.get_connection
 
-    async def counting(*a, **k):
-        calls["n"] += 1
-        return await orig(*a, **k)
+    def patched_get_connection(name: str):
+        conn = real_get_connection(name)
+        orig = conn.__class__.execute_query_dict
 
-    monkeypatch.setattr(conn, "execute_query_dict", counting)
+        async def counting(self, *a, **k):
+            calls["n"] += 1
+            return await orig(self, *a, **k)
+
+        monkeypatch.setattr(conn.__class__, "execute_query_dict", counting)
+        monkeypatch.setattr(Tortoise, "get_connection", real_get_connection)
+        return conn
+
+    monkeypatch.setattr(Tortoise, "get_connection", patched_get_connection)
     await public_status()
     assert calls["n"] <= 2   # NOT 2*N
