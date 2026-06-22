@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import timedelta
 
@@ -53,23 +52,36 @@ async def _fetch_answer_by_match(
 
     Uses a single join query that simultaneously verifies the conversation
     status is 'success', reducing the original 3-query tail to one round trip.
-    The two ORM fetches that follow run concurrently via asyncio.gather.
     """
     conn = Tortoise.get_connection("default")
-    if conn.capabilities.dialect == "postgres":
-        p1, p2 = "$1", "$2"
-    else:
-        p1, p2 = "?", "?"
-    sql = f"""
+    is_postgres = conn.capabilities.dialect == "postgres"
+    if is_postgres:
+        # Postgres uses numbered placeholders; $1 is reused for conversation_id.
+        sql = """
         SELECT m.id AS asst_id, cl.id AS cl_id
         FROM messages m
-        JOIN conversations c ON c.id = {p1} AND c.status = 'success'
+        JOIN conversations c ON c.id = $1 AND c.status = 'success'
         JOIN connection_logs cl ON cl.assistant_message_id = m.id
-        WHERE m.parent_id = {p2}
+        WHERE m.parent_id = $2
           AND m.role = 'assistant'
+          AND m.conversation_id = $1
         LIMIT 1
         """
-    rows = await conn.execute_query_dict(sql, [str(match.conversation_id), str(match.id)])
+        params = [str(match.conversation_id), str(match.id)]
+    else:
+        # SQLite uses positional ? placeholders; repeat the conversation_id value.
+        sql = """
+        SELECT m.id AS asst_id, cl.id AS cl_id
+        FROM messages m
+        JOIN conversations c ON c.id = ? AND c.status = 'success'
+        JOIN connection_logs cl ON cl.assistant_message_id = m.id
+        WHERE m.parent_id = ?
+          AND m.role = 'assistant'
+          AND m.conversation_id = ?
+        LIMIT 1
+        """
+        params = [str(match.conversation_id), str(match.id), str(match.conversation_id)]
+    rows = await conn.execute_query_dict(sql, params)
     if not rows:
         logger.debug(
             "No cached answer found for message %s (no assistant or non-success conv)", match.id
@@ -78,10 +90,8 @@ async def _fetch_answer_by_match(
 
     row = rows[0]
     try:
-        asst_msg, cl = await asyncio.gather(
-            Message.get(id=row["asst_id"]),
-            ConnectionLog.get(id=row["cl_id"]),
-        )
+        asst_msg = await Message.get(id=row["asst_id"])
+        cl = await ConnectionLog.get(id=row["cl_id"])
     except Exception:
         logger.warning("Failed to fetch assistant/conn_log for match %s", match.id)
         return None

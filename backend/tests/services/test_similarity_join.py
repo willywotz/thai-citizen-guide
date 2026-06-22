@@ -179,8 +179,8 @@ async def test_missing_conn_log_returns_none():
 
 
 @pytest.mark.usefixtures("db")
-async def test_query_count_tail_is_two_not_three(monkeypatch):
-    """The post-match tail now uses 1 join query + 1 concurrent gather = 2 DB hits, not 3."""
+async def test_query_count_tail_is_one_raw_join(monkeypatch):
+    """The post-match tail uses exactly 1 raw execute_query_dict call (the join query)."""
     from unittest.mock import AsyncMock, patch
 
     from tortoise import Tortoise
@@ -214,7 +214,8 @@ async def test_query_count_tail_is_two_not_three(monkeypatch):
         result = await similarity.find_similar_question("how to renew passport")
 
     assert result is not None
-    # 1 join (SELECT asst_id, cl_id) + 1 Message.get + 1 ConnectionLog.get = 3 total,
-    # versus the old 3 sequential tail queries (Message.get, Conversation.get, ConnectionLog.get).
-    # The critical win: conversation status check is now inside the join (no extra round-trip).
-    assert calls["n"] <= 3
+    # The counter wraps execute_query_dict on the raw connection object returned by
+    # Tortoise.get_connection; ORM Model.get() calls use the pool directly and are
+    # not counted here.  The single raw SQL call is the join query that resolves
+    # asst_id + cl_id and verifies conversation status in one round-trip.
+    assert calls["n"] == 1
