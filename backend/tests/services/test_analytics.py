@@ -32,7 +32,7 @@ def _make_query_mock(count_values=None, values_values=None):
 
 @pytest.mark.asyncio
 async def test_get_dashboard_stats_shape():
-    from app.services import analytics
+    from app.services.analytics import dashboard
 
     conn = MagicMock()
     conn.execute_query = AsyncMock()
@@ -55,11 +55,11 @@ async def test_get_dashboard_stats_shape():
     )
 
     with (
-        patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)),
-        patch.object(analytics, "Message", msg),
-        patch.object(analytics, "Agency", agency),
+        patch.object(dashboard, "in_transaction", return_value=_AsyncCM(conn)),
+        patch.object(dashboard, "Message", msg),
+        patch.object(dashboard, "Agency", agency),
     ):
-        result = await analytics.get_dashboard_stats()
+        result = await dashboard.get_dashboard_stats()
 
     assert set(result.keys()) == {"stats", "agencyUsage", "weeklyTrend", "categoryData"}
     assert len(result["weeklyTrend"]) == 7
@@ -72,7 +72,7 @@ async def test_get_dashboard_stats_shape():
 @pytest.mark.asyncio
 async def test_get_agency_health_empty_agencies():
     from app.schemas.insight import AgencyHealthData
-    from app.services import analytics
+    from app.services.analytics import health
 
     conn = MagicMock()
     conn.execute_query = AsyncMock()
@@ -89,11 +89,11 @@ async def test_get_agency_health_empty_agencies():
     conn_log.values = AsyncMock(return_value=[])
 
     with (
-        patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)),
-        patch.object(analytics, "Agency", agency),
-        patch.object(analytics, "ConnectionLog", conn_log),
+        patch.object(health, "in_transaction", return_value=_AsyncCM(conn)),
+        patch.object(health, "Agency", agency),
+        patch.object(health, "ConnectionLog", conn_log),
     ):
-        result = await analytics.get_agency_health()
+        result = await health.get_agency_health()
 
     assert isinstance(result, AgencyHealthData)
     assert result.agencies == []
@@ -103,7 +103,7 @@ async def test_get_agency_health_empty_agencies():
 @pytest.mark.asyncio
 async def test_get_executive_summary_smoke():
     from app.schemas.executive_summary import ExecutiveData
-    from app.services import analytics
+    from app.services.analytics import brief
 
     conn = MagicMock()
     conn.execute_query = AsyncMock()
@@ -126,13 +126,13 @@ async def test_get_executive_summary_smoke():
     openrouter_mock = AsyncMock()
 
     with (
-        patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)),
-        patch.object(analytics, "Message", msg),
-        patch.object(analytics, "Conversation", conv),
-        patch.object(analytics, "_latest_brief", new=AsyncMock(return_value="brief")),
-        patch.object(analytics, "openrouter_chat", openrouter_mock),
+        patch.object(brief, "in_transaction", return_value=_AsyncCM(conn)),
+        patch.object(brief, "Message", msg),
+        patch.object(brief, "Conversation", conv),
+        patch.object(brief, "_latest_brief", new=AsyncMock(return_value="brief")),
+        patch.object(brief, "openrouter_chat", openrouter_mock),
     ):
-        result = await analytics.get_executive_summary()
+        result = await brief.get_executive_summary()
 
     assert isinstance(result, ExecutiveData)
     assert result.weeklyBrief == "brief"
@@ -143,7 +143,7 @@ async def test_get_executive_summary_smoke():
 @pytest.mark.asyncio
 async def test_latest_brief_returns_placeholder_when_table_empty():
     """With no stored brief, _latest_brief returns the placeholder (never blocks/no LLM)."""
-    from app.services import analytics
+    from app.services.analytics import brief
 
     qs = MagicMock()
     qs.order_by.return_value = qs
@@ -151,16 +151,16 @@ async def test_latest_brief_returns_placeholder_when_table_empty():
     brief_model = MagicMock()
     brief_model.all.return_value = qs
 
-    with patch.object(analytics, "ExecutiveBrief", brief_model):
-        result = await analytics._latest_brief()
+    with patch.object(brief, "ExecutiveBrief", brief_model):
+        result = await brief._latest_brief()
 
-    assert result == analytics._BRIEF_PLACEHOLDER
+    assert result == brief._BRIEF_PLACEHOLDER
 
 
 @pytest.mark.asyncio
 async def test_regenerate_weekly_brief_persists_ok_row():
     """A successful LLM call inserts an ExecutiveBrief row with status 'ok'."""
-    from app.services import analytics
+    from app.services.analytics import brief
 
     created = MagicMock(content="generated brief", status="ok")
     brief_model = MagicMock()
@@ -170,12 +170,12 @@ async def test_regenerate_weekly_brief_persists_ok_row():
     resp.json.return_value = {"choices": [{"message": {"content": "  generated brief  "}}]}
 
     with (
-        patch.object(analytics, "_compute_executive_metrics", new=AsyncMock(return_value={})),
-        patch.object(analytics, "_build_brief_prompt", return_value="prompt"),
-        patch.object(analytics, "ExecutiveBrief", brief_model),
-        patch.object(analytics, "openrouter_chat", new=AsyncMock(return_value=resp)),
+        patch.object(brief, "_compute_executive_metrics", new=AsyncMock(return_value={})),
+        patch.object(brief, "_build_brief_prompt", return_value="prompt"),
+        patch.object(brief, "ExecutiveBrief", brief_model),
+        patch.object(brief, "openrouter_chat", new=AsyncMock(return_value=resp)),
     ):
-        result = await analytics.regenerate_weekly_brief()
+        result = await brief.regenerate_weekly_brief()
 
     brief_model.create.assert_awaited_once()
     kwargs = brief_model.create.await_args.kwargs
@@ -187,29 +187,29 @@ async def test_regenerate_weekly_brief_persists_ok_row():
 @pytest.mark.asyncio
 async def test_regenerate_weekly_brief_persists_error_row_on_http_failure():
     """When the LLM call raises, a row is still inserted with status 'error' and fallback text."""
-    from app.services import analytics
+    from app.services.analytics import brief
 
     brief_model = MagicMock()
     brief_model.create = AsyncMock(return_value=MagicMock())
 
     with (
-        patch.object(analytics, "_compute_executive_metrics", new=AsyncMock(return_value={})),
-        patch.object(analytics, "_build_brief_prompt", return_value="prompt"),
-        patch.object(analytics, "ExecutiveBrief", brief_model),
-        patch.object(analytics, "openrouter_chat", new=AsyncMock(side_effect=RuntimeError("network error"))),
+        patch.object(brief, "_compute_executive_metrics", new=AsyncMock(return_value={})),
+        patch.object(brief, "_build_brief_prompt", return_value="prompt"),
+        patch.object(brief, "ExecutiveBrief", brief_model),
+        patch.object(brief, "openrouter_chat", new=AsyncMock(side_effect=RuntimeError("network error"))),
     ):
-        await analytics.regenerate_weekly_brief()
+        await brief.regenerate_weekly_brief()
 
     kwargs = brief_model.create.await_args.kwargs
     assert kwargs["status"] == "error"
-    assert kwargs["content"] == analytics._BRIEF_FALLBACK
+    assert kwargs["content"] == brief._BRIEF_FALLBACK
 
 
 @pytest.mark.asyncio
 async def test_get_agency_health_error_rate_and_uptime_values():
     """Pin the corrected error-rate / uptime math: 1 failure out of 10 -> 10.0% / 90.0%."""
     from app.schemas.insight import AgencyHealthData
-    from app.services import analytics
+    from app.services.analytics import health
 
     conn = MagicMock()
     conn.execute_query = AsyncMock()
@@ -236,10 +236,10 @@ async def test_get_agency_health_error_rate_and_uptime_values():
         ],
     )
 
-    with patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)), \
-         patch.object(analytics, "Agency", agency), \
-         patch.object(analytics, "ConnectionLog", conn_log):
-        result = await analytics.get_agency_health()
+    with patch.object(health, "in_transaction", return_value=_AsyncCM(conn)), \
+         patch.object(health, "Agency", agency), \
+         patch.object(health, "ConnectionLog", conn_log):
+        result = await health.get_agency_health()
 
     assert isinstance(result, AgencyHealthData)
     ag = result.agencies[0]
@@ -250,9 +250,8 @@ async def test_get_agency_health_error_rate_and_uptime_values():
 @pytest.mark.asyncio
 async def test_get_executive_summary_january_month_boundary():
     """prev_month must be 12 in January, not 0."""
-    from app.services import analytics
+    from app.services.analytics import brief
     from unittest.mock import patch as _patch
-    from app.utils import now as _now
     import datetime
 
     # Freeze time to January 15.
@@ -284,13 +283,13 @@ async def test_get_executive_summary_january_month_boundary():
     msg.filter.side_effect = _capturing_filter
 
     with (
-        _patch.object(analytics, "in_transaction", return_value=_AsyncCM(conn)),
-        _patch.object(analytics, "Message", msg),
-        _patch.object(analytics, "Conversation", conv),
-        _patch.object(analytics, "_latest_brief", new=AsyncMock(return_value="brief")),
-        _patch("app.services.analytics.now", return_value=jan_15),
+        _patch.object(brief, "in_transaction", return_value=_AsyncCM(conn)),
+        _patch.object(brief, "Message", msg),
+        _patch.object(brief, "Conversation", conv),
+        _patch.object(brief, "_latest_brief", new=AsyncMock(return_value="brief")),
+        _patch("app.services.analytics.brief.now", return_value=jan_15),
     ):
-        await analytics.get_executive_summary()
+        await brief.get_executive_summary()
 
     # All captured month values must be valid (1-12); 0 must never appear.
     assert 0 not in captured_months, f"Invalid month 0 found in filter calls: {captured_months}"
