@@ -1,6 +1,7 @@
-"""Characterization tests for chat save behavior BEFORE the save_turn refactor.
+"""Characterization tests for chat save behavior BEFORE and AFTER the save_turn refactor.
 
-These pin current observable behavior. They must pass against unchanged chat.py.
+These pin current observable behavior for unchanged paths (_copy_cached_answer,
+_save_stream_conversation) and assert the NEW intended behavior for save_turn.
 SQLite-portable: no external HTTP, no Postgres-only SQL.
 """
 import uuid
@@ -72,3 +73,29 @@ async def test_save_stream_conversation_success_status_current():
     assert conv.message_count == 2        # CURRENT behavior — pinned
     assert await Message.filter(conversation_id=cid, role="assistant").count() == 1
     assert str(assistant_id)
+
+
+# ─── New tests for save_turn (BC #1, #3) ─────────────────────────────────────
+
+@pytest.mark.usefixtures("db")
+async def test_save_turn_marks_failed_when_outcome_failed():
+    from app.services.chat.turn import save_turn
+    cid = str(__import__("uuid").uuid4())
+    res = await save_turn(
+        query="q", conversation_id=cid, answer="", references=[], category=None,
+        agency_ids=[], response_time=0, user=None, succeeded=False,
+    )
+    conv = await Conversation.get(id=cid)
+    assert conv.status == "failed"
+    assert res.assistant_message_id
+
+
+@pytest.mark.usefixtures("db")
+async def test_save_turn_is_transactional_message_count():
+    from app.services.chat.turn import save_turn
+    cid = str(__import__("uuid").uuid4())
+    await save_turn(query="q", conversation_id=cid, answer="a", references=[],
+                    category=None, agency_ids=[], response_time=1, user=None, succeeded=True)
+    conv = await Conversation.get(id=cid)
+    assert conv.status == "success"
+    assert conv.message_count == 2

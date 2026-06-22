@@ -26,6 +26,7 @@ from opentelemetry.trace import StatusCode
 from tortoise.exceptions import DoesNotExist
 
 from app.auth.dependencies import get_current_user_optional
+from app.concurrency import spawn_logged
 from app.config import settings
 from app.models.connection_log import ConnectionLog
 from app.models.conversation import Conversation, Message
@@ -33,6 +34,7 @@ from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat.graph import build_graph
 from app.services.chat.llm import classify_message_category, extract_tag, store_embedding
+from app.services.chat.turn import save_turn
 from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
@@ -117,47 +119,22 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 
     answer, category = extract_tag(answer, "category")
 
-    if not body.conversation_id:
-        conv = await Conversation.create(
-            id=conversation_id,
-            title=query[:settings.TITLE_MAX_LENGTH],
-            preview=query[:settings.PREVIEW_MAX_LENGTH],
-            agencies=[],
-            status="success",
-            message_count=2,  # 1 user + 1 assistant message per turn
-            response_time=response_time,
-            user_id=user.id if user else None,
-        )
-    else:
-        conv = await Conversation.get(id=conversation_id)
-        conv.message_count += 2  # 1 user + 1 assistant message per turn
-        await conv.save()
+    routes = result.get("routes", [])
+    results = result.get("results", [])
+    succeeded = bool(routes) and any(r.get("status") == "ok" for r in results)
 
-    query_msg = await Message.create(
-        conversation_id=conversation_id,
-        role="user",
-        content=query,
-        agent_steps=[],
-        sources=[],
-        category=category,
+    saved = await save_turn(
+        query=query, conversation_id=conversation_id, answer=answer,
+        references=references, category=category,
+        agency_ids=[str(ag["agency_id"]) for ag in routes],
+        response_time=response_time, user=user, succeeded=succeeded,
     )
-
-    asyncio.create_task(store_embedding(str(query_msg.id), query))
-
-    response_msg = await Message.create(
-        conversation_id=conversation_id,
-        role="assistant",
-        content=answer,
-        agent_steps=[],
-        sources=references,
-        response_time=response_time,
-        agency_ids=[str(ag["agency_id"]) for ag in result.get("routes", [])],
-    )
+    spawn_logged(store_embedding(saved.user_message_id, query), name="store_embedding")
 
     return {
         "success": True,
         "data": {
-            "message_id": response_msg.id,
+            "message_id": saved.assistant_message_id,
             "answer": answer,
             "references": references,
             "agentSteps": [],
