@@ -7,7 +7,7 @@ anonymous request already reached and paid for the LLM call).
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import app.routers.agencies as agencies_mod
+import app.routers.agencies.spec as spec_mod
 from app.auth.dependencies import get_current_user
 from app.routers.agencies import router
 
@@ -19,7 +19,7 @@ async def _fake_parse_spec(_spec_text: str) -> dict:
 
 
 def _app(monkeypatch) -> FastAPI:
-    monkeypatch.setattr(agencies_mod, "parse_spec", _fake_parse_spec)
+    monkeypatch.setattr(spec_mod, "parse_spec", _fake_parse_spec)
     app = FastAPI()
     app.include_router(router, prefix="/api/v1")
     return app
