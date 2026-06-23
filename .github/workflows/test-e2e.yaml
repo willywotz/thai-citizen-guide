@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   workflow_call:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   # Role-access verification: brings up the full stack (production targets, no
