@@ -19,7 +19,7 @@ _THRESHOLD = 50.0
 async def reconcile_statuses() -> None:
     agencies = await Agency.filter(status__in=["active", "maintenance"])
     for ag in agencies:
-        checks, failures = await error_window(ag.id)
+        checks, failures = await error_window(ag.id, ag.stats_reset_at)
         if checks < _MIN_CHECKS:
             continue
         error_rate = failures / checks * 100
