@@ -2,21 +2,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { mockAgencies, resetMockData } from "@/mocks/fixtures";
-import { server } from "@/mocks/server";
 import { mapRowToAgency } from "@/shared/types/agency";
 
 import { ConnectionTab } from "./ConnectionTab";
 import { RoutingTab } from "./RoutingTab";
 
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterEach(() => {
-  server.resetHandlers();
   resetMockData();
 });
-afterAll(() => server.close());
 
 const ACTIVE_ID = "11111111-1111-1111-1111-111111111111";
 

@@ -1,15 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { ThemeProvider } from "next-themes";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-
-import { server } from "@/mocks/server";
+import { describe, expect, it } from "vitest";
 
 import FeedbackPage from "./FeedbackPage";
-
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

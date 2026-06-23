@@ -1,10 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { resetMockData } from "@/mocks/fixtures";
-import { server } from "@/mocks/server";
 
 import {
   useAgencies,
@@ -13,12 +12,9 @@ import {
   useUpdateAgencyStatus,
 } from "./useAgencies";
 
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterEach(() => {
-  server.resetHandlers();
   resetMockData();
 });
-afterAll(() => server.close());
 
 const ACTIVE_ID = "11111111-1111-1111-1111-111111111111";
 
