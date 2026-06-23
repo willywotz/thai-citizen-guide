@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 
 import { LEGAL_TRANSITIONS } from "@/features/agencies/lifecycle";
 import type { AgencyLifecycleStatus, AgencyRow, HealthWindow } from "@/shared/types/agency";
+import { agencyUsageData, categoryData, dashboardStats, weeklyTrendData } from "@/shared/data/mockData";
 
 import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies, mockFeedbackStats, row } from "./fixtures";
 
@@ -10,6 +11,20 @@ function findAgency(id: string): AgencyRow | undefined {
 }
 
 export const handlers = [
+  http.get("*/api/v1/dashboard/stats", () =>
+    HttpResponse.json({
+      success: true,
+      data: { stats: dashboardStats, agencyUsage: agencyUsageData, weeklyTrend: weeklyTrendData, categoryData },
+      responseTime: 42,
+    }),
+  ),
+
+  http.get("*/api/v1/insight/usage", () =>
+    HttpResponse.json([
+      { key: "claude-3-5-sonnet", prompt_tokens: 10000, completion_tokens: 2000, cost_usd: 0.036 },
+    ]),
+  ),
+
   http.get("*/api/v1/feedback/stats", () => HttpResponse.json(mockFeedbackStats)),
 
   http.patch("*/api/v1/messages/:id/rating", ({ params }) =>

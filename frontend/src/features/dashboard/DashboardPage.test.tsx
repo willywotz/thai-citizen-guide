@@ -20,8 +20,7 @@ function renderPage() {
 }
 
 describe("DashboardPage feedback section", () => {
-  // TODO(work-right-fast): re-enable, pre-existing failure — component never resolves loading state; likely missing MSW handler for dashboard feedback endpoint
-  it.skip("shows the summary cards and a link to the feedback page", async () => {
+  it("shows the summary cards and a link to the feedback page", async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("Feedback ทั้งหมด")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /ดูทั้งหมด/ })).toHaveAttribute("href", "/feedback");
@@ -37,6 +36,6 @@ describe("DashboardPage feedback section", () => {
   it("shows a preview of recent low-rated questions", async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("ทำไมระบบตอบช้า")).toBeInTheDocument());
-    expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument();
+    expect(screen.getAllByText("กรมสรรพากร").length).toBeGreaterThan(0);
   });
 });
