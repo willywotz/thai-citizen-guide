@@ -26,6 +26,35 @@ function renderWizard() {
   );
 }
 
+describe("wizard connection step — URL validation", () => {
+  it("keeps ถัดไป disabled when URL is invalid", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    // Pass general step
+    await user.type(screen.getByLabelText("ชื่อหน่วยงาน"), "ทดสอบ");
+    await user.type(screen.getByLabelText("ชื่อย่อ"), "ทส.");
+    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
+
+    // On connection step — type an invalid URL (no scheme)
+    await user.type(screen.getByLabelText("Endpoint URL"), "not-a-url");
+    // ถัดไป must be disabled for an invalid URL
+    expect(screen.getByRole("button", { name: /ถัดไป/ })).toBeDisabled();
+  });
+
+  it("enables ถัดไป once a valid URL is entered", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.type(screen.getByLabelText("ชื่อหน่วยงาน"), "ทดสอบ2");
+    await user.type(screen.getByLabelText("ชื่อย่อ"), "ทส2.");
+    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
+
+    await user.type(screen.getByLabelText("Endpoint URL"), "https://valid.example/api");
+    expect(screen.getByRole("button", { name: /ถัดไป/ })).not.toBeDisabled();
+  });
+});
+
 describe("wizard full flow (API agency)", () => {
   it("creates an active agency through all five steps", async () => {
     const user = userEvent.setup();

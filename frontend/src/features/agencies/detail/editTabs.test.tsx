@@ -26,6 +26,24 @@ function activeAgency() {
 }
 
 describe("ConnectionTab", () => {
+  it("disables save button when endpoint URL is invalid", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    const input = screen.getByLabelText("Endpoint URL");
+    await user.clear(input);
+    await user.type(input, "not-a-valid-url");
+    expect(screen.getByRole("button", { name: /บันทึก/ })).toBeDisabled();
+  });
+
+  it("enables save button when endpoint URL is valid", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    const input = screen.getByLabelText("Endpoint URL");
+    await user.clear(input);
+    await user.type(input, "https://valid.example/api");
+    expect(screen.getByRole("button", { name: /บันทึก/ })).not.toBeDisabled();
+  });
+
   it("saves an edited endpoint", async () => {
     const user = userEvent.setup();
     render(wrap(<ConnectionTab agency={activeAgency()} />));

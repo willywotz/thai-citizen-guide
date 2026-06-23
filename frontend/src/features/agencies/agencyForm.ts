@@ -1,4 +1,8 @@
+import { z } from "zod";
+
 import type { Agency, AgencyLifecycleStatus, ApiEndpoint, ResponseField, ApiHeader } from "@/shared/types/agency";
+
+import { agencySchema } from "./agencySchema";
 
 // ---------------------------------------------------------------------------
 // Form state shape
@@ -121,9 +125,27 @@ export function isStepGeneralValid(s: Pick<AgencyFormState, "name" | "shortName"
 export function isStepConnectionValid(
   s: Pick<AgencyFormState, "connectionType" | "endpointUrl" | "mcpToolName">,
 ): boolean {
-  if (!s.endpointUrl.trim()) return false;
+  const urlResult = z.string().url().safeParse(s.endpointUrl);
+  if (!urlResult.success) return false;
   if (s.connectionType === "MCP") return Boolean(s.mcpToolName.trim());
   return true;
+}
+
+/** Validate the full agency form with the zod schema. */
+export function validateAgencyForm(
+  s: AgencyFormState,
+): ReturnType<typeof agencySchema.safeParse> {
+  return agencySchema.safeParse({
+    name: s.name,
+    shortName: s.shortName,
+    connectionType: s.connectionType,
+    endpointUrl: s.endpointUrl,
+    apiHeaders: s.apiHeaders,
+    priority: s.priority,
+    dispatchTimeoutS: s.dispatchTimeoutS,
+    rateLimitRpm: s.rateLimitRpm,
+    mcpToolName: s.mcpToolName,
+  });
 }
 
 export function canActivate(s: AgencyFormState): boolean {

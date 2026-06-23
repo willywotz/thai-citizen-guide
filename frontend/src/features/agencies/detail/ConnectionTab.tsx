@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { z } from "zod";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -21,6 +22,7 @@ export function ConnectionTab({ agency }: { agency: Agency }) {
   const [mcpToolName, setMcpToolName] = useState(agency.mcpToolName ?? "");
 
   const { value: parsedPayload, error: payloadError } = parseExpectedPayload(payloadRaw);
+  const urlValid = z.string().url().safeParse(endpointUrl).success;
 
   const save = async () => {
     try {
@@ -72,7 +74,7 @@ export function ConnectionTab({ agency }: { agency: Agency }) {
         </div>
       )}
 
-      <Button onClick={save} disabled={updateMutation.isPending || payloadError}>
+      <Button onClick={save} disabled={updateMutation.isPending || payloadError || !urlValid}>
         {updateMutation.isPending ? "กำลังบันทึก…" : "บันทึก"}
       </Button>
     </div>
