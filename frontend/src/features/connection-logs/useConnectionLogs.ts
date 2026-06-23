@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/lib/apiClient';
 import { ConnectionLog } from '@/shared/types/connectionLog';
+import { REFETCH } from '@/shared/constants/query';
 
 export interface ConnectionLogResponse {
   search: string | null;
@@ -36,7 +37,7 @@ export function useConnectionLogs(params: ConnectionLogParams = {}) {
   return useQuery({
     queryKey: ['connection-logs', params.agencyId ?? null, params.page ?? null, params.limit ?? null, params.search ?? null],
     queryFn: () => fetchConnectionLogs(params),
-    refetchInterval: 30_000,
+    refetchInterval: REFETCH.normal,
     placeholderData: (prev) => prev,
     
     initialData: {
@@ -68,6 +69,6 @@ export function useConnectionLogInfo() {
   return useQuery({
     queryKey: ['connection-log-info'],
     queryFn: fetchConnectionLogInfo,
-    refetchInterval: 30_000,
+    refetchInterval: REFETCH.normal,
   });
 }

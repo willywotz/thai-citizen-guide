@@ -5,18 +5,7 @@ import { QueryStateBoundary } from '@/shared/components/QueryStateBoundary';
 import { Activity, AlertCircle, CheckCircle2, XCircle, Zap } from 'lucide-react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AgencyHealthData } from './healthApi';
-
-const STATUS_COLORS = {
-  healthy: 'hsl(142 70% 45%)',
-  degraded: 'hsl(35 90% 55%)',
-  down: 'hsl(0 70% 55%)',
-};
-
-const STATUS_LABELS = {
-  healthy: 'ปกติ',
-  degraded: 'ช้า',
-  down: 'ล่ม',
-};
+import { HEALTH_STATUS_LABEL as STATUS_LABELS, HEALTH_STATUS_COLOR as STATUS_COLORS } from '@/shared/constants/status';
 
 const AGENCY_COLORS = ['hsl(213 70% 50%)', 'hsl(280 60% 55%)', 'hsl(35 90% 55%)', 'hsl(160 60% 45%)'];
 

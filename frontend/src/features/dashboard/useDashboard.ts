@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchDashboardStats, fetchAgencyUsage, fetchWeeklyTrend, fetchCategoryData, fetchLlmUsage } from '@/features/dashboard/dashboardApi';
+import { REFETCH } from '@/shared/constants/query';
 
-const REFETCH_INTERVAL = 30 * 1000;
+const REFETCH_INTERVAL = REFETCH.normal;
 
 export function useDashboardStats() {
   return useQuery({

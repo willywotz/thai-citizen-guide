@@ -9,8 +9,9 @@ import type { ConnectionLog } from "@/shared/types/connectionLog";
 import { ConnectionLogStats } from "./ConnectionLogStats";
 import { ConnectionLogFilters } from "./ConnectionLogFilters";
 import { ConnectionLogsTable } from "./ConnectionLogsTable";
+import { PAGE_SIZE as PAGE_SIZES } from "@/shared/constants/query";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = PAGE_SIZES.connectionLogs;
 
 export default function ConnectionLogsPage() {
   const queryClient = useQueryClient();

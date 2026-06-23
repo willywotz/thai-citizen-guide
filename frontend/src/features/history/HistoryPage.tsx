@@ -18,8 +18,9 @@ import { format, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import { th } from "date-fns/locale";
 import { cn } from "@/shared/lib/utils";
 import type { DateRange } from "react-day-picker";
+import { PAGE_SIZE as PAGE_SIZES } from "@/shared/constants/query";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = PAGE_SIZES.history;
 
 export default function HistoryPage() {
   const [search, setSearch] = useState("");
@@ -64,8 +65,6 @@ export default function HistoryPage() {
       toast.error("ไม่สามารถลบได้ กรุณาลองใหม่");
     }
   };
-
-  const allAgencies = ['อย.', 'กรมสรรพากร', 'กรมการปกครอง', 'กรมที่ดิน'];
 
   return (
     <div className="p-4 md:p-6 space-y-4">

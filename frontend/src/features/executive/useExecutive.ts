@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchExecutiveSummary, regenerateExecutiveSummary } from '@/features/executive/executiveApi';
+import { REFETCH, STALE_TIME } from '@/shared/constants/query';
 
 export function useExecutiveSummary() {
   return useQuery({
     queryKey: ['executive', 'summary'],
     queryFn: fetchExecutiveSummary,
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: STALE_TIME.report,
+    refetchInterval: REFETCH.report,
   });
 }
 

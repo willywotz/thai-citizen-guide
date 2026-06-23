@@ -9,6 +9,7 @@ import {
   type CreateUserPayload,
   type UpdateUserPayload,
 } from './userApi';
+import { STALE_TIME } from '@/shared/constants/query';
 
 const KEY = 'users';
 
@@ -16,7 +17,7 @@ export function useUsers(params: UserListParams) {
   return useQuery({
     queryKey: [KEY, params],
     queryFn: () => listUsers(params),
-    staleTime: 30_000,
+    staleTime: STALE_TIME.normal,
   });
 }
 

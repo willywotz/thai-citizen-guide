@@ -34,12 +34,7 @@ import {
   type CreatedAPIKey,
 } from "@/features/api-keys/apiKeyApi";
 import { useAuth } from "@/features/auth/useAuth";
-
-const STATUS_META: Record<APIKeyStatus, { label: string; className: string }> = {
-  active: { label: "ใช้งานอยู่", className: "bg-green-100 text-green-700" },
-  expired: { label: "หมดอายุ", className: "bg-amber-100 text-amber-700" },
-  revoked: { label: "ถูกเพิกถอน", className: "bg-red-100 text-red-700" },
-};
+import { API_KEY_STATUS_META as STATUS_META } from "@/shared/constants/status";
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
