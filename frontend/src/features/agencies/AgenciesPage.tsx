@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -51,7 +51,7 @@ export default function AgenciesPage() {
     [agencies, statusFilter, typeFilter, search],
   );
 
-  const handleTest = async (agency: Agency) => {
+  const handleTest = useCallback(async (agency: Agency) => {
     setTestingId(agency.id);
     setTestResults((prev) => ({ ...prev, [agency.id]: null }));
     try {
@@ -65,16 +65,16 @@ export default function AgenciesPage() {
     } finally {
       setTestingId(null);
     }
-  };
+  }, [testMutation]);
 
-  const handleStatusChange = async (agency: Agency, status: AgencyLifecycleStatus) => {
+  const handleStatusChange = useCallback(async (agency: Agency, status: AgencyLifecycleStatus) => {
     try {
       await statusMutation.mutateAsync({ id: agency.id, status });
       toast.success(`เปลี่ยนสถานะเป็น ${STATUS_LABEL[status]} สำเร็จ`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     }
-  };
+  }, [statusMutation]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;

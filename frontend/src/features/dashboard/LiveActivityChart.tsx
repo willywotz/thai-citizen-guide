@@ -6,16 +6,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { cn } from "@/shared/lib/utils";
 import { useTheme } from "next-themes";
 import { useMemo } from "react";
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border bg-card px-3 py-2 shadow-lg">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="text-xs font-semibold text-foreground">{payload[0].value} คำถาม</p>
-    </div>
-  );
-};
+import { ChartTooltip } from "@/shared/components/ChartTooltip";
 
 function LiveEventItem({ event }: { event: RealtimeEvent }) {
   return (
@@ -92,7 +83,7 @@ export function LiveActivityChart() {
                   axisLine={false}
                   tickLine={false}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<ChartTooltip valueSuffix=" คำถาม" />} />
                 <Area
                   type="monotone"
                   dataKey="count"

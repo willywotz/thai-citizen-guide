@@ -11,6 +11,7 @@ Endpoints
 
 import time
 import uuid
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, status, Depends
 from app.auth.authz import authorize_or_403
@@ -81,6 +82,10 @@ async def save_conversation(body: SaveConversationRequest, user: User | None = D
 async def list_conversations(
     search: str = Query("", description="Search in title or preview"),
     filter_agency: str = Query("", alias="filterAgency", description="Filter by agency name"),
+    date_from: str | None = Query(None, description="Inclusive start date YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="Inclusive end date YYYY-MM-DD"),
+    page: int = Query(1, ge=1),
+    page_size: int | None = Query(None, ge=1, le=200, description="Omit for full list (legacy)"),
     user: User = Depends(get_current_user),
 ) -> HistoryResponse:
     start = time.time()
@@ -94,10 +99,27 @@ async def list_conversations(
         qs = qs.filter(title__icontains=search)
 
     if filter_agency:
-        # JSON array contains check via raw filter
         qs = qs.filter(agencies__contains=filter_agency)
 
-    convs = await qs.order_by("-created_at")
+    if date_from:
+        try:
+            qs = qs.filter(created_at__gte=datetime.strptime(date_from, "%Y-%m-%d"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date_from must be YYYY-MM-DD")
+
+    if date_to:
+        try:
+            end = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            qs = qs.filter(created_at__lt=end)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date_to must be YYYY-MM-DD")
+
+    total = await qs.count()
+
+    page_qs = qs.order_by("-created_at")
+    if page_size is not None:
+        page_qs = page_qs.offset((page - 1) * page_size).limit(page_size)
+    convs = await page_qs
 
     items = [
         HistoryItem(
@@ -105,7 +127,6 @@ async def list_conversations(
             title=c.title,
             preview=c.preview or "",
             date=c.created_at.strftime("%Y-%m-%d"),
-            # agencies=c.agencies or [],
             agencies=[],
             status=c.status,
             message_count=c.message_count or 0,
@@ -117,7 +138,7 @@ async def list_conversations(
     return HistoryResponse(
         success=True,
         data=items,
-        total=len(items),
+        total=total,
         response_time=int((time.time() - start) * 1000),
     )
 

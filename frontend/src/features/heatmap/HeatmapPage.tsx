@@ -1,10 +1,10 @@
 import { useUsageHeatmap } from './useHeatmap';
-import type { HeatmapRange } from './heatmapApi';
+import type { HeatmapRange, UsageHeatmapData } from './heatmapApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
-import { Skeleton } from '@/shared/components/ui/skeleton';
+import { QueryStateBoundary } from '@/shared/components/QueryStateBoundary';
 import { ToggleGroup, ToggleGroupItem } from '@/shared/components/ui/toggle-group';
-import { Flame, Clock, TrendingUp, Lightbulb, Database } from 'lucide-react';
+import { Flame, Clock, TrendingUp, Database } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 function getColor(value: number, max: number) {
@@ -18,28 +18,24 @@ function getColor(value: number, max: number) {
   return `hsl(0 75% ${60 - intensity * 15}%)`;
 }
 
-export default function HeatmapPage() {
-  const [range, setRange] = useState<HeatmapRange>('7d');
-  const { data, isLoading } = useUsageHeatmap(range);
+function HeatmapContent({
+  data,
+  range,
+  setRange,
+}: {
+  data: UsageHeatmapData;
+  range: HeatmapRange;
+  setRange: (r: HeatmapRange) => void;
+}) {
+  const maxDayHour = useMemo(
+    () => Math.max(...data.dayHourMatrix.flatMap(r => r.data)),
+    [data],
+  );
 
-  const maxDayHour = useMemo(() => {
-    if (!data) return 0;
-    return Math.max(...data.dayHourMatrix.flatMap(r => r.data));
-  }, [data]);
-
-  const maxAgencyHour = useMemo(() => {
-    if (!data) return 0;
-    return Math.max(...data.hourlyByAgency.flatMap(r => r.data));
-  }, [data]);
-
-  if (isLoading || !data) {
-    return (
-      <div className="p-6 space-y-4">
-        <Skeleton className="h-12 w-96" />
-        <Skeleton className="h-96" />
-      </div>
-    );
-  }
+  const maxAgencyHour = useMemo(
+    () => Math.max(...data.hourlyByAgency.flatMap(r => r.data)),
+    [data],
+  );
 
   return (
     <div className="p-6 space-y-6 mx-auto">
@@ -201,19 +197,22 @@ export default function HeatmapPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Recommendation */}
-      {/* <Card className="border-primary/30 bg-primary/5">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Lightbulb className="h-5 w-5 text-amber-500" />
-            ข้อเสนอแนะการวางแผนทรัพยากร
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm leading-relaxed">{data.insights.recommendation}</p>
-        </CardContent>
-      </Card> */}
     </div>
+  );
+}
+
+export default function HeatmapPage() {
+  const [range, setRange] = useState<HeatmapRange>('7d');
+  const { data, isLoading, isError, refetch } = useUsageHeatmap(range);
+
+  return (
+    <QueryStateBoundary
+      isLoading={isLoading}
+      isError={isError}
+      hasData={!!data}
+      onRetry={() => void refetch()}
+    >
+      {data && <HeatmapContent data={data} range={range} setRange={setRange} />}
+    </QueryStateBoundary>
   );
 }

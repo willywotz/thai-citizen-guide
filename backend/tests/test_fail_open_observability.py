@@ -32,10 +32,11 @@ class FakeClient:
 
 @pytest.fixture(autouse=True)
 def _reset_health():
-    # _redis_health is a module-level singleton shared across tests.
+    # _redis_health and _fallback_limiter are module-level singletons shared across tests.
     rl._redis_health.failing = False
     rl._redis_health.fail_open_total = 0
     rl._redis_health._since = 0
+    rl._fallback_limiter._impl._events.clear()
     yield
 
 
@@ -46,7 +47,7 @@ async def test_fail_open_returns_allowed_and_logs_once(caplog):
             assert await lim.check("k", limit=5) == RateLimitResult(True, 0)
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
-    assert "failing open" in warnings[0].getMessage()
+    assert "degrading to in-process" in warnings[0].getMessage()
 
 
 async def test_recovery_logs_with_count(caplog):

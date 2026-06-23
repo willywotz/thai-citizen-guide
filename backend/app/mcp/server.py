@@ -120,6 +120,9 @@ async def _fetch_agencies(ctx: Context) -> dict:
         "api_headers",
     )
 
+    resolved_user_id = str(await ctx.get_state("user_id") or generate_uuid())
+    resolved_conversation_id = str(await ctx.get_state("conversation_id") or generate_uuid())
+
     for index, agency in enumerate(agencies):
         if agency["api_headers"] is None:
             agencies[index]["api_headers"] = []
@@ -134,11 +137,9 @@ async def _fetch_agencies(ctx: Context) -> dict:
 
         for k, v in agency["expected_payload"].items():
             if isinstance(v, str) and "__user_id__" in v:
-                user_id = await ctx.get_state("user_id") or str(generate_uuid())
-                agency["expected_payload"][k] = v.replace("__user_id__", str(user_id))
+                agency["expected_payload"][k] = v.replace("__user_id__", resolved_user_id)
             if isinstance(v, str) and "__conversation_id__" in v:
-                conversation_id = await ctx.get_state("conversation_id") or str(generate_uuid())
-                agency["expected_payload"][k] = v.replace("__conversation_id__", str(conversation_id))
+                agency["expected_payload"][k] = v.replace("__conversation_id__", resolved_conversation_id)
 
     return agencies
 

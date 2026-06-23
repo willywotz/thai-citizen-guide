@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   workflow_call:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   # Role-access verification: brings up the full stack (production targets, no
@@ -26,12 +26,25 @@ jobs:
         env:
           EXTERNAL_HTTP_PORT: "8080"
 
+      - name: Check required secrets
+        run: |
+          : "${E2E_ADMIN_EMAIL:?Secret E2E_ADMIN_EMAIL is not set}"
+          : "${E2E_ADMIN_PASSWORD:?Secret E2E_ADMIN_PASSWORD is not set}"
+          : "${E2E_TEST_USER_PASSWORD:?Secret E2E_TEST_USER_PASSWORD is not set}"
+        env:
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+
       - name: Wait for admin bootstrap
+        env:
+          ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: |
           for i in $(seq 1 30); do
             if curl -fsS -X POST http://localhost:8080/api/v1/auth/login \
                  -H 'Content-Type: application/json' \
-                 -d '{"email":"admin@example.com","password":"admin1234"}' >/dev/null 2>&1; then
+                 -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" >/dev/null 2>&1; then
               echo "admin account ready"; exit 0
             fi
             echo "waiting for admin bootstrap ($i)…"; sleep 5
@@ -45,9 +58,9 @@ jobs:
           pnpm test
         env:
           API_URL: http://localhost:8080
-          ADMIN_EMAIL: admin@example.com
-          ADMIN_PASSWORD: admin1234
-          TEST_USER_PASSWORD: blackbox1234
+          ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
 
       - name: Install Playwright browser
         working-directory: e2e
@@ -61,9 +74,9 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:8080
           API_URL: http://localhost:8080
-          ADMIN_EMAIL: admin@example.com
-          ADMIN_PASSWORD: admin1234
-          TEST_USER_PASSWORD: blackbox1234
+          ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
 
       - name: Stack logs on failure
         if: failure()

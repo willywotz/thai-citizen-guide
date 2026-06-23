@@ -2,19 +2,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { mockAgencies, resetMockData } from "@/mocks/fixtures";
-import { server } from "@/mocks/server";
 
 import AgencyWizardPage from "./AgencyWizardPage";
 
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterEach(() => {
-  server.resetHandlers();
   resetMockData();
 });
-afterAll(() => server.close());
 
 function renderWizard() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -29,6 +25,35 @@ function renderWizard() {
     </QueryClientProvider>,
   );
 }
+
+describe("wizard connection step — URL validation", () => {
+  it("keeps ถัดไป disabled when URL is invalid", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    // Pass general step
+    await user.type(screen.getByLabelText("ชื่อหน่วยงาน"), "ทดสอบ");
+    await user.type(screen.getByLabelText("ชื่อย่อ"), "ทส.");
+    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
+
+    // On connection step — type an invalid URL (no scheme)
+    await user.type(screen.getByLabelText("Endpoint URL"), "not-a-url");
+    // ถัดไป must be disabled for an invalid URL
+    expect(screen.getByRole("button", { name: /ถัดไป/ })).toBeDisabled();
+  });
+
+  it("enables ถัดไป once a valid URL is entered", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.type(screen.getByLabelText("ชื่อหน่วยงาน"), "ทดสอบ2");
+    await user.type(screen.getByLabelText("ชื่อย่อ"), "ทส2.");
+    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
+
+    await user.type(screen.getByLabelText("Endpoint URL"), "https://valid.example/api");
+    expect(screen.getByRole("button", { name: /ถัดไป/ })).not.toBeDisabled();
+  });
+});
 
 describe("wizard full flow (API agency)", () => {
   it("creates an active agency through all five steps", async () => {

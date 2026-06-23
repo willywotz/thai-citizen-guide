@@ -1,12 +1,23 @@
-import { ThumbsDown, ThumbsUp, TrendingUp } from "lucide-react";
+import { AlertCircle, ThumbsDown, ThumbsUp, TrendingUp } from "lucide-react";
 
 import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
+import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
 export function FeedbackSummaryCards() {
-  const { data: stats, isLoading } = useFeedbackStats();
+  const { data: stats, isLoading, isError, refetch } = useFeedbackStats();
+
+  if (isError) {
+    return (
+      <div role="alert" aria-live="assertive" className="flex items-center gap-2 text-destructive text-sm px-1 py-2">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        <span>โหลดข้อมูล Feedback ไม่สำเร็จ</span>
+        <Button variant="outline" size="sm" className="ml-2 h-7 text-xs" onClick={() => void refetch()}>ลองอีกครั้ง</Button>
+      </div>
+    );
+  }
 
   if (isLoading || !stats) {
     return (

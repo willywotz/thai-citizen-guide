@@ -10,8 +10,9 @@ import {
 } from '@/shared/components/ui/select';
 import { ScrollText } from 'lucide-react';
 import { useAuditLog } from './useAuditLog';
+import { PAGE_SIZE as PAGE_SIZES } from '@/shared/constants/query';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = PAGE_SIZES.audit;
 
 const ACTION_OPTIONS = [
   'agency.update',

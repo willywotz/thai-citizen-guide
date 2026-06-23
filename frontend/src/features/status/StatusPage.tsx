@@ -2,24 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/lib/apiClient';
 import { Badge } from '@/shared/components/ui/badge';
 import { AppLogo } from '@/shared/components/ui/AppLogo';
+import { REFETCH } from '@/shared/constants/query';
+import { PUBLIC_STATUS_LABEL as STATUS_LABEL, PUBLIC_STATUS_VARIANT as STATUS_VARIANT } from '@/shared/constants/status';
 
 interface PublicStatus {
   name: string;
   status: string;
   uptime_24h_pct: number | null;
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  active: 'พร้อมใช้งาน',
-  maintenance: 'ปรับปรุงระบบ',
-  disabled: 'ปิดใช้งาน',
-};
-
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  active: 'default',
-  maintenance: 'secondary',
-  disabled: 'destructive',
-};
 
 function fetchPublicStatus(): Promise<PublicStatus[]> {
   return api.get<PublicStatus[]>('/api/v1/public/status');
@@ -29,7 +19,7 @@ export default function StatusPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-status'],
     queryFn: fetchPublicStatus,
-    refetchInterval: 60_000,
+    refetchInterval: REFETCH.slow,
   });
 
   const rows = data ?? [];

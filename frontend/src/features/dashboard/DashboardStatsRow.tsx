@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { cn } from "@/shared/lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -13,7 +14,7 @@ interface Props {
   statCards: StatCard[];
 }
 
-export function DashboardStatsRow({ statCards }: Props) {
+export const DashboardStatsRow = memo(function DashboardStatsRow({ statCards }: Props) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {statCards.map((s, i) => (
@@ -38,4 +39,4 @@ export function DashboardStatsRow({ statCards }: Props) {
       ))}
     </div>
   );
-}
+});

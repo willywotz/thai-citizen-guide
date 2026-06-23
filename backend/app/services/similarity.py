@@ -1,12 +1,11 @@
-import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from tortoise import Tortoise
 
 from app.config import settings
-from app.models.conversation import Message, Conversation
 from app.models.connection_log import ConnectionLog
+from app.models.conversation import Message
 from app.services.cache_flush import effective_cutoff
 from app.services.embedding import encode_embedding
 from app.utils import now
@@ -38,33 +37,65 @@ async def find_similar_question(
     if match is None:
         return None
 
-    # Find the assistant answer for the matched question
-    try:
-        assistant_msg = await Message.get(
-            parent_id=match.id,
-            role="assistant",
-        )
-    except Exception:
-        logger.info(f"No assistant answer found for message {match.id}")
+    answer = await _fetch_answer_by_match(match)
+    if answer is None:
         return None
 
-    # Only return answers from successful conversations
-    try:
-        conv = await Conversation.get(id=match.conversation_id)
-        if conv.status != "success":
-            logger.info(f"Skipping cached answer from non-success conversation {conv.id}")
-            return None
-    except Exception:
-        logger.warning(f"Conversation {match.conversation_id} not found")
-        return None
-
-    try:
-        conn_log = await ConnectionLog.get(assistant_message_id=assistant_msg.id)
-    except Exception:
-        logger.warning(f"ConnectionLog for message {assistant_msg.id} not found")
-        return None
-
+    assistant_msg, conn_log = answer
     return (match, assistant_msg, conn_log)
+
+
+async def _fetch_answer_by_match(
+    match: Message,
+) -> tuple[Message, ConnectionLog] | None:
+    """Fetch the assistant message and connection log for a matched user message.
+
+    Uses a single join query that simultaneously verifies the conversation
+    status is 'success', reducing the original 3-query tail to one round trip.
+    """
+    conn = Tortoise.get_connection("default")
+    is_postgres = conn.capabilities.dialect == "postgres"
+    if is_postgres:
+        # Postgres uses numbered placeholders; $1 is reused for conversation_id.
+        sql = """
+        SELECT m.id AS asst_id, cl.id AS cl_id
+        FROM messages m
+        JOIN conversations c ON c.id = $1 AND c.status = 'success'
+        JOIN connection_logs cl ON cl.assistant_message_id = m.id
+        WHERE m.parent_id = $2
+          AND m.role = 'assistant'
+          AND m.conversation_id = $1
+        LIMIT 1
+        """
+        params = [str(match.conversation_id), str(match.id)]
+    else:
+        # SQLite uses positional ? placeholders; repeat the conversation_id value.
+        sql = """
+        SELECT m.id AS asst_id, cl.id AS cl_id
+        FROM messages m
+        JOIN conversations c ON c.id = ? AND c.status = 'success'
+        JOIN connection_logs cl ON cl.assistant_message_id = m.id
+        WHERE m.parent_id = ?
+          AND m.role = 'assistant'
+          AND m.conversation_id = ?
+        LIMIT 1
+        """
+        params = [str(match.conversation_id), str(match.id), str(match.conversation_id)]
+    rows = await conn.execute_query_dict(sql, params)
+    if not rows:
+        logger.debug(
+            "No cached answer found for message %s (no assistant or non-success conv)", match.id
+        )
+        return None
+
+    row = rows[0]
+    try:
+        asst_msg = await Message.get(id=row["asst_id"])
+        cl = await ConnectionLog.get(id=row["cl_id"])
+    except Exception:
+        logger.warning("Failed to fetch assistant/conn_log for match %s", match.id)
+        return None
+    return (asst_msg, cl)
 
 
 async def _text_fallback_search(

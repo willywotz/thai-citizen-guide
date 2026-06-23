@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/lib/apiClient';
 import type { ConversationMessage } from '@/shared/types/conversation';
+import { STALE_TIME } from '@/shared/constants/query';
 
 async function fetchConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
   const data = await api.get<ConversationMessage[]>(
@@ -14,6 +15,6 @@ export function useConversationMessages(conversationId: string | null) {
     queryKey: ['conversationMessages', conversationId],
     queryFn: () => fetchConversationMessages(conversationId!),
     enabled: !!conversationId,
-    staleTime: 60 * 1000,
+    staleTime: STALE_TIME.slow,
   });
 }

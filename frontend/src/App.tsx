@@ -1,37 +1,55 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/shared/components/ui/toaster";
 import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
 import { AuthProvider } from "@/features/auth/useAuth";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { AppLayout } from "@/shared/components/layout/AppLayout";
-import ChatPage from "@/features/chat/ChatPage";
-import DashboardPage from "@/features/dashboard/DashboardPage";
-import ExecutivePage from "@/features/executive/ExecutivePage";
-import HealthPage from "@/features/health/HealthPage";
-import HeatmapPage from "@/features/heatmap/HeatmapPage";
-import AgenciesPage from "@/features/agencies/AgenciesPage";
-import MyAgenciesPage from "@/features/agencies/MyAgenciesPage";
-import AgencyDetailPage from "@/features/agencies/detail/AgencyDetailPage";
-import AgencyWizardPage from "@/features/agencies/wizard/AgencyWizardPage";
-import HistoryPage from "@/features/history/HistoryPage";
-import ArchitecturePage from "@/features/architecture/ArchitecturePage";
-import ConnectionLogsPage from "@/features/connection-logs/ConnectionLogsPage";
-import PublicPortal from "@/features/public/PublicPortal";
-import StatusPage from "@/features/status/StatusPage";
-import LoginPage from "@/features/auth/LoginPage";
-import SignupPage from "@/features/auth/SignupPage";
-import ForgotPasswordPage from "@/features/auth/ForgotPasswordPage";
-import ResetPasswordPage from "@/features/auth/ResetPasswordPage";
-import ApiKeysPage from "@/features/api-keys/ApiKeysPage";
-import SettingsPage from "@/features/settings/SettingsPage";
-import UsersPage from "@/features/users/UsersPage";
-import AuditLogPage from "@/features/audit/AuditLogPage";
-import UsageAnalyticsPage from "@/features/usage/UsageAnalyticsPage";
-import FeedbackPage from "@/features/feedback/FeedbackPage";
-import NotFound from "@/shared/NotFound";
+
+// Lazy-loaded page routes — each becomes its own chunk
+const ChatPage = lazy(() => import("@/features/chat/ChatPage"));
+const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage"));
+const ExecutivePage = lazy(() => import("@/features/executive/ExecutivePage"));
+const HealthPage = lazy(() => import("@/features/health/HealthPage"));
+const HeatmapPage = lazy(() => import("@/features/heatmap/HeatmapPage"));
+const AgenciesPage = lazy(() => import("@/features/agencies/AgenciesPage"));
+const MyAgenciesPage = lazy(() => import("@/features/agencies/MyAgenciesPage"));
+const AgencyDetailPage = lazy(() => import("@/features/agencies/detail/AgencyDetailPage"));
+const AgencyWizardPage = lazy(() => import("@/features/agencies/wizard/AgencyWizardPage"));
+const HistoryPage = lazy(() => import("@/features/history/HistoryPage"));
+const ArchitecturePage = lazy(() => import("@/features/architecture/ArchitecturePage"));
+const ConnectionLogsPage = lazy(() => import("@/features/connection-logs/ConnectionLogsPage"));
+const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
+const StatusPage = lazy(() => import("@/features/status/StatusPage"));
+const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
+const SignupPage = lazy(() => import("@/features/auth/SignupPage"));
+const ForgotPasswordPage = lazy(() => import("@/features/auth/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("@/features/auth/ResetPasswordPage"));
+const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
+const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
+const UsersPage = lazy(() => import("@/features/users/UsersPage"));
+const AuditLogPage = lazy(() => import("@/features/audit/AuditLogPage"));
+const UsageAnalyticsPage = lazy(() => import("@/features/usage/UsageAnalyticsPage"));
+const FeedbackPage = lazy(() => import("@/features/feedback/FeedbackPage"));
+const NotFound = lazy(() => import("@/shared/NotFound"));
+
+function RouteFallback() {
+  return (
+    <div className="p-6 space-y-4">
+      <Skeleton className="h-12 w-96" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-32" />
+        ))}
+      </div>
+      <Skeleton className="h-80" />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient();
 
@@ -43,6 +61,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<PublicPortal />} />
               <Route path="/status" element={<StatusPage />} />
@@ -98,6 +117,7 @@ const App = () => (
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

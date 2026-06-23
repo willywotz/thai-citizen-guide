@@ -9,8 +9,9 @@ import type { ConnectionLog } from "@/shared/types/connectionLog";
 import { ConnectionLogStats } from "./ConnectionLogStats";
 import { ConnectionLogFilters } from "./ConnectionLogFilters";
 import { ConnectionLogsTable } from "./ConnectionLogsTable";
+import { PAGE_SIZE as PAGE_SIZES } from "@/shared/constants/query";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = PAGE_SIZES.connectionLogs;
 
 export default function ConnectionLogsPage() {
   const queryClient = useQueryClient();
@@ -24,7 +25,14 @@ export default function ConnectionLogsPage() {
   const [selectedLog, setSelectedLog] = useState<ConnectionLog | null>(null);
 
   const { data: logInfo } = useConnectionLogInfo();
-  const { data, isLoading, isFetching } = useConnectionLogs({ page, limit: PAGE_SIZE, search });
+  const { data, isLoading, isFetching, isError, refetch } = useConnectionLogs({
+    page,
+    limit: PAGE_SIZE,
+    search: search || undefined,
+    agencyId: filterAgency || undefined,
+    status: filterStatus || undefined,
+    connectionType: filterType || undefined,
+  });
 
   const items = data?.items ?? [];
   const totalItems = data?.total_items ?? 0;
@@ -34,13 +42,6 @@ export default function ConnectionLogsPage() {
     () => Object.fromEntries(agencies.map((a) => [a.id, a.shortName])),
     [agencies]
   );
-
-  const filtered = useMemo(() => items.filter((log) => {
-    if (filterStatus && log.status !== filterStatus) return false;
-    if (filterType && log.connection_type !== filterType) return false;
-    if (filterAgency && log.agency_id !== filterAgency) return false;
-    return true;
-  }), [items, filterStatus, filterType, filterAgency]);
 
   const hasFilters = !!(filterStatus || filterType || filterAgency || search);
 
@@ -70,14 +71,14 @@ export default function ConnectionLogsPage() {
         search={search} filterStatus={filterStatus} filterType={filterType}
         filterAgency={filterAgency} agencies={agencies} hasFilters={hasFilters}
         onSearchChange={(v) => { setSearch(v); setPage(1); }}
-        onStatusChange={setFilterStatus}
-        onTypeChange={setFilterType}
-        onAgencyChange={setFilterAgency}
+        onStatusChange={(v) => { setFilterStatus(v); setPage(1); }}
+        onTypeChange={(v) => { setFilterType(v); setPage(1); }}
+        onAgencyChange={(v) => { setFilterAgency(v); setPage(1); }}
         onReset={resetFilters}
       />
 
       <ConnectionLogsTable
-        items={filtered} isLoading={isLoading} agencyMap={agencyMap}
+        items={items} isLoading={isLoading} isError={isError} onRetry={() => void refetch()} agencyMap={agencyMap}
         selectedLog={selectedLog} onSelectLog={setSelectedLog} onCloseLog={() => setSelectedLog(null)}
         page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage}
       />

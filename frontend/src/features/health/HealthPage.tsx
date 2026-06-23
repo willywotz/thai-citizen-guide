@@ -1,39 +1,15 @@
 import { useAgencyHealth } from './useHealth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
-import { Skeleton } from '@/shared/components/ui/skeleton';
-import { Activity, AlertCircle, CheckCircle2, XCircle, Zap, Clock } from 'lucide-react';
+import { QueryStateBoundary } from '@/shared/components/QueryStateBoundary';
+import { Activity, AlertCircle, CheckCircle2, XCircle, Zap } from 'lucide-react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-
-const STATUS_COLORS = {
-  healthy: 'hsl(142 70% 45%)',
-  degraded: 'hsl(35 90% 55%)',
-  down: 'hsl(0 70% 55%)',
-};
-
-const STATUS_LABELS = {
-  healthy: 'ปกติ',
-  degraded: 'ช้า',
-  down: 'ล่ม',
-};
+import type { AgencyHealthData } from './healthApi';
+import { HEALTH_STATUS_LABEL as STATUS_LABELS, HEALTH_STATUS_COLOR as STATUS_COLORS } from '@/shared/constants/status';
 
 const AGENCY_COLORS = ['hsl(213 70% 50%)', 'hsl(280 60% 55%)', 'hsl(35 90% 55%)', 'hsl(160 60% 45%)'];
 
-export default function HealthPage() {
-  const { data, isLoading } = useAgencyHealth();
-
-  if (isLoading || !data) {
-    return (
-      <div className="p-6 space-y-4">
-        <Skeleton className="h-12 w-96" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
-        </div>
-        <Skeleton className="h-80" />
-      </div>
-    );
-  }
-
+function HealthContent({ data }: { data: AgencyHealthData }) {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
@@ -123,72 +99,21 @@ export default function HealthPage() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
-
-      {/* Two columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 hidden">
-        {/* SLA */}
-        {/* <Card>
-          <CardHeader>
-            <CardTitle className="text-base">SLA Compliance</CardTitle>
-            <CardDescription>เป้าหมาย Uptime ≥ 99%</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.slaCompliance.map(s => (
-                <div key={s.agency} className="space-y-1.5">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{s.agency}</span>
-                    <span className={`font-mono ${s.met ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {s.uptime}% / {s.target}%
-                    </span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${s.met ? 'bg-emerald-500' : 'bg-red-500'}`}
-                      style={{ width: `${Math.min(100, s.uptime)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card> */}
-
-        {/* Incidents */}
-        {/* <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4" /> Incidents 24 ชม.ล่าสุด
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2.5">
-              {data.incidents.map((inc, i) => (
-                <div key={i} className="p-3 border rounded-lg space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={inc.severity === 'critical' ? 'destructive' : inc.severity === 'warning' ? 'default' : 'secondary'}
-                        className="text-[10px]"
-                      >
-                        {inc.severity.toUpperCase()}
-                      </Badge>
-                      <span className="text-sm font-medium">{inc.agency}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(inc.occurredAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{inc.message}</p>
-                </div>
-              ))}
-              {data.incidents.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-6">ไม่มี incidents</p>
-              )}
-            </div>
-          </CardContent>
-        </Card> */}
-      </div>
     </div>
+  );
+}
+
+export default function HealthPage() {
+  const { data, isLoading, isError, refetch } = useAgencyHealth();
+
+  return (
+    <QueryStateBoundary
+      isLoading={isLoading}
+      isError={isError}
+      hasData={!!data}
+      onRetry={() => void refetch()}
+    >
+      {data && <HealthContent data={data} />}
+    </QueryStateBoundary>
   );
 }

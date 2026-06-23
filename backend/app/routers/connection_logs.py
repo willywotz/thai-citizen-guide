@@ -49,8 +49,11 @@ class ListConnectionLogResponse(BaseModel):
 async def list_connection_logs(
     search: str | None = Query(None, description="Search in detail"),
     agency_id: str | None = Query(None, description="Filter by agency ID"),
+    status_filter: str | None = Query(None, alias="status", description="success | error"),
+    connection_type: str | None = Query(None, description="MCP | API | A2A"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    page_size: int | None = Query(None, ge=1, le=100),
     user: User = Depends(get_current_user),
 ) -> ListConnectionLogResponse:
 
@@ -77,11 +80,18 @@ async def list_connection_logs(
         except (ValueError, DoesNotExist):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid agency ID")
 
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    if connection_type:
+        qs = qs.filter(connection_type=connection_type)
+
+    effective_limit = page_size if page_size is not None else limit
+
     qs_pagination = qs
 
-    if page and limit:
-        offset = (page - 1) * limit
-        qs_pagination = qs.offset(offset).limit(limit)
+    if page and effective_limit:
+        offset = (page - 1) * effective_limit
+        qs_pagination = qs.offset(offset).limit(effective_limit)
 
     logs = await qs_pagination.order_by("-created_at")
 
@@ -96,7 +106,7 @@ async def list_connection_logs(
     return ListConnectionLogResponse(
         search=search,
         page=page,
-        page_size=limit,
+        page_size=effective_limit,
         items=[
             ConnectionLogItem(
                 id=str(log.id),

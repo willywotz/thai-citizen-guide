@@ -18,7 +18,7 @@ def test_recovery_returns_failed_open_count():
     h.record_failure()
     h.record_failure()
     h.record_failure()
-    assert h.record_success() == 3      # 3 requests failed open during outage
+    assert h.record_success() == 3      # 3 requests degraded to in-process limiter during outage
     assert h.record_success() is None   # already healthy again
 
 

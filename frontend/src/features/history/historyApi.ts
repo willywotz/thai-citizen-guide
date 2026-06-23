@@ -12,30 +12,43 @@ export interface HistoryItem {
   responseTime?: string;
 }
 
-interface HistoryApiResponse {
+export interface HistoryApiResponse {
   success: boolean;
   data: HistoryItem[];
   total: number;
   responseTime: number;
 }
 
-export async function fetchChatHistory(
-  search?: string,
-  filterAgency?: string
-): Promise<HistoryItem[]> {
-  try {
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (filterAgency) params.set('filterAgency', filterAgency);
+export interface FetchChatHistoryParams {
+  search?: string;
+  filterAgency?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  pageSize?: number;
+}
 
-    const query = params.toString() ? `?${params.toString()}` : '';
+export async function fetchChatHistory(
+  params: FetchChatHistoryParams = {}
+): Promise<HistoryApiResponse> {
+  try {
+    const qs = new URLSearchParams();
+    if (params.search) qs.set('search', params.search);
+    if (params.filterAgency) qs.set('filterAgency', params.filterAgency);
+    if (params.dateFrom) qs.set('date_from', params.dateFrom);
+    if (params.dateTo) qs.set('date_to', params.dateTo);
+    if (params.page && params.page > 1) qs.set('page', String(params.page));
+    if (params.pageSize) qs.set('page_size', String(params.pageSize));
+
+    const query = qs.toString() ? `?${qs.toString()}` : '';
     const res = await api.get<HistoryApiResponse>(`/api/v1/conversations${query}`);
 
-    if (res.success) return res.data;
+    if (res.success) return res;
     throw new Error('API unsuccessful');
   } catch {
     console.warn('History API failed, using fallback');
-    return fallback as HistoryItem[];
+    const items = fallback as HistoryItem[];
+    return { success: true, data: items, total: items.length, responseTime: 0 };
   }
 }
 

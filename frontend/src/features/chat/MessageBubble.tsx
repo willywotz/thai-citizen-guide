@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { cn, parseThinkContent } from "@/shared/lib/utils";
@@ -8,7 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AppLogo } from "@/shared/components/ui/AppLogo";
 
-export function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
+export const MessageBubble = memo(function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
   const [showFeedback, setShowFeedback] = useState(false);
   const [thinkOpen, setThinkOpen] = useState(false);
   const isUser = message.role === 'user';
@@ -97,4 +97,4 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
       />
     </div>
   );
-}
+});

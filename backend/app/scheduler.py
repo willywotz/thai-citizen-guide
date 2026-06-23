@@ -9,6 +9,7 @@ import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+from app.concurrency import spawn_logged
 from app.config import settings
 from app.models import Agency, ConnectionLog
 from app.services.agency import test_connection
@@ -35,77 +36,85 @@ tracerProvider = TracerProvider(resource=Resource.create({SERVICE_NAME: "backend
 tracerProvider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True)))
 tracer = tracerProvider.get_tracer(__name__)
 
-async def agency_chat_item(agency: Agency) -> None:
-    logger.info(f"Testing agency {agency.name}...")
-    async with sem:
-        with tracer.start_as_current_span(f"agency_chat_test {agency.name}") as span:
-            span.set_attribute("agency.id", str(agency.id))
-            span.set_attribute("agency.name", agency.name)
-            try:
-                if agency.status in ("draft", "disabled"):
-                    span.set_attribute("agency.skipped", True)
-                    return
-                if agency.connection_type == "API":
-                    span.set_attribute("agency.connection_type", "API")
-                    scope = agency.data_scope or ["ทั่วไป"]
-                    scope = scope[random.randint(0, len(scope) - 1)] if scope else "ทั่วไป"
-                    span.set_attribute("agency.data_scope", scope)
+async def _run_agency_item(agency: Agency) -> None:
+    """Tracing + dispatch for a single agency health check (time-bounded by caller)."""
+    with tracer.start_as_current_span(f"agency_chat_test {agency.name}") as span:
+        span.set_attribute("agency.id", str(agency.id))
+        span.set_attribute("agency.name", agency.name)
+        try:
+            if agency.status in ("draft", "disabled"):
+                span.set_attribute("agency.skipped", True)
+                return
+            if agency.connection_type == "API":
+                span.set_attribute("agency.connection_type", "API")
+                scope = agency.data_scope or ["ทั่วไป"]
+                scope = scope[random.randint(0, len(scope) - 1)] if scope else "ทั่วไป"
+                span.set_attribute("agency.data_scope", scope)
 
-                    async with httpx.AsyncClient(timeout=settings.AGENCY_CHAT_TIMEOUT) as client:
-                        headers = {"content-type": "application/json"}
-                        for v in (agency.api_headers or []):
-                            headers[v["name"].lower()] = v["value"]
-                        span.set_attribute("agency.api_headers", json.dumps(headers))
-                        payload = {}
-                        for k, v in (agency.expected_payload or {}).items():
-                            payload[k] = v
-                            if v == "__query__":
-                                payload[k] = "ปรึกษากฎหมาย" + scope
-                            if v == "__user_id__":
-                                payload[k] = str(generate_uuid())
-                            if v == "__session_id__":
-                                payload[k] = str(generate_uuid())
-                            if v == "__conversation_id__":
-                                payload[k] = str(generate_uuid())
-                        span.set_attribute("agency.api_payload", json.dumps(payload))
-                        span.set_attribute("agency.api_endpoint", agency.endpoint_url)
-                        start_ns = time.perf_counter_ns()
-                        resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
-                        end_ns = time.perf_counter_ns()
-                        latency = int((end_ns - start_ns) // 1_000_000)
-                        span.set_attribute("agency.api_latency_ms", latency)
-                        span.set_attribute("agency.api_status_code", resp.status_code)
-                        span.set_attribute("agency.api_response", sanitize_body(resp.text, max_chars=500))
-                        await ConnectionLog.create(
-                            id=str(generate_uuid()),
-                            agency=agency,
-                            action="test",
-                            connection_type="API",
-                            status="success" if resp.status_code == 200 else "error",
-                            latency_ms=latency,
-                            detail=sanitize_body(f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}"),
-                            request_body=sanitize_body(json.dumps(payload)),
-                            response_body=sanitize_body(resp.text),
-                        )
-                elif agency.connection_type in ("MCP", "A2A"):
-                    span.set_attribute("agency.connection_type", agency.connection_type)
-                    result = await test_connection(agency.connection_type, agency)
-                    try:
-                        latency = int(str(result.get("latency", "0")).rstrip("ms"))
-                    except ValueError:
-                        latency = 0
+                async with httpx.AsyncClient(timeout=settings.AGENCY_CHAT_TIMEOUT) as client:
+                    headers = {"content-type": "application/json"}
+                    for v in (agency.api_headers or []):
+                        headers[v["name"].lower()] = v["value"]
+                    span.set_attribute("agency.api_headers", json.dumps(headers))
+                    payload = {}
+                    for k, v in (agency.expected_payload or {}).items():
+                        payload[k] = v
+                        if v == "__query__":
+                            payload[k] = "ปรึกษากฎหมาย" + scope
+                        if v == "__user_id__":
+                            payload[k] = str(generate_uuid())
+                        if v == "__session_id__":
+                            payload[k] = str(generate_uuid())
+                        if v == "__conversation_id__":
+                            payload[k] = str(generate_uuid())
+                    span.set_attribute("agency.api_payload", json.dumps(payload))
+                    span.set_attribute("agency.api_endpoint", agency.endpoint_url)
+                    start_ns = time.perf_counter_ns()
+                    resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
+                    end_ns = time.perf_counter_ns()
+                    latency = int((end_ns - start_ns) // 1_000_000)
+                    span.set_attribute("agency.api_latency_ms", latency)
+                    span.set_attribute("agency.api_status_code", resp.status_code)
+                    span.set_attribute("agency.api_response", sanitize_body(resp.text, max_chars=500))
                     await ConnectionLog.create(
                         id=str(generate_uuid()),
                         agency=agency,
                         action="test",
-                        connection_type=agency.connection_type,
-                        status="success" if result.get("success") else "error",
+                        connection_type="API",
+                        status="success" if resp.status_code == 200 else "error",
                         latency_ms=latency,
-                        detail=sanitize_body(result.get("error") or "ok"),
+                        detail=sanitize_body(f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}"),
+                        request_body=sanitize_body(json.dumps(payload)),
+                        response_body=sanitize_body(resp.text),
                     )
-            except Exception as e:
-                logger.error(f"Error testing agency {agency.name}: {e}")
-                span.set_attribute("agency.error", str(e))
+            elif agency.connection_type in ("MCP", "A2A"):
+                span.set_attribute("agency.connection_type", agency.connection_type)
+                result = await test_connection(agency.connection_type, agency)
+                try:
+                    latency = int(str(result.get("latency", "0")).rstrip("ms"))
+                except ValueError:
+                    latency = 0
+                await ConnectionLog.create(
+                    id=str(generate_uuid()),
+                    agency=agency,
+                    action="test",
+                    connection_type=agency.connection_type,
+                    status="success" if result.get("success") else "error",
+                    latency_ms=latency,
+                    detail=sanitize_body(result.get("error") or "ok"),
+                )
+        except Exception as e:
+            logger.error(f"Error testing agency {agency.name}: {e}")
+            span.set_attribute("agency.error", str(e))
+
+
+async def agency_chat_item(agency: Agency) -> None:
+    logger.info(f"Testing agency {agency.name}...")
+    async with sem:
+        try:
+            await asyncio.wait_for(_run_agency_item(agency), timeout=settings.AGENCY_CHAT_TIMEOUT + 5)
+        except asyncio.TimeoutError:
+            logger.error("agency %s health item timed out", agency.name)
 
 
 async def agency_chat_test() -> None:
@@ -135,8 +144,8 @@ async def purge_old_connection_logs() -> int:
 async def start_scheduler() -> None:
     global sem
     sem = asyncio.Semaphore(settings.AGENCY_CHAT_CONCURRENCY)
-    asyncio.create_task(agency_chat_test())
-    asyncio.create_task(regenerate_brief_job())
+    spawn_logged(agency_chat_test(), name="agency_chat_test:startup")
+    spawn_logged(regenerate_brief_job(), name="regenerate_brief_job:startup")
     scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES))
     scheduler.add_job(regenerate_brief_job, IntervalTrigger(hours=settings.BRIEF_REGEN_INTERVAL_HOURS))
     scheduler.add_job(purge_old_connection_logs, IntervalTrigger(hours=24))
