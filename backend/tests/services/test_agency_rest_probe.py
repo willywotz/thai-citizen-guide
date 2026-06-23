@@ -8,6 +8,7 @@ response.
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import httpx
 import pytest
 
 from app.services.agency import _test_rest
@@ -82,3 +83,36 @@ async def test_rest_405_then_post_4xx_not_success():
     assert res["success"] is False
     assert res["statusCode"] == 401
     assert "401" in (res.get("error") or "")
+
+
+@pytest.mark.asyncio
+async def test_rest_501_then_post_2xx_is_success():
+    # An endpoint that rejects HEAD/GET with 501 still works through to POST.
+    fake = _FakeClient(head=_Resp(501, "Not Implemented"), post=_Resp(200, "OK"))
+    with patch("app.services.agency.httpx.AsyncClient", return_value=fake):
+        res = await _test_rest(_agency(expected_payload={"query": "__query__"}))
+    assert res["success"] is True
+    assert res["statusCode"] == 200
+    assert fake.posted is not None
+
+
+@pytest.mark.asyncio
+async def test_rest_403_then_post_2xx_is_success():
+    # Any non-2xx from the HEAD/GET probe falls through to the POST probe.
+    fake = _FakeClient(head=_Resp(403, "Forbidden"), post=_Resp(200, "OK"))
+    with patch("app.services.agency.httpx.AsyncClient", return_value=fake):
+        res = await _test_rest(_agency())
+    assert res["success"] is True
+    assert res["statusCode"] == 200
+    assert fake.posted is not None
+
+
+@pytest.mark.asyncio
+async def test_rest_head_raises_then_get_2xx_is_success():
+    # HEAD throwing falls back to GET; a 2xx GET is reachable with no POST probe.
+    fake = _FakeClient(head=_Resp(200, "OK"), head_exc=httpx.ConnectError("boom"))
+    with patch("app.services.agency.httpx.AsyncClient", return_value=fake):
+        res = await _test_rest(_agency())
+    assert res["success"] is True
+    assert res["statusCode"] == 200
+    assert fake.posted is None
