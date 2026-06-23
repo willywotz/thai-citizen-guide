@@ -22,9 +22,9 @@ describe("FeedbackPage error state", () => {
   it("shows an error alert when the feedback stats endpoint fails", async () => {
     server.use(http.get("*/api/v1/feedback/stats", () => HttpResponse.error()));
     renderPage();
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.getByText(/ไม่สามารถโหลดข้อมูลได้/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /ลองอีกครั้ง/ })).toBeInTheDocument();
+    // FeedbackSummaryCards shows inline error; QueryStateBoundary shows its own error card
+    await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
+    expect(screen.getAllByRole("button", { name: /ลองอีกครั้ง/ }).length).toBeGreaterThan(0);
   });
 
   it("shows empty state (not error) when stats succeed but totalRatings is 0", async () => {

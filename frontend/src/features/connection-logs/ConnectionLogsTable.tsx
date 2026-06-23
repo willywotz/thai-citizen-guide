@@ -16,6 +16,7 @@ interface Props {
   items: ConnectionLog[];
   isLoading: boolean;
   isError?: boolean;
+  onRetry?: () => void;
   agencyMap: Record<string, string>;
   selectedLog: ConnectionLog | null;
   onSelectLog: (log: ConnectionLog) => void;
@@ -27,7 +28,7 @@ interface Props {
 }
 
 export function ConnectionLogsTable({
-  items, isLoading, isError = false, agencyMap, selectedLog, onSelectLog, onCloseLog,
+  items, isLoading, isError = false, onRetry, agencyMap, selectedLog, onSelectLog, onCloseLog,
   page, totalPages, totalItems, onPageChange,
 }: Props) {
   return (
@@ -52,9 +53,14 @@ export function ConnectionLogsTable({
               {isError ? (
                 <TableRow>
                   <TableCell colSpan={7} className="py-10">
-                    <div role="alert" aria-live="assertive" className="flex items-center justify-center gap-2 text-destructive text-sm">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>เกิดข้อผิดพลาดในการโหลดข้อมูล</span>
+                    <div role="alert" aria-live="assertive" className="flex flex-col items-center justify-center gap-2 text-destructive text-sm">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>เกิดข้อผิดพลาดในการโหลดข้อมูล</span>
+                      </div>
+                      {onRetry && (
+                        <Button variant="outline" size="sm" onClick={onRetry}>ลองอีกครั้ง</Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
