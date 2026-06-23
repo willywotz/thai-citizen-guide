@@ -15,6 +15,20 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      - name: Check required secrets
+        run: |
+          : "${POSTGRES_PASSWORD:?Secret POSTGRES_PASSWORD is not set}"
+          : "${JWT_SECRET:?Secret JWT_SECRET is not set}"
+          : "${CORS_ORIGINS:?Secret CORS_ORIGINS is not set}"
+          : "${FRONTEND_BASE_URL:?Secret FRONTEND_BASE_URL is not set}"
+          : "${OPENROUTER_API_KEY:?Secret OPENROUTER_API_KEY is not set}"
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          FRONTEND_BASE_URL: ${{ secrets.FRONTEND_BASE_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
       - run: |
           cat > .env << EOF
           EXTERNAL_HTTP_PORT=80
