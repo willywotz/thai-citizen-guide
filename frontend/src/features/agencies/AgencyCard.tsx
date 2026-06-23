@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ArrowRight, MoreVertical, Pencil, Trash2, Wifi } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -39,7 +40,7 @@ interface Props {
   manageActions?: boolean;
 }
 
-export function AgencyCard({
+export const AgencyCard = memo(function AgencyCard({
   agency,
   onTest,
   onDelete,
@@ -175,4 +176,4 @@ export function AgencyCard({
       </CardContent>
     </Card>
   );
-}
+});

@@ -49,12 +49,12 @@ export default function DashboardPage() {
 
   const totalUsage = agencyUsage?.reduce((sum, a) => sum + a.value, 0) || 1;
 
-  const statCards = stats ? [
+  const statCards = useMemo(() => stats ? [
     { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare, color: "text-primary" },
     { label: "คำถามวันนี้", value: stats.todayQuestions.toLocaleString(), icon: TrendingUp, color: "text-success" },
     { label: "เวลาตอบเฉลี่ย", value: `${stats.avgResponseTime}s`, icon: Clock, color: "text-warning" },
     { label: "ความพึงพอใจ", value: `${stats.satisfactionRate}%`, icon: ThumbsUp, color: "text-info" },
-  ] : [];
+  ] : [], [stats]);
 
   if (statsLoading) {
     return (

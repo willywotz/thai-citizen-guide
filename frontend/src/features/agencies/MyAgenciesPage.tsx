@@ -1,5 +1,5 @@
 import { Check, ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/shared/components/ui/badge";
@@ -103,7 +103,7 @@ export default function MyAgenciesPage() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [reports, setReports] = useState<Record<string, ConformanceReport>>({});
 
-  const handleTest = async (agency: Agency) => {
+  const handleTest = useCallback(async (agency: Agency) => {
     setTestingId(agency.id);
     setTestResults((prev) => ({ ...prev, [agency.id]: null }));
     try {
@@ -117,7 +117,7 @@ export default function MyAgenciesPage() {
     } finally {
       setTestingId(null);
     }
-  };
+  }, [testMutation]);
 
   const handleRunConformance = async (agency: Agency) => {
     setRunningId(agency.id);
