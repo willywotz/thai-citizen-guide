@@ -143,31 +143,40 @@ async def _test_rest(agency: Agency) -> dict[str, Any]:
 
     s1 = time.monotonic()
     response = None
-    fetch_error: str | None = None
+    method = "HEAD"
+    last_exc: Exception | None = None
 
     async with httpx.AsyncClient(timeout=settings.CONNECTION_TEST_TIMEOUT) as client:
-        try:
-            response = await client.head(url, headers=headers)
-        except Exception:
+        # Probe reachability with HEAD, falling back to GET. Some endpoints reject
+        # HEAD (404/405/501/...); a 2xx from either means the endpoint is reachable.
+        for probe_method in ("HEAD", "GET"):
             try:
-                response = await client.get(url, headers=headers)
-            except httpx.TimeoutException:
-                fetch_error = f"Connection timeout ({settings.CONNECTION_TEST_TIMEOUT}s)"
+                response = await getattr(client, probe_method.lower())(url, headers=headers)
+                method = probe_method
             except Exception as exc:
-                fetch_error = str(exc)
+                last_exc = exc
+                continue
+            if 200 <= response.status_code < 300:
+                break
 
         s1_ms = int((time.monotonic() - s1) * 1000)
-        steps.append({"step": 1, "label": "TCP Connection", "status": "error" if fetch_error else "done", "time": s1_ms})
 
-        if fetch_error:
+        if response is None:
+            fetch_error = (
+                f"Connection timeout ({settings.CONNECTION_TEST_TIMEOUT}s)"
+                if isinstance(last_exc, httpx.TimeoutException)
+                else str(last_exc)
+            )
+            steps.append({"step": 1, "label": "TCP Connection", "status": "error", "time": s1_ms})
             total_ms = int((time.monotonic() - total_start) * 1000)
             steps.append({"step": 2, "label": "HTTP Response", "status": "error", "time": 0})
             return {"success": False, "protocol": "REST API", "version": "-", "steps": steps, "latency": f"{total_ms}ms", "error": fetch_error}
 
-        # POST-only endpoints (e.g. chat APIs) answer a HEAD/GET probe with 405.
-        # Don't trust that as "reachable" — POST a probe and judge by the real response.
-        method = "HEAD"
-        if response.status_code == 405:
+        steps.append({"step": 1, "label": "TCP Connection", "status": "done", "time": s1_ms})
+
+        # POST-only endpoints (e.g. chat APIs) reject a HEAD/GET probe with a non-2xx
+        # status. Don't fail on that — POST a probe and judge by the real response.
+        if not (200 <= response.status_code < 300):
             from app.services.chat.dispatch import build_api_headers, build_api_payload
 
             s2 = time.monotonic()
@@ -195,14 +204,14 @@ async def _test_rest(agency: Agency) -> dict[str, Any]:
 
     total_ms = int((time.monotonic() - total_start) * 1000)
 
-    # HEAD path: any non-5xx means the server is reachable (legacy semantics).
-    # POST probe path: only a 2xx confirms the chat method actually works.
+    # HEAD/GET path: only a 2xx reaches here (any other status fell through to POST),
+    # so the endpoint is reachable. POST path: only a 2xx confirms the chat method works.
     if method == "POST":
         is_success = 200 <= status_code < 300
         last_label = "API verified (POST)" if is_success else f"POST returned HTTP {status_code}"
     else:
-        is_success = 200 <= status_code < 500
-        last_label = "API Reachable" if is_success else "API Error"
+        is_success = True
+        last_label = "API Reachable"
     steps.append({"step": 4, "label": last_label, "status": "done" if is_success else "error", "time": 0})
 
     result = {
