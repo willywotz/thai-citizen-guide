@@ -9,7 +9,7 @@ from uuid import UUID
 
 from app.config import settings
 from app.models import ConnectionLog
-from app.utils import now
+from app.utils import get_tz, now
 
 _WINDOW: dict[str, tuple[int, timedelta]] = {
     "24h": (24, timedelta(hours=1)),
@@ -19,8 +19,12 @@ _WINDOW: dict[str, tuple[int, timedelta]] = {
 
 
 async def _rows(agency_id: UUID, since: datetime) -> list[dict]:
+    # Normalize to the configured timezone so SQLite string comparison is consistent
+    # with stored values (which are recorded in the app timezone via now()).
+    tz = get_tz()
+    since_local = since.astimezone(tz)
     return await ConnectionLog.filter(
-        agency_id=agency_id, created_at__gte=since
+        agency_id=agency_id, created_at__gte=since_local
     ).order_by("created_at").values("status", "latency_ms", "created_at")
 
 

@@ -107,10 +107,10 @@ async def run_agency_conformance(agency_id: str, user: User = Depends(get_curren
 @router.get("/{agency_id}/health/history", response_model=HealthHistoryResponse, summary="Agency health history")
 async def agency_health_history(agency_id: uuid.UUID, window: str = "24h"):
     try:
-        await Agency.get(id=agency_id)
+        agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    buckets = await health_history(agency_id, window)
+    buckets = await health_history(agency_id, window, agency.stats_reset_at)
     return HealthHistoryResponse(data=[HealthHistoryBucket(**b) for b in buckets])
 
 
