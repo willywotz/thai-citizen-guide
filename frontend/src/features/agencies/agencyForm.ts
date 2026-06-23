@@ -1,4 +1,8 @@
+import { z } from "zod";
+
 import type { Agency, AgencyLifecycleStatus, ApiEndpoint, ResponseField, ApiHeader } from "@/shared/types/agency";
+
+import { agencySchema } from "./agencySchema";
 
 // ---------------------------------------------------------------------------
 // Form state shape
@@ -118,12 +122,48 @@ export function isStepGeneralValid(s: Pick<AgencyFormState, "name" | "shortName"
   return Boolean(s.name.trim() && s.shortName.trim());
 }
 
+export function isUrlValid(url: string): boolean {
+  return z.string().url().safeParse(url).success;
+}
+
+/** Returns indices of header rows that are partially filled and invalid.
+ * A row is invalid when it has a value but a blank/empty name, or a name but a blank/empty value.
+ * Entirely empty rows ({ name: "", value: "" }) are ignored — they are not errors.
+ */
+export function invalidHeaderIndices(headers: ApiHeader[]): number[] {
+  return headers.reduce<number[]>((acc, h, i) => {
+    const hasName = h.name.trim().length > 0;
+    const hasValue = h.value.trim().length > 0;
+    // Partial rows: one side filled, the other empty
+    if ((hasName && !hasValue) || (!hasName && hasValue)) acc.push(i);
+    return acc;
+  }, []);
+}
+
 export function isStepConnectionValid(
-  s: Pick<AgencyFormState, "connectionType" | "endpointUrl" | "mcpToolName">,
+  s: Pick<AgencyFormState, "connectionType" | "endpointUrl" | "mcpToolName" | "apiHeaders">,
 ): boolean {
-  if (!s.endpointUrl.trim()) return false;
+  if (!isUrlValid(s.endpointUrl)) return false;
+  if (invalidHeaderIndices(s.apiHeaders).length > 0) return false;
   if (s.connectionType === "MCP") return Boolean(s.mcpToolName.trim());
   return true;
+}
+
+/** Validate the full agency form with the zod schema. */
+export function validateAgencyForm(
+  s: AgencyFormState,
+): ReturnType<typeof agencySchema.safeParse> {
+  return agencySchema.safeParse({
+    name: s.name,
+    shortName: s.shortName,
+    connectionType: s.connectionType,
+    endpointUrl: s.endpointUrl,
+    apiHeaders: s.apiHeaders,
+    priority: s.priority,
+    dispatchTimeoutS: s.dispatchTimeoutS,
+    rateLimitRpm: s.rateLimitRpm,
+    mcpToolName: s.mcpToolName,
+  });
 }
 
 export function canActivate(s: AgencyFormState): boolean {

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/shared/lib/apiClient';
+import { REFETCH, STALE_TIME } from '@/shared/constants/query';
 import type { Agency } from '@/shared/types';
 import type {
   AgencyLifecycleStatus,
@@ -44,8 +45,8 @@ export function useAgencies() {
   return useQuery({
     queryKey: ['agencies'],
     queryFn: fetchAgencies,
-    staleTime: 30_000,
-    refetchInterval: 60_000,   // poll every 60 s (replaces Supabase realtime)
+    staleTime: STALE_TIME.normal,
+    refetchInterval: REFETCH.slow,   // poll every 60 s (replaces Supabase realtime)
   });
 }
 
@@ -53,7 +54,7 @@ export function useMyAgencies() {
   return useQuery({
     queryKey: ['agencies', 'mine'],
     queryFn: getMyAgencies,
-    staleTime: 30_000,
+    staleTime: STALE_TIME.normal,
   });
 }
 
@@ -63,7 +64,7 @@ export function useAgencyLowRated(agencyId: string, enabled: boolean) {
     queryKey: ['agency-low-rated', agencyId],
     queryFn: () => getAgencyLowRated(agencyId),
     enabled,
-    staleTime: 30_000,
+    staleTime: STALE_TIME.normal,
   });
 }
 

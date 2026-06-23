@@ -20,18 +20,13 @@ async def test_find_similar_uses_vector_search_when_embedding_present():
 
     match_msg = MagicMock(id="m1", conversation_id="c1")
     assistant = MagicMock(id="a1")
-    conv = MagicMock(id="c1", status="success")
     conn_log = MagicMock()
 
     with _patch_cutoff(similarity), \
          patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)) as mvec, \
          patch.object(similarity, "_text_fallback_search", new=AsyncMock()) as mtext, \
-         patch.object(similarity, "Message") as MockMessage, \
-         patch.object(similarity, "Conversation") as MockConv, \
-         patch.object(similarity, "ConnectionLog") as MockCL:
-        MockMessage.get = AsyncMock(return_value=assistant)
-        MockConv.get = AsyncMock(return_value=conv)
-        MockCL.get = AsyncMock(return_value=conn_log)
+         patch.object(similarity, "_fetch_answer_by_match",
+                      new=AsyncMock(return_value=(assistant, conn_log))):
         result = await similarity.find_similar_question("q", embedding=[0.1, 0.2])
 
     mvec.assert_awaited_once()
@@ -45,10 +40,7 @@ async def test_find_similar_uses_text_fallback_when_no_embedding():
 
     with _patch_cutoff(similarity), \
          patch.object(similarity, "_vector_search", new=AsyncMock()) as mvec, \
-         patch.object(similarity, "_text_fallback_search", new=AsyncMock(return_value=None)) as mtext, \
-         patch.object(similarity, "Message"), \
-         patch.object(similarity, "Conversation"), \
-         patch.object(similarity, "ConnectionLog"):
+         patch.object(similarity, "_text_fallback_search", new=AsyncMock(return_value=None)) as mtext:
         result = await similarity.find_similar_question("q", embedding=None)
 
     mtext.assert_awaited_once()
@@ -63,10 +55,7 @@ async def test_find_similar_returns_none_when_no_assistant():
     match_msg = MagicMock(id="m1", conversation_id="c1")
     with _patch_cutoff(similarity), \
          patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
-         patch.object(similarity, "Message") as MockMessage, \
-         patch.object(similarity, "Conversation"), \
-         patch.object(similarity, "ConnectionLog"):
-        MockMessage.get = AsyncMock(side_effect=Exception("not found"))
+         patch.object(similarity, "_fetch_answer_by_match", new=AsyncMock(return_value=None)):
         result = await similarity.find_similar_question("q", embedding=[0.1])
 
     assert result is None
@@ -77,15 +66,9 @@ async def test_find_similar_returns_none_when_conversation_not_success():
     from app.services import similarity
 
     match_msg = MagicMock(id="m1", conversation_id="c1")
-    assistant = MagicMock(id="a1")
-    conv = MagicMock(id="c1", status="error")
     with _patch_cutoff(similarity), \
          patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
-         patch.object(similarity, "Message") as MockMessage, \
-         patch.object(similarity, "Conversation") as MockConv, \
-         patch.object(similarity, "ConnectionLog"):
-        MockMessage.get = AsyncMock(return_value=assistant)
-        MockConv.get = AsyncMock(return_value=conv)
+         patch.object(similarity, "_fetch_answer_by_match", new=AsyncMock(return_value=None)):
         result = await similarity.find_similar_question("q", embedding=[0.1])
 
     assert result is None
@@ -96,16 +79,9 @@ async def test_find_similar_returns_none_when_conn_log_missing():
     from app.services import similarity
 
     match_msg = MagicMock(id="m1", conversation_id="c1")
-    assistant = MagicMock(id="a1")
-    conv = MagicMock(id="c1", status="success")
     with _patch_cutoff(similarity), \
          patch.object(similarity, "_vector_search", new=AsyncMock(return_value=match_msg)), \
-         patch.object(similarity, "Message") as MockMessage, \
-         patch.object(similarity, "Conversation") as MockConv, \
-         patch.object(similarity, "ConnectionLog") as MockCL:
-        MockMessage.get = AsyncMock(return_value=assistant)
-        MockConv.get = AsyncMock(return_value=conv)
-        MockCL.get = AsyncMock(side_effect=Exception("not found"))
+         patch.object(similarity, "_fetch_answer_by_match", new=AsyncMock(return_value=None)):
         result = await similarity.find_similar_question("q", embedding=[0.1])
 
     assert result is None

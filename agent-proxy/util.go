@@ -3,15 +3,27 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"log/slog"
 	"time"
 )
 
-func uuidV7() string {
+var bangkokLoc *time.Location
+
+func init() {
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		slog.Warn("Asia/Bangkok tzdata unavailable, falling back to UTC", slog.Any("error", err))
+		loc = time.UTC
+	}
+	bangkokLoc = loc
+}
+
+func uuidV7() (string, error) {
 	uuid, err := newUUIDv7()
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return formatUUID(uuid)
+	return formatUUID(uuid), nil
 }
 
 func newUUIDv7() ([16]byte, error) {
@@ -46,9 +58,5 @@ func formatUUID(uuid [16]byte) string {
 }
 
 func now() time.Time {
-	loc, err := time.LoadLocation("Asia/Bangkok")
-	if err != nil {
-		panic(err)
-	}
-	return time.Now().In(loc)
+	return time.Now().In(bangkokLoc)
 }

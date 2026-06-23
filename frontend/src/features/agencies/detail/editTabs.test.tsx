@@ -2,21 +2,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { mockAgencies, resetMockData } from "@/mocks/fixtures";
-import { server } from "@/mocks/server";
 import { mapRowToAgency } from "@/shared/types/agency";
 
 import { ConnectionTab } from "./ConnectionTab";
 import { RoutingTab } from "./RoutingTab";
 
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterEach(() => {
-  server.resetHandlers();
   resetMockData();
 });
-afterAll(() => server.close());
 
 const ACTIVE_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -30,6 +26,24 @@ function activeAgency() {
 }
 
 describe("ConnectionTab", () => {
+  it("disables save button when endpoint URL is invalid", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    const input = screen.getByLabelText("Endpoint URL");
+    await user.clear(input);
+    await user.type(input, "not-a-valid-url");
+    expect(screen.getByRole("button", { name: /บันทึก/ })).toBeDisabled();
+  });
+
+  it("enables save button when endpoint URL is valid", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    const input = screen.getByLabelText("Endpoint URL");
+    await user.clear(input);
+    await user.type(input, "https://valid.example/api");
+    expect(screen.getByRole("button", { name: /บันทึก/ })).not.toBeDisabled();
+  });
+
   it("saves an edited endpoint", async () => {
     const user = userEvent.setup();
     render(wrap(<ConnectionTab agency={activeAgency()} />));
@@ -48,6 +62,46 @@ describe("ConnectionTab", () => {
     render(wrap(<ConnectionTab agency={activeAgency()} />));
     expect(screen.getByPlaceholderText("https://…")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/"query": "__query__"/)).toBeInTheDocument();
+  });
+
+  it("shows URL error message when endpoint URL is invalid", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    const input = screen.getByLabelText("Endpoint URL");
+    await user.clear(input);
+    await user.type(input, "not-a-valid-url");
+    expect(screen.getByText("URL ไม่ถูกต้อง")).toBeInTheDocument();
+  });
+
+  it("does not show URL error message when endpoint URL is empty", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    const input = screen.getByLabelText("Endpoint URL");
+    await user.clear(input);
+    expect(screen.queryByText("URL ไม่ถูกต้อง")).not.toBeInTheDocument();
+  });
+
+  it("disables save button when a header has a value but no name", async () => {
+    const user = userEvent.setup();
+    const agency = activeAgency();
+    render(wrap(<ConnectionTab agency={{ ...agency, apiHeaders: [{ name: "", value: "bearer-token" }] }} />));
+    expect(screen.getByRole("button", { name: /บันทึก/ })).toBeDisabled();
+  });
+
+  it("does not disable save button for entirely empty header rows", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    // activeAgency has a valid URL, adding an empty header row should not block
+    const addBtn = screen.getByRole("button", { name: /เพิ่ม header/ });
+    await user.click(addBtn);
+    // Save button should still be enabled (empty row is not an error)
+    expect(screen.getByRole("button", { name: /บันทึก/ })).not.toBeDisabled();
+  });
+
+  it("shows header error message when a header has a value but no name", () => {
+    const agency = activeAgency();
+    render(wrap(<ConnectionTab agency={{ ...agency, apiHeaders: [{ name: "", value: "bearer-token" }] }} />));
+    expect(screen.getAllByText("กรุณากรอก Header name และ Value ให้ครบ").length).toBeGreaterThan(0);
   });
 });
 

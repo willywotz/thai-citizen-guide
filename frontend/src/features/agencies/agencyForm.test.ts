@@ -7,8 +7,10 @@ import {
   buildSavePayload,
   canActivate,
   firstIncompleteStep,
+  invalidHeaderIndices,
   isStepConnectionValid,
   isStepGeneralValid,
+  isUrlValid,
   parseExpectedPayload,
 } from "./agencyForm";
 import type { Agency } from "@/shared/types/agency";
@@ -401,6 +403,71 @@ describe("wizard step validation", () => {
     expect(
       firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข", endpointUrl: "https://x.example" }),
     ).toBe("test");
+  });
+});
+
+describe("isUrlValid", () => {
+  it("returns true for a valid https URL", () => {
+    expect(isUrlValid("https://api.example.com/v1")).toBe(true);
+  });
+
+  it("returns true for a valid http URL", () => {
+    expect(isUrlValid("http://localhost:8080")).toBe(true);
+  });
+
+  it("returns false for a bare word", () => {
+    expect(isUrlValid("not-a-url")).toBe(false);
+  });
+
+  it("returns false for empty string", () => {
+    expect(isUrlValid("")).toBe(false);
+  });
+});
+
+describe("invalidHeaderIndices", () => {
+  it("returns empty array for entirely empty rows", () => {
+    expect(invalidHeaderIndices([{ name: "", value: "" }])).toEqual([]);
+  });
+
+  it("returns index for a row with value but empty name", () => {
+    expect(invalidHeaderIndices([{ name: "", value: "bearer-token" }])).toEqual([0]);
+  });
+
+  it("returns index for a row with name but empty value", () => {
+    expect(invalidHeaderIndices([{ name: "Authorization", value: "" }])).toEqual([0]);
+  });
+
+  it("ignores valid rows and returns only invalid ones", () => {
+    const headers = [
+      { name: "X-Source", value: "portal" },
+      { name: "", value: "orphan-value" },
+      { name: "", value: "" },
+    ];
+    expect(invalidHeaderIndices(headers)).toEqual([1]);
+  });
+
+  it("returns empty array for headers with both name and value", () => {
+    expect(invalidHeaderIndices([{ name: "X-Key", value: "abc" }])).toEqual([]);
+  });
+});
+
+describe("isStepConnectionValid — header gating", () => {
+  const base = { ...DEFAULT_FORM_STATE, connectionType: "API" as const, endpointUrl: "https://x.example" };
+
+  it("returns false when a header has a value but no name", () => {
+    expect(isStepConnectionValid({ ...base, apiHeaders: [{ name: "", value: "v" }] })).toBe(false);
+  });
+
+  it("returns false when a header has a name but no value", () => {
+    expect(isStepConnectionValid({ ...base, apiHeaders: [{ name: "X-Key", value: "" }] })).toBe(false);
+  });
+
+  it("returns true when all headers are valid", () => {
+    expect(isStepConnectionValid({ ...base, apiHeaders: [{ name: "X-Key", value: "v" }] })).toBe(true);
+  });
+
+  it("returns true when headers contain only empty rows", () => {
+    expect(isStepConnectionValid({ ...base, apiHeaders: [{ name: "", value: "" }] })).toBe(true);
   });
 });
 

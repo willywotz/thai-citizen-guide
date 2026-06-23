@@ -1,4 +1,5 @@
 import { api, tokenStorage } from '@/shared/lib/apiClient';
+import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
 import type { AgentStep } from '@/shared/types';
 import type {
   StepEvent, AgenciesEvent, IntentEvent, RoutingEvent,
@@ -44,6 +45,33 @@ export interface SSECallbacks {
   onAnswer?: (event: AnswerEvent) => void;
   onDone?: (event: DoneEvent) => void;
   onError?: (event: ErrorEvent) => void;
+}
+
+/** Sentinel value thrown by the idle timeout race. */
+const IDLE_TIMEOUT = Symbol('IDLE_TIMEOUT');
+
+/**
+ * Races reader.read() against a per-read idle deadline.
+ * Returns the read result, or throws IDLE_TIMEOUT if the deadline fires first.
+ * Cleans up the timer on each successful read.
+ */
+async function readWithIdleTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  timeoutMs: number,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<typeof IDLE_TIMEOUT>((resolve) => {
+    timer = setTimeout(() => resolve(IDLE_TIMEOUT), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([reader.read(), timeoutPromise]);
+    if (result === IDLE_TIMEOUT) throw IDLE_TIMEOUT;
+    return result as ReadableStreamReadResult<Uint8Array>;
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
 }
 
 /**
@@ -119,9 +147,27 @@ export async function sendChatQuerySSE(
     }
   };
 
+  let idleTimeout = false;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let done: boolean;
+      let value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await readWithIdleTimeout(reader, STREAM_IDLE_TIMEOUT_MS));
+      } catch (err) {
+        if (err === IDLE_TIMEOUT) {
+          // Stream silent for too long — cancel the underlying stream so the
+          // HTTP connection is torn down (fixes the socket/stream leak), then
+          // break WITHOUT marking state.done so finalizeStreaming shows the
+          // connection-lost bubble rather than the generic error bubble.
+          // Fire-and-forget: cancel() may not resolve if the server is truly
+          // hung, so we don't await it. releaseLock() is called in finally.
+          idleTimeout = true;
+          reader.cancel().catch(() => {});
+          break;
+        }
+        throw err;
+      }
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
@@ -130,10 +176,15 @@ export async function sendChatQuerySSE(
       for (const part of parts) dispatch(part);
     }
   } finally {
-    reader.releaseLock();
-
-    // Flush any event not terminated with \n\n
-    dispatch(buffer);
+    // On idle timeout, cancel() is already in-flight (fire-and-forget) and will
+    // release the lock asynchronously — skip releaseLock() to avoid a TypeError
+    // from calling it while a read() is still pending.
+    // On all other paths (normal completion or thrown error), releaseLock() is safe.
+    if (!idleTimeout) {
+      reader.releaseLock();
+      // Flush any event not terminated with \n\n
+      dispatch(buffer);
+    }
   }
 
   return true;

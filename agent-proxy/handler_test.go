@@ -1,15 +1,26 @@
 package main
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
+func newTestHandler(load func(ctx context.Context, id string) (agency, error)) *handler {
+	return &handler{
+		tracer: noop.NewTracerProvider().Tracer(""),
+		cache:  newAgencyCache(load, time.Minute),
+	}
+}
+
 func TestServeHTTP_MissingID(t *testing.T) {
-	h := &handler{tracer: noop.NewTracerProvider().Tracer("")}
+	h := newTestHandler(func(_ context.Context, _ string) (agency, error) { return agency{}, nil })
 	req := httptest.NewRequest(http.MethodPost, "/agent-proxy/", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -19,11 +30,62 @@ func TestServeHTTP_MissingID(t *testing.T) {
 }
 
 func TestServeHTTP_InvalidUUIDFormat(t *testing.T) {
-	h := &handler{tracer: noop.NewTracerProvider().Tracer("")}
+	h := newTestHandler(func(_ context.Context, _ string) (agency, error) { return agency{}, nil })
 	req := httptest.NewRequest(http.MethodPost, "/agent-proxy/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestServeHTTP_SuccessProxiesUpstream(t *testing.T) {
+	const id = "11111111-1111-4111-8111-111111111111"
+
+	var gotMethod, gotAuth, gotXFwd string
+	var gotBody []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotAuth = r.Header.Get("Authorization")
+		gotXFwd = r.Header.Get("X-Forwarded-For")
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("X-Upstream", "yes")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"answer":"hi"}`))
+	}))
+	defer upstream.Close()
+
+	h := newTestHandler(func(_ context.Context, _ string) (agency, error) {
+		return agency{
+			endpointURL: upstream.URL,
+			apiHeaders:  []map[string]string{{"name": "Authorization", "value": "Bearer t"}},
+		}, nil
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/agent-proxy/"+id, strings.NewReader(`{"query":"q"}`))
+	req.Header.Set("X-Forwarded-For", "1.2.3.4")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", w.Code)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method: want POST, got %s", gotMethod)
+	}
+	if gotAuth != "Bearer t" {
+		t.Errorf("injected header: want Bearer t, got %q", gotAuth)
+	}
+	if gotXFwd != "" {
+		t.Errorf("X-Forwarded-For should be stripped, got %q", gotXFwd)
+	}
+	if string(gotBody) != `{"query":"q"}` {
+		t.Errorf("upstream body: got %q", gotBody)
+	}
+	if w.Body.String() != `{"answer":"hi"}` {
+		t.Errorf("client body: got %q", w.Body.String())
+	}
+	if w.Header().Get("X-Upstream") != "yes" {
+		t.Errorf("upstream response header not forwarded")
 	}
 }

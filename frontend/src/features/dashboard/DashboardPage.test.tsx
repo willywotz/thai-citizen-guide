@@ -1,16 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { ThemeProvider } from "next-themes";
 import { MemoryRouter } from "react-router-dom";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { server } from "@/mocks/server";
-
 import DashboardPage from "./DashboardPage";
-
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -24,6 +20,15 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+describe("DashboardPage error state", () => {
+  it("shows an error alert when the dashboard stats endpoint fails", async () => {
+    server.use(http.get("*/api/v1/dashboard/stats", () => HttpResponse.error()));
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByText(/เกิดข้อผิดพลาด/)).toBeInTheDocument();
+  });
+});
 
 describe("DashboardPage feedback section", () => {
   it("shows the summary cards and a link to the feedback page", async () => {
@@ -42,6 +47,6 @@ describe("DashboardPage feedback section", () => {
   it("shows a preview of recent low-rated questions", async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("ทำไมระบบตอบช้า")).toBeInTheDocument());
-    expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument();
+    expect(screen.getAllByText("กรมสรรพากร").length).toBeGreaterThan(0);
   });
 });

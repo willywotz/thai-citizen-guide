@@ -28,11 +28,30 @@ var (
 // upstreamTimeout mirrors the backend's AGENCY_CHAT_TIMEOUT.
 const upstreamTimeout = 180 * time.Second
 
-var httpClient = &http.Client{Timeout: upstreamTimeout}
+// maxSpanBodyBytes caps request/response bodies recorded on spans and logs.
+const maxSpanBodyBytes = 8 << 10
+
+func newHTTPClient() *http.Client {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 100
+	t.MaxIdleConnsPerHost = 100
+	t.MaxConnsPerHost = 0
+	return &http.Client{Timeout: upstreamTimeout, Transport: t}
+}
+
+var httpClient = newHTTPClient()
 
 type handler struct {
 	pool   *pgxpool.Pool
 	tracer trace.Tracer
+	cache  *agencyCache
+}
+
+func truncate(s string) string {
+	if len(s) <= maxSpanBodyBytes {
+		return s
+	}
+	return s[:maxSpanBodyBytes] + "…(truncated)"
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +72,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a, err := getAgency(ctx, h.pool, agencyID)
+	a, err := h.cache.get(ctx, agencyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		span.SetStatus(codes.Error, "agent not found or inactive")
 		http.Error(w, "Not Found", http.StatusNotFound)
@@ -68,7 +87,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer func() { _ = r.Body.Close() }()
 	var body bytes.Buffer
-	_, _ = io.Copy(&body, r.Body)
+	if _, err := io.Copy(&body, r.Body); err != nil {
+		span.SetStatus(codes.Error, "error reading request body: "+err.Error())
+		slog.Error("Error reading request body", slog.Any("error", err))
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
 
 	req, err := http.NewRequestWithContext(ctx, r.Method, a.endpointURL, bytes.NewReader(body.Bytes()))
 	if err != nil {
@@ -81,7 +105,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	span.SetAttributes(attribute.String("proxy.method", req.Method))
 	span.SetAttributes(attribute.String("proxy.url", req.URL.String()))
-	span.SetAttributes(attribute.String("proxy.body", body.String()))
+	span.SetAttributes(attribute.String("proxy.body", truncate(body.String())))
 
 	for _, apiHeader := range a.apiHeaders {
 		req.Header.Set(apiHeader["name"], apiHeader["value"])
@@ -105,7 +129,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := httpClient.Do(req)
 	latency := time.Since(startTime).Milliseconds()
 	if err != nil {
-		_ = h.addConnectionLog(ctx, agencyID, "error", latency, "error forwarding request: "+err.Error(), body.String(), "")
+		if h.pool != nil {
+			_ = h.addConnectionLog(ctx, agencyID, "error", latency, "error forwarding request: "+err.Error(), body.String(), "")
+		}
 		span.SetStatus(codes.Error, "error forwarding request to backend: "+err.Error())
 		slog.Error("Error forwarding request to backend", slog.Any("error", err))
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
@@ -120,32 +146,41 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 
-	var responseBody bytes.Buffer
-	_, _ = io.Copy(&responseBody, resp.Body)
-	_, _ = io.Copy(w, bytes.NewReader(responseBody.Bytes()))
+	// Stream to the client; mirror a bounded prefix into capture for span/log.
+	var capture bytes.Buffer
+	limited := io.MultiWriter(w, &limitedWriter{buf: &capture, remaining: maxSpanBodyBytes})
+	if _, err := io.Copy(limited, resp.Body); err != nil {
+		span.SetStatus(codes.Error, "error streaming response body: "+err.Error())
+		slog.Error("Error streaming response body", slog.Any("error", err))
+	}
+	responseBody := capture.String()
 
-	span.SetAttributes(attribute.String("proxy.response_body", responseBody.String()))
+	span.SetAttributes(attribute.String("proxy.response_body", responseBody))
 
 	var raw struct {
 		Query string `json:"query"`
 	}
 	_ = json.Unmarshal(body.Bytes(), &raw)
-	detail := fmt.Sprintf("Query: %s\n\nAnswer: %s", raw.Query, responseBody.String())
+	detail := fmt.Sprintf("Query: %s\n\nAnswer: %s", raw.Query, truncate(responseBody))
 
 	status := "success"
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		status = "error"
 	}
 
-	// only count successful calls
-	if status == "success" {
-		if err := incrementTotalCalls(ctx, h.pool, agencyID); err != nil {
-			span.SetStatus(codes.Error, "error updating total_calls: "+err.Error())
-			slog.Error("Error updating total_calls", slog.Any("error", err))
+	if h.pool != nil {
+		// only count successful calls
+		if status == "success" {
+			if err := incrementTotalCalls(ctx, h.pool, agencyID); err != nil {
+				span.SetStatus(codes.Error, "error updating total_calls: "+err.Error())
+				slog.Error("Error updating total_calls", slog.Any("error", err))
+			}
+		}
+
+		if err := h.addConnectionLog(ctx, agencyID, status, latency, detail, body.String(), responseBody); err != nil {
+			span.SetAttributes(attribute.Bool("proxy.connection_log_failed", true))
 		}
 	}
-
-	_ = h.addConnectionLog(ctx, agencyID, status, latency, detail, body.String(), responseBody.String())
 
 	if resp.StatusCode >= 500 {
 		span.SetStatus(codes.Error, fmt.Sprintf("upstream returned %d", resp.StatusCode))
@@ -164,4 +199,22 @@ func (h *handler) addConnectionLog(ctx context.Context, agencyID, status string,
 		return err
 	}
 	return nil
+}
+
+// limitedWriter writes at most remaining bytes to buf and silently drops the rest.
+type limitedWriter struct {
+	buf       *bytes.Buffer
+	remaining int
+}
+
+func (l *limitedWriter) Write(p []byte) (int, error) {
+	if l.remaining > 0 {
+		n := len(p)
+		if n > l.remaining {
+			n = l.remaining
+		}
+		l.buf.Write(p[:n])
+		l.remaining -= n
+	}
+	return len(p), nil // report full length so io.Copy/MultiWriter does not error
 }

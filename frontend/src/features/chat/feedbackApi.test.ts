@@ -1,13 +1,9 @@
 import { http, HttpResponse } from "msw";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { server } from "@/mocks/server";
 
 import { updateMessageRating } from "./feedbackApi";
-
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
 
 describe("updateMessageRating", () => {
   it("sends an up rating with null feedback_text and resolves true", async () => {

@@ -40,7 +40,7 @@ async def test_list_conversations_auditor_sees_all(db):
     auditor = await User.create(email="aud-l@x.com", hashed_password="h", role="auditor")
     await _conv_for(owner.id)
     await _conv_for(owner.id)
-    resp = await list_conversations(search="", filter_agency="", user=auditor)
+    resp = await list_conversations(search="", filter_agency="", date_from=None, date_to=None, page=1, page_size=None, user=auditor)
     assert resp.total >= 2
 
 
@@ -49,5 +49,5 @@ async def test_list_conversations_user_sees_only_own(db):
     owner = await User.create(email="owner-o@x.com", hashed_password="h", role="user")
     other = await User.create(email="other-o@x.com", hashed_password="h", role="user")
     await _conv_for(owner.id)
-    resp = await list_conversations(search="", filter_agency="", user=other)
+    resp = await list_conversations(search="", filter_agency="", date_from=None, date_to=None, page=1, page_size=None, user=other)
     assert resp.total == 0

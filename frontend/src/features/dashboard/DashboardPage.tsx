@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
-import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity, ThumbsDown } from "lucide-react";
+import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity, ThumbsDown, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTheme } from "next-themes";
 
@@ -14,32 +14,21 @@ import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
 import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData, useLlmUsage } from "./useDashboard";
 import { DashboardStatsRow } from "./DashboardStatsRow";
 import { DashboardAgencyStatus } from "./DashboardAgencyStatus";
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border bg-card px-3 py-2 shadow-lg">
-      <p className="text-xs font-medium text-foreground">{label}</p>
-      {payload.map((p: any, i: number) => (
-        <p key={i} className="text-xs text-muted-foreground">
-          {p.name}: <span className="font-semibold text-foreground">{p.value?.toLocaleString()}</span>
-        </p>
-      ))}
-    </div>
-  );
-};
+import { ChartTooltip } from "@/shared/components/ChartTooltip";
 
 export default function DashboardPage() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
-  const { data: stats, isLoading: statsLoading, dataUpdatedAt } = useDashboardStats();
-  const { data: agencyUsage } = useAgencyUsage();
-  const { data: weeklyTrend } = useWeeklyTrend();
-  const { data: categoryStats } = useCategoryData();
+  const { data: stats, isLoading: statsLoading, isError: statsError, dataUpdatedAt, refetch: refetchStats } = useDashboardStats();
+  const { data: agencyUsage, isError: agencyUsageError } = useAgencyUsage();
+  const { data: weeklyTrend, isError: weeklyTrendError } = useWeeklyTrend();
+  const { data: categoryStats, isError: categoryError } = useCategoryData();
   const { data: agencies = [] } = useAgencies();
   const { data: feedbackStats } = useFeedbackStats();
   const { data: llmUsage = [] } = useLlmUsage("model");
+
+  const anyError = statsError || agencyUsageError || weeklyTrendError || categoryError;
 
   const chartColors = useMemo(() => ({
     grid: isDark ? "hsl(220 15% 25%)" : "hsl(214 25% 92%)",
@@ -60,12 +49,12 @@ export default function DashboardPage() {
 
   const totalUsage = agencyUsage?.reduce((sum, a) => sum + a.value, 0) || 1;
 
-  const statCards = stats ? [
+  const statCards = useMemo(() => stats ? [
     { label: "คำถามทั้งหมด", value: stats.totalQuestions.toLocaleString(), icon: MessageSquare, color: "text-primary" },
     { label: "คำถามวันนี้", value: stats.todayQuestions.toLocaleString(), icon: TrendingUp, color: "text-success" },
     { label: "เวลาตอบเฉลี่ย", value: `${stats.avgResponseTime}s`, icon: Clock, color: "text-warning" },
     { label: "ความพึงพอใจ", value: `${stats.satisfactionRate}%`, icon: ThumbsUp, color: "text-info" },
-  ] : [];
+  ] : [], [stats]);
 
   if (statsLoading) {
     return (
@@ -77,6 +66,13 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
+      {anyError && (
+        <div role="alert" aria-live="assertive" className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>เกิดข้อผิดพลาดในการโหลดข้อมูล</span>
+          <button onClick={() => refetchStats()} className="ml-auto underline text-xs">ลองอีกครั้ง</button>
+        </div>
+      )}
       <div className="flex items-center justify-between animate-fade-in">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Dashboard สถิติการใช้งาน</h2>
@@ -114,7 +110,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="questions" name="คำถาม" stroke={chartColors.primary}
                   strokeWidth={2.5} fill="url(#gradientQuestions)"
                   dot={{ r: 4, fill: chartColors.primary, stroke: chartColors.dotStroke, strokeWidth: 2 }}
@@ -142,7 +138,7 @@ export default function DashboardPage() {
                       <Cell key={i} fill={chartColors.palette[i % chartColors.palette.length]} stroke="none" />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex-1 space-y-2.5">
@@ -179,7 +175,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="category" width={110} tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="count" name="จำนวน" radius={[0, 6, 6, 0]} animationDuration={1000} animationEasing="ease-out">
                   {categoryStats?.map((_, i) => (
                     <Cell key={i} fill={chartColors.palette[i % chartColors.palette.length]} />

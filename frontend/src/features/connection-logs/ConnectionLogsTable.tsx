@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
-import { CheckCircle2, XCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertCircle, CheckCircle2, XCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/shared/lib/utils";
 import type { ConnectionLog } from "@/shared/types/connectionLog";
@@ -15,6 +15,8 @@ const connectionTypeColors: Record<string, string> = {
 interface Props {
   items: ConnectionLog[];
   isLoading: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
   agencyMap: Record<string, string>;
   selectedLog: ConnectionLog | null;
   onSelectLog: (log: ConnectionLog) => void;
@@ -26,7 +28,7 @@ interface Props {
 }
 
 export function ConnectionLogsTable({
-  items, isLoading, agencyMap, selectedLog, onSelectLog, onCloseLog,
+  items, isLoading, isError = false, onRetry, agencyMap, selectedLog, onSelectLog, onCloseLog,
   page, totalPages, totalItems, onPageChange,
 }: Props) {
   return (
@@ -48,7 +50,21 @@ export function ConnectionLogsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.length === 0 ? (
+              {isError ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-10">
+                    <div role="alert" aria-live="assertive" className="flex flex-col items-center justify-center gap-2 text-destructive text-sm">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>เกิดข้อผิดพลาดในการโหลดข้อมูล</span>
+                      </div>
+                      {onRetry && (
+                        <Button variant="outline" size="sm" onClick={onRetry}>ลองอีกครั้ง</Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-10 text-sm">ไม่พบข้อมูล</TableCell>
                 </TableRow>

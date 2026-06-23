@@ -26,6 +26,7 @@ from opentelemetry.trace import StatusCode
 from tortoise.exceptions import DoesNotExist
 
 from app.auth.dependencies import get_current_user_optional
+from app.concurrency import spawn_logged
 from app.config import settings
 from app.models.connection_log import ConnectionLog
 from app.models.conversation import Conversation, Message
@@ -33,13 +34,14 @@ from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat.graph import build_graph
 from app.services.chat.llm import classify_message_category, extract_tag, store_embedding
+from app.services.chat.turn import save_turn
 from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
 from app.services.quota import QuotaExceeded, check_global_budget, check_user_quota
 from app.services.rate_limit import user_limiter
 from app.services.session import ensure_session_warmed
-from app.utils import generate_uuid, now
+from app.utils import generate_uuid
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 tracer = trace.get_tracer(__name__)
@@ -117,47 +119,22 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
 
     answer, category = extract_tag(answer, "category")
 
-    if not body.conversation_id:
-        conv = await Conversation.create(
-            id=conversation_id,
-            title=query[:settings.TITLE_MAX_LENGTH],
-            preview=query[:settings.PREVIEW_MAX_LENGTH],
-            agencies=[],
-            status="success",
-            message_count=2,  # 1 user + 1 assistant message per turn
-            response_time=response_time,
-            user_id=user.id if user else None,
-        )
-    else:
-        conv = await Conversation.get(id=conversation_id)
-        conv.message_count += 2  # 1 user + 1 assistant message per turn
-        await conv.save()
+    routes = result.get("routes", [])
+    results = result.get("results", [])
+    succeeded = bool(routes) and any(r.get("status") == "ok" for r in results)
 
-    query_msg = await Message.create(
-        conversation_id=conversation_id,
-        role="user",
-        content=query,
-        agent_steps=[],
-        sources=[],
-        category=category,
+    saved = await save_turn(
+        query=query, conversation_id=conversation_id, answer=answer,
+        references=references, category=category,
+        agency_ids=[str(ag["agency_id"]) for ag in routes],
+        response_time=response_time, user=user, succeeded=succeeded,
     )
-
-    asyncio.create_task(store_embedding(str(query_msg.id), query))
-
-    response_msg = await Message.create(
-        conversation_id=conversation_id,
-        role="assistant",
-        content=answer,
-        agent_steps=[],
-        sources=references,
-        response_time=response_time,
-        agency_ids=[str(ag["agency_id"]) for ag in result.get("routes", [])],
-    )
+    spawn_logged(store_embedding(saved.user_message_id, query), name="store_embedding")
 
     return {
         "success": True,
         "data": {
-            "message_id": response_msg.id,
+            "message_id": saved.assistant_message_id,
             "answer": answer,
             "references": references,
             "agentSteps": [],
@@ -253,56 +230,36 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                 if "agencies" in sec:
                     agency_ids.extend([ag["id"] for ag in sec["agencies"]])
 
-        if not body.conversation_id:
-            conv = await Conversation.create(
-                id=conversation_id,
-                title=query[:settings.TITLE_MAX_LENGTH],
-                preview=query[:settings.PREVIEW_MAX_LENGTH],
-                agencies=[],
-                status="success",
-                message_count=2,  # 1 user + 1 assistant message per turn
-                response_time=response_time,
-                user_id=user.id if user else None,
-                external_session_id=data.get("session_id"),
-            )
-        else:
-            conv.message_count += 2  # 1 user + 1 assistant message per turn
-            conv.updated_at = now()
-            await conv.save()
-
-        query_msg = await Message.create(conversation_id=conversation_id, role="user", content=query)
-        response_msg = await Message.create(
-            parent_id=query_msg.id,
-            conversation_id=conversation_id,
-            role="assistant",
-            content=answer,
-            response_time=response_time,
+        saved = await save_turn(
+            query=query, conversation_id=conversation_id, answer=answer,
+            references=data.get("references", []), category=None,
+            agency_ids=agency_ids, response_time=response_time, user=user,
+            succeeded=bool(answer), external_session_id=data.get("session_id"),
             errors=errors,
-            agency_ids=agency_ids,
         )
 
-        # Create ConnectionLog after messages so assistant_message_id can be set (enables v3 cache).
+        # Create ConnectionLog after save_turn so message IDs are available (enables v3 cache).
         # The logged detail/bodies are the raw upstream values, unchanged.
         await ConnectionLog.create(
             id=str(generate_uuid()),
             action="query",
             connection_type="external_chat",
-            status="success",
+            status="success" if answer else "error",
             latency_ms=response_time,
             detail=sanitize_body(f"Query: {query}\n\nAnswer: {raw_data}"),
             request_body=sanitize_body(json.dumps(payload)),
             response_body=sanitize_body(json.dumps(raw_data)),
-            message_id=query_msg.id,
-            assistant_message_id=response_msg.id,
+            message_id=saved.user_message_id,
+            assistant_message_id=saved.assistant_message_id,
         )
 
-        background_tasks.add_task(classify_message_category, str(query_msg.id), query, answer)
-        background_tasks.add_task(store_embedding, str(query_msg.id), query)
+        background_tasks.add_task(classify_message_category, saved.user_message_id, query, answer)
+        background_tasks.add_task(store_embedding, saved.user_message_id, query)
 
         return {
             "success": True,
             "data": {
-                "message_id": response_msg.id,
+                "message_id": saved.assistant_message_id,
                 "answer": answer,
                 "references": data.get("references", []),
                 "agentSteps": data.get("agentSteps", []),
@@ -543,6 +500,7 @@ async def _save_stream_conversation(
     user: User | None,
     background_tasks: BackgroundTasks,
 ) -> Any:
+    """Save a stream turn via save_turn and create the v4 ConnectionLog."""
     answer = answer_data.get("answer", "").strip()
     errors = answer_data.get("errors", [])
     sections = answer_data.get("sections", [])
@@ -554,49 +512,24 @@ async def _save_stream_conversation(
 
     response_time = total_ms if total_ms else latency_ms
 
-    try:
-        conv = await Conversation.get(id=conversation_id)
-        conv.message_count += 2  # 1 user + 1 assistant message per turn
-        conv.updated_at = now()
-        await conv.save()
-    except Exception:
-        await Conversation.create(
-            id=conversation_id,
-            title=query[:settings.TITLE_MAX_LENGTH],
-            preview=query[:settings.PREVIEW_MAX_LENGTH],
-            agencies=[],
-            status="success",
-            message_count=2,  # 1 user + 1 assistant message per turn
-            response_time=response_time,
-            user_id=user.id if user else None,
-            external_session_id=session_id,
-        )
-
-    query_msg = await Message.create(conversation_id=conversation_id, role="user", content=query)
-    assistant_msg = await Message.create(
-        parent_id=query_msg.id,
-        conversation_id=conversation_id,
-        role="assistant",
-        content=answer,
-        response_time=response_time,
-        errors=errors,
-        agency_ids=agency_ids,
+    saved = await save_turn(
+        query=query, conversation_id=conversation_id, answer=answer,
+        references=answer_data.get("references", []), category=None,
+        agency_ids=agency_ids, response_time=response_time, user=user,
+        succeeded=bool(answer), external_session_id=session_id, errors=errors,
     )
-
     await ConnectionLog.create(
         id=str(generate_uuid()),
         action="query",
         connection_type="external_chat_v4",
-        status="success",
+        status="success" if answer else "error",
         latency_ms=latency_ms,
         detail=sanitize_body(f"v4 stream query: {query[:100]}"),
         request_body=sanitize_body(json.dumps({"query": query, "session_id": conversation_id})),
         response_body=sanitize_body(json.dumps(answer_data, ensure_ascii=False)),
-        message_id=query_msg.id,
-        assistant_message_id=assistant_msg.id,
+        message_id=saved.user_message_id,
+        assistant_message_id=saved.assistant_message_id,
     )
-
-    background_tasks.add_task(classify_message_category, str(query_msg.id), query, answer)
-    background_tasks.add_task(store_embedding, str(query_msg.id), query)
-
-    return assistant_msg.id
+    background_tasks.add_task(classify_message_category, saved.user_message_id, query, answer)
+    background_tasks.add_task(store_embedding, saved.user_message_id, query)
+    return saved.assistant_message_id

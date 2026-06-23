@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import operator
 import re
 from dataclasses import dataclass, field
@@ -7,7 +8,9 @@ from typing import Annotated
 
 from langgraph.graph import END, START, StateGraph
 
-from app.models.agency import Agency
+logger = logging.getLogger(__name__)
+
+from app.services import agency_directory
 from app.services.chat.dispatch import dispatch_one
 from app.services.chat.llm import build_router_prompt, call_llm
 from app.services.circuit_breaker import record_dispatch_result
@@ -23,9 +26,22 @@ class AgentState:
     final_answer: str = ""
 
 
+def _parse_routes(text: str) -> list[dict]:
+    """Parse the router LLM output. Returns [] on any malformed output."""
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        logger.warning("router LLM returned non-JSON output; treating as no routes")
+        return []
+    routes = parsed.get("routes") if isinstance(parsed, dict) else None
+    if not isinstance(routes, list):
+        return []
+    return [r for r in routes if isinstance(r, dict) and r.get("agency_id")]
+
+
 async def load_agencies(state: AgentState) -> dict:
-    agencies = await Agency.filter(status="active").all().values()
-    return {"agencies": agencies}
+    agencies = await agency_directory.snapshot()
+    return {"agencies": agency_directory.prefilter(agencies, state.query)}
 
 
 async def route_query(state: AgentState) -> dict:
@@ -42,8 +58,9 @@ async def route_query(state: AgentState) -> dict:
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0]
 
-    parsed = json.loads(text)
-    routes = parsed.get("routes", [])
+    routes = _parse_routes(text)
+    if not routes:
+        return {"routes": []}
 
     agency_map = {ag["id"]: ag for ag in state.agencies}
     for route in routes:
@@ -119,10 +136,10 @@ def should_dispatch(state: AgentState) -> str:
     return "dispatch" if state.routes else "synthesize"
 
 
-def build_graph() -> StateGraph:
+def build_graph(agency_loader=None) -> StateGraph:
     graph = StateGraph(AgentState)
 
-    graph.add_node("load_agencies", load_agencies)
+    graph.add_node("load_agencies", agency_loader or load_agencies)
     graph.add_node("route_query", route_query)
     graph.add_node("dispatch", dispatch_to_agencies)
     graph.add_node("synthesize", synthesize)

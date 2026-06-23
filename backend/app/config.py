@@ -1,7 +1,19 @@
 import json
+import logging
+from dataclasses import dataclass, field
 from typing import get_origin
+from urllib.parse import parse_qs, unquote, urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class OverrideReport:
+    applied: list[str] = field(default_factory=list)
+    unknown: list[str] = field(default_factory=list)
+    invalid: list[str] = field(default_factory=list)
 
 DEFAULT_JWT_SECRET = "change-me-in-production-use-a-long-random-string"
 
@@ -16,6 +28,10 @@ class Settings(BaseSettings):
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatbot"
+
+    # ── Database pool ─────────────────────────────────────────────────────────
+    DB_POOL_MIN: int = 1
+    DB_POOL_MAX: int = 10
 
     # ── Redis (distributed rate limiting) ────────────────────────────────────
     REDIS_URL: str = ""           # empty = in-process limiter (single worker)
@@ -113,16 +129,22 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    def apply_overrides(self, overrides: dict[str, str]) -> None:
+    def apply_overrides(self, overrides: dict[str, str]) -> "OverrideReport":
+        report = OverrideReport()
         for key, raw_value in overrides.items():
-            field_info = self.model_fields.get(key)
+            field_info = self.__class__.model_fields.get(key)
             if field_info is None:
+                report.unknown.append(key)
+                logger.warning("ignoring unknown settings override key: %s", key)
                 continue
             try:
                 parsed = _deserialize(raw_value, field_info.annotation)
                 object.__setattr__(self, key, parsed)
+                report.applied.append(key)
             except Exception:
-                pass
+                report.invalid.append(key)
+                logger.warning("failed to parse override %s=%r; keeping default", key, raw_value)
+        return report
 
 
 def _deserialize(raw: str, annotation: type):
@@ -145,7 +167,7 @@ def assert_production_secrets(s: "Settings") -> None:
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
     "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
-    "Database": ["DATABASE_URL"],
+    "Database": ["DATABASE_URL", "DB_POOL_MIN", "DB_POOL_MAX"],
     "CORS": ["CORS_ORIGINS"],
     "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES", "EXPOSE_PASSWORD_RESET_TOKEN"],
     "Email": ["EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_USE_TLS", "EMAIL_USE_SSL", "EMAIL_SMTP_TIMEOUT", "FRONTEND_BASE_URL"],
@@ -175,18 +197,51 @@ async def load_settings_from_db() -> None:
     overrides = {row.key: row.value for row in rows}
     settings.apply_overrides(overrides)
 
-# Tortoise ORM config (used by aerich and register_tortoise)
-TORTOISE_ORM = {
-    "connections": {
-        "default": settings.DATABASE_URL,
-    },
-    "apps": {
-        "models": {
-            "models": [
-                "app.models",
-                "aerich.models",
-            ],
-            "default_connection": "default",
+
+def _build_tortoise_orm(s: "Settings") -> dict:
+    """Build Tortoise ORM config with asyncpg pool sizing for Postgres connections."""
+    _parsed = urlparse(s.DATABASE_URL)
+
+    if not _parsed.hostname:
+        raise ValueError(
+            f"DATABASE_URL is malformed (no hostname): {s.DATABASE_URL!r}"
+        )
+
+    # Parse query string; map sslmode -> ssl (asyncpg connect() accepts ssl="require" etc.).
+    # All other params (e.g. sslcert, sslrootcert) are forwarded as-is.
+    query_params: dict = {}
+    for key, values in parse_qs(_parsed.query).items():
+        val = values[-1]
+        query_params["ssl" if key == "sslmode" else key] = val
+
+    credentials: dict = {
+        "host": _parsed.hostname,
+        "port": _parsed.port or 5432,
+        "user": unquote(_parsed.username or ""),
+        "password": unquote(_parsed.password or ""),
+        "database": _parsed.path.lstrip("/"),
+        "minsize": s.DB_POOL_MIN,
+        "maxsize": s.DB_POOL_MAX,
+        **query_params,
+    }
+    return {
+        "connections": {
+            "default": {
+                "engine": "tortoise.backends.asyncpg",
+                "credentials": credentials,
+            }
+        },
+        "apps": {
+            "models": {
+                "models": [
+                    "app.models",
+                    "aerich.models",
+                ],
+                "default_connection": "default",
+            },
         },
     }
-}
+
+
+# Tortoise ORM config (used by aerich and register_tortoise)
+TORTOISE_ORM = _build_tortoise_orm(settings)

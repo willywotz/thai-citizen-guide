@@ -1,15 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { ThemeProvider } from "next-themes";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { server } from "@/mocks/server";
-
 import FeedbackPage from "./FeedbackPage";
-
-beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -21,6 +17,22 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+describe("FeedbackPage error state", () => {
+  it("shows an error alert when the feedback stats endpoint fails", async () => {
+    server.use(http.get("*/api/v1/feedback/stats", () => HttpResponse.error()));
+    renderPage();
+    // FeedbackSummaryCards shows inline error; QueryStateBoundary shows its own error card
+    await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
+    expect(screen.getAllByRole("button", { name: /ลองอีกครั้ง/ }).length).toBeGreaterThan(0);
+  });
+
+  it("shows empty state (not error) when stats succeed but totalRatings is 0", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Feedback ทั้งหมด")).toBeInTheDocument());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
 
 describe("FeedbackPage", () => {
   it("renders summary cards, charts, and low-rated questions from stats", async () => {

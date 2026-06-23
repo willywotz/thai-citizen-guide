@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,7 +43,15 @@ func main() {
 		}
 	}()
 
-	http.Handle("/agent-proxy/", &handler{pool: pool, tracer: otel.Tracer("agent-proxy")})
+	cache := newAgencyCache(func(ctx context.Context, id string) (agency, error) {
+		return getAgency(ctx, pool, id)
+	}, agencyCacheTTL())
+
+	http.Handle("/agent-proxy/", &handler{
+		pool:   pool,
+		tracer: otel.Tracer("agent-proxy"),
+		cache:  cache,
+	})
 	http.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok\n"))
 	})
@@ -52,6 +61,16 @@ func main() {
 		slog.Error("HTTP server error", slog.Any("error", err))
 		os.Exit(1)
 	}
+}
+
+func agencyCacheTTL() time.Duration {
+	if v := os.Getenv("AGENCY_CACHE_TTL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+		slog.Warn("invalid AGENCY_CACHE_TTL, using default", slog.String("value", v))
+	}
+	return 60 * time.Second
 }
 
 func mustPanic[T any](v T, err error) T {

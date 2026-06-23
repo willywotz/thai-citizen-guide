@@ -8,19 +8,39 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  e2e:
+    uses: ./.github/workflows/test-e2e.yaml
+    secrets: inherit
+
   deploy:
-    if: github.event.pull_request.merged || github.event_name == 'workflow_dispatch'
+    needs: [test, e2e]
     runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-      - run: |
-          cat > .env << 'EOF'
-          EXTERNAL_HTTP_PORT=80
-          EXTERNAL_POSTGRES_PORT=5432
+      - name: Check required secrets
+        run: |
+          : "${JWT_SECRET:?Secret JWT_SECRET is not set}"
+          : "${OPENROUTER_API_KEY:?Secret OPENROUTER_API_KEY is not set}"
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
-          OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
-          EOF
+      - name: Write .env
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          {
+            echo "ENV=production"
+            echo "EXTERNAL_HTTP_PORT=80"
+            echo "EXTERNAL_POSTGRES_PORT=5432"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
+          } > .env
 
       - run: docker compose -f docker-compose.yaml up -d --build --remove-orphans
