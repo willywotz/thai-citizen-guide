@@ -1,4 +1,5 @@
 import { api, tokenStorage } from '@/shared/lib/apiClient';
+import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
 import type { AgentStep } from '@/shared/types';
 import type {
   StepEvent, AgenciesEvent, IntentEvent, RoutingEvent,
@@ -44,6 +45,33 @@ export interface SSECallbacks {
   onAnswer?: (event: AnswerEvent) => void;
   onDone?: (event: DoneEvent) => void;
   onError?: (event: ErrorEvent) => void;
+}
+
+/** Sentinel value thrown by the idle timeout race. */
+const IDLE_TIMEOUT = Symbol('IDLE_TIMEOUT');
+
+/**
+ * Races reader.read() against a per-read idle deadline.
+ * Returns the read result, or throws IDLE_TIMEOUT if the deadline fires first.
+ * Cleans up the timer on each successful read.
+ */
+async function readWithIdleTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  timeoutMs: number,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<typeof IDLE_TIMEOUT>((resolve) => {
+    timer = setTimeout(() => resolve(IDLE_TIMEOUT), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([reader.read(), timeoutPromise]);
+    if (result === IDLE_TIMEOUT) throw IDLE_TIMEOUT;
+    return result as ReadableStreamReadResult<Uint8Array>;
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
 }
 
 /**
@@ -121,7 +149,18 @@ export async function sendChatQuerySSE(
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let done: boolean;
+      let value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await readWithIdleTimeout(reader, STREAM_IDLE_TIMEOUT_MS));
+      } catch (err) {
+        if (err === IDLE_TIMEOUT) {
+          // Stream silent for too long — surface via connection-lost path in useChat
+          callbacks.onError?.({ message: 'Stream idle timeout', code: 0 });
+          break;
+        }
+        throw err;
+      }
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
