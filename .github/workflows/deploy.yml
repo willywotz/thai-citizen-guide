@@ -8,8 +8,18 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/test.yml
+
+  e2e:
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/test-e2e.yaml
+    secrets: inherit
+
   deploy:
-    if: github.event.pull_request.merged || github.event_name == 'workflow_dispatch'
+    needs: [test, e2e]
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: self-hosted
 
     steps:
