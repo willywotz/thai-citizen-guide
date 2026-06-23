@@ -21,6 +21,8 @@ export interface ConnectionLogParams {
   limit?: number;
   search?: string;
   agencyId?: string;
+  status?: string;
+  connectionType?: string;
 }
 
 async function fetchConnectionLogs(params: ConnectionLogParams = {}): Promise<ConnectionLogResponse> {
@@ -29,13 +31,15 @@ async function fetchConnectionLogs(params: ConnectionLogParams = {}): Promise<Co
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.search) qs.set('search', params.search);
   if (params.agencyId) qs.set('agency_id', params.agencyId);
+  if (params.status) qs.set('status', params.status);
+  if (params.connectionType) qs.set('connection_type', params.connectionType);
   const query = qs.toString();
   return await api.get<ConnectionLogResponse>(`/api/v1/connection-logs${query ? `?${query}` : ''}`);
 }
 
 export function useConnectionLogs(params: ConnectionLogParams = {}) {
   return useQuery({
-    queryKey: ['connection-logs', params.agencyId ?? null, params.page ?? null, params.limit ?? null, params.search ?? null],
+    queryKey: ['connection-logs', params.agencyId ?? null, params.page ?? null, params.limit ?? null, params.search ?? null, params.status ?? null, params.connectionType ?? null],
     queryFn: () => fetchConnectionLogs(params),
     refetchInterval: REFETCH.normal,
     placeholderData: (prev) => prev,

@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchChatHistory } from '@/features/history/historyApi';
+import { fetchChatHistory, type FetchChatHistoryParams } from '@/features/history/historyApi';
 import { STALE_TIME } from '@/shared/constants/query';
 
-export function useChatHistory(search?: string, filterAgency?: string) {
+export function useChatHistory(params: FetchChatHistoryParams = {}) {
   return useQuery({
-    queryKey: ['chatHistory', search, filterAgency],
-    queryFn: () => fetchChatHistory(search, filterAgency),
+    queryKey: ['chatHistory', params.search, params.filterAgency, params.dateFrom, params.dateTo, params.page, params.pageSize],
+    queryFn: () => fetchChatHistory(params),
     staleTime: STALE_TIME.normal,
   });
 }

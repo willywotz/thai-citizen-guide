@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Badge } from "@/shared/components/ui/badge";
@@ -14,12 +14,11 @@ import type { HistoryItem } from "@/features/history/historyApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { exportToCsv, exportToPdf } from "@/features/history/exportHistory";
-import { format, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
+import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { cn } from "@/shared/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { PAGE_SIZE as PAGE_SIZES } from "@/shared/constants/query";
-import { usePaginatedFilter } from "@/shared/hooks/usePaginatedFilter";
 
 const PAGE_SIZE = PAGE_SIZES.history;
 
@@ -30,32 +29,25 @@ export default function HistoryPage() {
   const [deleteTarget, setDeleteTarget] = useState<HistoryItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const { data: conversations = [], isLoading } = useChatHistory(search, filterAgency || undefined);
+  const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
-  const dateFilterFn = useCallback(
-    (c: HistoryItem) => {
-      if (!dateRange?.from) return true;
-      const d = new Date(c.date);
-      if (dateRange.from && isBefore(d, startOfDay(dateRange.from))) return false;
-      if (dateRange.to && isAfter(d, endOfDay(dateRange.to))) return false;
-      return true;
-    },
-    [dateRange],
-  );
+  const dateFrom = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
+  const dateTo = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
 
-  const {
-    pageItems: paginatedConversations,
-    filteredItems: filteredConversations,
-    total,
-    totalPages,
-    page: safePage,
-    setPage,
-  } = usePaginatedFilter({
-    items: conversations,
+  const { data, isLoading } = useChatHistory({
+    search: search || undefined,
+    filterAgency: filterAgency || undefined,
+    dateFrom,
+    dateTo,
+    page,
     pageSize: PAGE_SIZE,
-    filterFn: dateFilterFn,
   });
+
+  const conversations = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -75,12 +67,12 @@ export default function HistoryPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">ประวัติการสนทนา</h2>
-        {filteredConversations.length > 0 && (
+        {conversations.length > 0 && (
           <div className="flex gap-1.5">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { exportToCsv(filteredConversations); toast.success("ส่งออก CSV เรียบร้อย"); }}
+              onClick={() => { exportToCsv(conversations); toast.success("ส่งออก CSV เรียบร้อย"); }}
             >
               <Download className="h-3.5 w-3.5 mr-1" />
               CSV
@@ -88,7 +80,7 @@ export default function HistoryPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { exportToPdf(filteredConversations); toast.success("ส่งออก PDF เรียบร้อย"); }}
+              onClick={() => { exportToPdf(conversations); toast.success("ส่งออก PDF เรียบร้อย"); }}
             >
               <FileText className="h-3.5 w-3.5 mr-1" />
               PDF
@@ -115,14 +107,6 @@ export default function HistoryPage() {
           >
             ทั้งหมด
           </button>
-          {/* {allAgencies.map((a) => (
-            <button key={a}
-              onClick={() => { setFilterAgency(filterAgency === a ? null : a); setPage(1); }}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filterAgency === a ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-accent'}`}
-            >
-              {a}
-            </button>
-          ))} */}
         </div>
 
         {/* Date range picker */}
@@ -165,7 +149,7 @@ export default function HistoryPage() {
             variant="ghost"
             size="sm"
             className="text-xs h-8 px-2 text-muted-foreground"
-            onClick={() => setDateRange(undefined)}
+            onClick={() => { setDateRange(undefined); setPage(1); }}
           >
             <X className="h-3.5 w-3.5 mr-1" />
             ล้างวันที่
@@ -183,7 +167,7 @@ export default function HistoryPage() {
       {/* Conversation list */}
       {!isLoading && (
         <div className="space-y-2">
-          {paginatedConversations.map((conv) => (
+          {conversations.map((conv) => (
             <Card key={conv.id} className="cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => setSelectedConv(conv)}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
