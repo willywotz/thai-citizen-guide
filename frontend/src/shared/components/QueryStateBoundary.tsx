@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, InboxIcon } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Skeleton } from "@/shared/components/ui/skeleton";
@@ -10,6 +10,7 @@ interface QueryStateBoundaryProps {
   hasData: boolean;
   onRetry?: () => void;
   loading?: ReactNode;
+  emptyMessage?: string;
   children: ReactNode;
 }
 
@@ -19,6 +20,7 @@ export function QueryStateBoundary({
   hasData,
   onRetry,
   loading,
+  emptyMessage = "ไม่พบข้อมูล",
   children,
 }: QueryStateBoundaryProps) {
   if (isLoading) {
@@ -37,9 +39,9 @@ export function QueryStateBoundary({
     );
   }
 
-  if (isError || !hasData) {
+  if (isError) {
     return (
-      <div className="p-6">
+      <div className="p-6" role="alert" aria-live="assertive">
         <Card className="border-destructive/50">
           <CardContent className="p-8 text-center space-y-3">
             <AlertCircle className="h-10 w-10 mx-auto text-destructive" />
@@ -49,6 +51,19 @@ export function QueryStateBoundary({
                 ลองอีกครั้ง
               </Button>
             )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!hasData) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-8 text-center space-y-3">
+            <InboxIcon className="h-10 w-10 mx-auto text-muted-foreground" />
+            <p className="text-muted-foreground">{emptyMessage}</p>
           </CardContent>
         </Card>
       </div>

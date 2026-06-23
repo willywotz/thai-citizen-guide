@@ -33,13 +33,42 @@ describe("QueryStateBoundary", () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
-  it("shows error UI with AlertCircle icon when isError is true", () => {
+  it("shows error card with role=alert when isError is true", () => {
     render(
       <QueryStateBoundary isLoading={false} isError hasData={false} onRetry={vi.fn()}>
         x
       </QueryStateBoundary>,
     );
     expect(screen.queryByText("x")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("ไม่สามารถโหลดข้อมูลได้")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ลองอีกครั้ง/ })).toBeInTheDocument();
+  });
+
+  it("shows distinct empty state (not error) when success but no data", () => {
+    render(
+      <QueryStateBoundary isLoading={false} isError={false} hasData={false}>
+        x
+      </QueryStateBoundary>,
+    );
+    expect(screen.queryByText("x")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("ไม่สามารถโหลดข้อมูลได้")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /ลองอีกครั้ง/ })).not.toBeInTheDocument();
+    expect(screen.getByText("ไม่พบข้อมูล")).toBeInTheDocument();
+  });
+
+  it("renders custom emptyMessage when provided", () => {
+    render(
+      <QueryStateBoundary
+        isLoading={false}
+        isError={false}
+        hasData={false}
+        emptyMessage="ยังไม่มีข้อมูลสุขภาพ"
+      >
+        x
+      </QueryStateBoundary>,
+    );
+    expect(screen.getByText("ยังไม่มีข้อมูลสุขภาพ")).toBeInTheDocument();
   });
 });
