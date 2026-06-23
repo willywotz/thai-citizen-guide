@@ -1,26 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { ChatMessage, AgentStep, StreamingState } from '@/shared/types';
-import { sendChatQuery, sendChatQuerySSE } from '@/features/chat/chatApi';
+import type { ChatMessage, AgentStep } from '@/shared/types';
+import { sendChatQuery } from '@/features/chat/chatApi';
 import { updateMessageRating } from '@/features/chat/feedbackApi';
 import { mockAgentSteps } from '@/shared/data/mockData';
 import { generateUniqueId } from '@/shared/lib/utils';
 import {
-  INITIAL_STREAMING_STATE,
-  applyStepEvent,
-  applyAgenciesEvent,
-  applyIntentEvent,
-  applyRoutingEvent,
-  applyAgencyStartEvent,
-  applyAgencyRespondedEvent,
-  applyAgencyVerifiedEvent,
-  applyAnswerEvent,
-  applyDoneEvent,
-  applyErrorEvent,
   buildAiMessageFromState,
   buildConnectionLostMessage,
   buildGenericErrorMessage,
   formatTimestamp,
 } from './chatHelpers';
+import { useChatStream } from './useChatStream';
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -28,15 +18,10 @@ export function useChat() {
   const [isTyping, setIsTyping] = useState(false);
   const [activeStepCount, setActiveStepCount] = useState(0);
   const [currentSteps, setCurrentSteps] = useState<AgentStep[]>(mockAgentSteps);
-  const [streamingState, setStreamingState] = useState<StreamingState>(INITIAL_STREAMING_STATE);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  // Ref to always have latest streaming state in closures
-  const streamingRef = useRef<StreamingState>(INITIAL_STREAMING_STATE);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // B7: abort in-flight SSE on unmount to prevent state updates after unmount
-  useEffect(() => () => abortRef.current?.abort(), []);
+  const { streamingState, streamingRef, abortRef, startStream, cancelStream: streamCancel, resetStream } = useChatStream();
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,15 +45,13 @@ export function useChat() {
   }, []);
 
   const cancelStream = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
+    streamCancel();
     setIsTyping(false);
     setActiveStepCount(0);
-    setStreamingState(INITIAL_STREAMING_STATE);
-    streamingRef.current = INITIAL_STREAMING_STATE;
-  }, []);
+  }, [streamCancel]);
 
   const finalizeStreaming = useCallback(() => {
+    // Read from streamingRef.current (always synchronous / latest) — same as original.
     const state = streamingRef.current;
     state.sessionId && setConversationId(state.sessionId);
     const aiMsg = buildAiMessageFromState(state);
@@ -83,7 +66,7 @@ export function useChat() {
     }
     setIsTyping(false);
     setActiveStepCount(0);
-  }, []);
+  }, [streamingRef]);
 
   const handleSend = useCallback(async (text?: string) => {
     const question = text || input.trim();
@@ -99,40 +82,14 @@ export function useChat() {
     setInput('');
     setIsTyping(true);
     setActiveStepCount(0);
-    const freshState = { ...INITIAL_STREAMING_STATE };
-    setStreamingState(freshState);
-    streamingRef.current = freshState;
-
-    const abortController = new AbortController();
-    abortRef.current = abortController;
-
-    // Callbacks update state via setStreamingState + streamingRef
-    const applyAndSet = <E>(applyFn: (prev: StreamingState, event: E) => StreamingState) =>
-      (event: E) => {
-        const next = applyFn(streamingRef.current, event);
-        streamingRef.current = next;
-        setStreamingState(next);
-      };
-
-    const onStep = applyAndSet(applyStepEvent);
-    const onAgencies = applyAndSet(applyAgenciesEvent);
-    const onIntent = applyAndSet(applyIntentEvent);
-    const onRouting = applyAndSet(applyRoutingEvent);
-    const onAgencyStart = applyAndSet(applyAgencyStartEvent);
-    const onAgencyResponded = applyAndSet(applyAgencyRespondedEvent);
-    const onAgencyVerified = applyAndSet(applyAgencyVerifiedEvent);
-    const onAnswer = applyAndSet(applyAnswerEvent);
-    const onDone = applyAndSet(applyDoneEvent);
-    const onError = applyAndSet(applyErrorEvent);
 
     try {
-      const usedSSE = await sendChatQuerySSE(
-        { query: question, conversation_id: conversationId || undefined },
-        { onStep, onAgencies, onIntent, onRouting, onAgencyStart, onAgencyResponded, onAgencyVerified, onAnswer, onDone, onError },
-        abortController.signal,
-      );
+      const { usedSSE, aborted } = await startStream({
+        query: question,
+        conversation_id: conversationId || undefined,
+      });
 
-      if (abortController.signal.aborted) return;
+      if (aborted) return;
 
       if (usedSSE) {
         finalizeStreaming();
@@ -172,11 +129,10 @@ export function useChat() {
       setActiveStepCount(0);
       setIsTyping(false);
       // B8: reset stale streaming state so pipeline steps don't leak into the next send
-      setStreamingState(INITIAL_STREAMING_STATE);
-      streamingRef.current = INITIAL_STREAMING_STATE;
+      resetStream();
       setMessages((prev) => [...prev, buildGenericErrorMessage()]);
     }
-  }, [input, isTyping, finalizeStreaming]);
+  }, [input, isTyping, finalizeStreaming, startStream, conversationId, resetStream]);
 
   const reset = useCallback(() => {
     setMessages([]);
@@ -185,10 +141,8 @@ export function useChat() {
     setInput('');
     setCurrentSteps(mockAgentSteps);
     setConversationId(null);
-    setStreamingState(INITIAL_STREAMING_STATE);
-    streamingRef.current = INITIAL_STREAMING_STATE;
-    abortRef.current?.abort();
-  }, []);
+    resetStream();
+  }, [resetStream]);
 
   return {
     messages,
