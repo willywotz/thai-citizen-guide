@@ -2,6 +2,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from typing import get_origin
+from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -27,6 +28,10 @@ class Settings(BaseSettings):
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatbot"
+
+    # ── Database pool ─────────────────────────────────────────────────────────
+    DB_POOL_MIN: int = 1
+    DB_POOL_MAX: int = 10
 
     # ── Redis (distributed rate limiting) ────────────────────────────────────
     REDIS_URL: str = ""           # empty = in-process limiter (single worker)
@@ -162,7 +167,7 @@ def assert_production_secrets(s: "Settings") -> None:
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
     "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
-    "Database": ["DATABASE_URL"],
+    "Database": ["DATABASE_URL", "DB_POOL_MIN", "DB_POOL_MAX"],
     "CORS": ["CORS_ORIGINS"],
     "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES", "EXPOSE_PASSWORD_RESET_TOKEN"],
     "Email": ["EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_USE_TLS", "EMAIL_USE_SSL", "EMAIL_SMTP_TIMEOUT", "FRONTEND_BASE_URL"],
@@ -192,18 +197,37 @@ async def load_settings_from_db() -> None:
     overrides = {row.key: row.value for row in rows}
     settings.apply_overrides(overrides)
 
-# Tortoise ORM config (used by aerich and register_tortoise)
-TORTOISE_ORM = {
-    "connections": {
-        "default": settings.DATABASE_URL,
-    },
-    "apps": {
-        "models": {
-            "models": [
-                "app.models",
-                "aerich.models",
-            ],
-            "default_connection": "default",
+
+def _build_tortoise_orm(s: "Settings") -> dict:
+    """Build Tortoise ORM config with asyncpg pool sizing for Postgres connections."""
+    _parsed = urlparse(s.DATABASE_URL)
+    credentials: dict = {
+        "host": _parsed.hostname,
+        "port": _parsed.port or 5432,
+        "user": _parsed.username,
+        "password": _parsed.password,
+        "database": _parsed.path.lstrip("/"),
+        "minsize": s.DB_POOL_MIN,
+        "maxsize": s.DB_POOL_MAX,
+    }
+    return {
+        "connections": {
+            "default": {
+                "engine": "tortoise.backends.asyncpg",
+                "credentials": credentials,
+            }
+        },
+        "apps": {
+            "models": {
+                "models": [
+                    "app.models",
+                    "aerich.models",
+                ],
+                "default_connection": "default",
+            },
         },
     }
-}
+
+
+# Tortoise ORM config (used by aerich and register_tortoise)
+TORTOISE_ORM = _build_tortoise_orm(settings)
