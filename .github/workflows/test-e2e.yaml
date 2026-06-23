@@ -26,6 +26,16 @@ jobs:
         env:
           EXTERNAL_HTTP_PORT: "8080"
 
+      - name: Check required secrets
+        run: |
+          : "${E2E_ADMIN_EMAIL:?Secret E2E_ADMIN_EMAIL is not set}"
+          : "${E2E_ADMIN_PASSWORD:?Secret E2E_ADMIN_PASSWORD is not set}"
+          : "${E2E_TEST_USER_PASSWORD:?Secret E2E_TEST_USER_PASSWORD is not set}"
+        env:
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+
       - name: Wait for admin bootstrap
         env:
           ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
