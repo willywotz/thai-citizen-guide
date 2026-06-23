@@ -333,4 +333,25 @@ describe("ApiKeysPage delete flow", () => {
     await waitFor(() => expect(screen.queryByText("ยืนยันการลบ")).not.toBeInTheDocument());
     expect(mockDeleteAPIKey).not.toHaveBeenCalled();
   });
+
+  it("calls deleteAPIKey with the correct id when confirm ลบ is clicked", async () => {
+    mockListAPIKeys.mockResolvedValue([makeKey({ id: "k1", name: "Key To Delete" })]);
+    mockDeleteAPIKey.mockResolvedValue({ detail: "deleted" });
+
+    renderPage();
+
+    await screen.findByText("Key To Delete");
+    await userEvent.click(screen.getByRole("button", { name: "ลบ" }));
+
+    await screen.findByText("ยืนยันการลบ");
+
+    const allBtns = screen.getAllByRole("button");
+    const confirmBtn = allBtns.find(
+      (b) => b.textContent?.trim() === "ลบ" && !b.hasAttribute("aria-label"),
+    );
+    await userEvent.click(confirmBtn!);
+
+    await waitFor(() => expect(mockDeleteAPIKey).toHaveBeenCalledWith("k1"));
+    await waitFor(() => expect(screen.queryByText("ยืนยันการลบ")).not.toBeInTheDocument());
+  });
 });

@@ -15,12 +15,13 @@ import type { APIKey } from "./apiKeyApi";
 interface Props {
   target: APIKey | null;
   name: string;
-  mutation: UseMutationResult<APIKey, Error, void>;
+  mutation: UseMutationResult<APIKey, Error, { id: string; name: string }>;
   onNameChange: (v: string) => void;
+  onSave: () => void;
   onClose: () => void;
 }
 
-export function EditApiKeyDialog({ target, name, mutation, onNameChange, onClose }: Props) {
+export function EditApiKeyDialog({ target, name, mutation, onNameChange, onSave, onClose }: Props) {
   return (
     <Dialog open={!!target} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent>
@@ -33,7 +34,7 @@ export function EditApiKeyDialog({ target, name, mutation, onNameChange, onClose
             id="edit-name"
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) mutation.mutate(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) onSave(); }}
           />
         </div>
         <DialogFooter>
@@ -41,7 +42,7 @@ export function EditApiKeyDialog({ target, name, mutation, onNameChange, onClose
             ยกเลิก
           </Button>
           <Button
-            onClick={() => mutation.mutate()}
+            onClick={onSave}
             disabled={!name.trim() || mutation.isPending}
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}

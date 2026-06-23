@@ -14,11 +14,12 @@ import type { APIKey } from "./apiKeyApi";
 
 interface Props {
   target: APIKey | null;
-  mutation: UseMutationResult<{ detail: string }, Error, void>;
+  mutation: UseMutationResult<{ detail: string }, Error, string>;
+  onConfirm: () => void;
   onClose: () => void;
 }
 
-export function DeleteApiKeyDialog({ target, mutation, onClose }: Props) {
+export function DeleteApiKeyDialog({ target, mutation, onConfirm, onClose }: Props) {
   return (
     <AlertDialog open={!!target} onOpenChange={(o) => { if (!o) onClose(); }}>
       <AlertDialogContent>
@@ -31,7 +32,7 @@ export function DeleteApiKeyDialog({ target, mutation, onClose }: Props) {
         <AlertDialogFooter>
           <AlertDialogCancel disabled={mutation.isPending}>ยกเลิก</AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => mutation.mutate()}
+            onClick={onConfirm}
             disabled={mutation.isPending}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >

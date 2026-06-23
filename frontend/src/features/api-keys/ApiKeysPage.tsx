@@ -81,7 +81,7 @@ export default function ApiKeysPage() {
   const [editTarget, setEditTarget] = useState<APIKey | null>(null);
   const [editName, setEditName] = useState("");
   const editMutation = useMutation({
-    mutationFn: () => updateAPIKey(editTarget!.id, editName.trim()),
+    mutationFn: ({ id, name }: { id: string; name: string }) => updateAPIKey(id, name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["apiKeys"] });
       toast.success("แก้ไขชื่อเรียบร้อย");
@@ -98,7 +98,7 @@ export default function ApiKeysPage() {
   // Delete
   const [deleteTarget, setDeleteTarget] = useState<APIKey | null>(null);
   const deleteMutation = useMutation({
-    mutationFn: () => deleteAPIKey(deleteTarget!.id),
+    mutationFn: (id: string) => deleteAPIKey(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["apiKeys"] });
       toast.success("ลบ API Key เรียบร้อย");
@@ -158,12 +158,14 @@ export default function ApiKeysPage() {
         name={editName}
         mutation={editMutation}
         onNameChange={setEditName}
+        onSave={() => editMutation.mutate({ id: editTarget!.id, name: editName.trim() })}
         onClose={() => setEditTarget(null)}
       />
 
       <DeleteApiKeyDialog
         target={deleteTarget}
         mutation={deleteMutation}
+        onConfirm={() => deleteMutation.mutate(deleteTarget!.id)}
         onClose={() => setDeleteTarget(null)}
       />
     </div>
