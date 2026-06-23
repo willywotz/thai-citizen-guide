@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { z } from "zod";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -8,7 +7,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import type { Agency, ApiHeader } from "@/shared/types/agency";
 
-import { parseExpectedPayload } from "../agencyForm";
+import { invalidHeaderIndices, isUrlValid, parseExpectedPayload } from "../agencyForm";
 import { useUpdateAgency } from "../useAgencies";
 import { HeadersEditor } from "../wizard/HeadersEditor";
 
@@ -22,7 +21,8 @@ export function ConnectionTab({ agency }: { agency: Agency }) {
   const [mcpToolName, setMcpToolName] = useState(agency.mcpToolName ?? "");
 
   const { value: parsedPayload, error: payloadError } = parseExpectedPayload(payloadRaw);
-  const urlValid = z.string().url().safeParse(endpointUrl).success;
+  const urlInvalid = endpointUrl.length > 0 && !isUrlValid(endpointUrl);
+  const badHeaders = invalidHeaderIndices(apiHeaders);
 
   const save = async () => {
     try {
@@ -44,13 +44,15 @@ export function ConnectionTab({ agency }: { agency: Agency }) {
       <div className="space-y-1.5">
         <Label htmlFor="conn-endpoint">Endpoint URL</Label>
         <Input id="conn-endpoint" placeholder="https://…" value={endpointUrl} onChange={(e) => setEndpointUrl(e.target.value)} />
+        {urlInvalid && <p className="text-xs text-destructive">URL ไม่ถูกต้อง</p>}
       </div>
 
       {agency.connectionType === "API" && (
         <>
           <div className="space-y-1.5">
             <Label>Headers</Label>
-            <HeadersEditor headers={apiHeaders} onChange={setApiHeaders} />
+            <HeadersEditor headers={apiHeaders} onChange={setApiHeaders} invalidIndices={badHeaders} />
+            {badHeaders.length > 0 && <p className="text-xs text-destructive">กรุณากรอก Header name และ Value ให้ครบ</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="conn-payload">Expected payload (JSON template)</Label>
@@ -74,7 +76,7 @@ export function ConnectionTab({ agency }: { agency: Agency }) {
         </div>
       )}
 
-      <Button onClick={save} disabled={updateMutation.isPending || payloadError || !urlValid}>
+      <Button onClick={save} disabled={updateMutation.isPending || payloadError || urlInvalid || badHeaders.length > 0 || endpointUrl.length === 0}>
         {updateMutation.isPending ? "กำลังบันทึก…" : "บันทึก"}
       </Button>
     </div>

@@ -48,4 +48,42 @@ describe("StepConnection", () => {
     await userEvent.click(screen.getByRole("button", { name: "MCP" }));
     expect(patch).toHaveBeenCalledWith({ connectionType: "MCP" });
   });
+
+  it("shows URL error message when endpoint URL is invalid", () => {
+    const form: AgencyFormState = { ...DEFAULT_FORM_STATE, endpointUrl: "not-a-valid-url" };
+    render(wrap(<StepConnection form={form} patch={vi.fn()} />));
+    expect(screen.getByText("URL ไม่ถูกต้อง")).toBeInTheDocument();
+  });
+
+  it("does not show URL error message when endpoint URL is empty", () => {
+    const form: AgencyFormState = { ...DEFAULT_FORM_STATE, endpointUrl: "" };
+    render(wrap(<StepConnection form={form} patch={vi.fn()} />));
+    expect(screen.queryByText("URL ไม่ถูกต้อง")).not.toBeInTheDocument();
+  });
+
+  it("does not show URL error message when endpoint URL is valid", () => {
+    const form: AgencyFormState = { ...DEFAULT_FORM_STATE, endpointUrl: "https://api.example.com" };
+    render(wrap(<StepConnection form={form} patch={vi.fn()} />));
+    expect(screen.queryByText("URL ไม่ถูกต้อง")).not.toBeInTheDocument();
+  });
+
+  it("shows header error message when a header has a value but no name (API type)", () => {
+    const form: AgencyFormState = {
+      ...DEFAULT_FORM_STATE,
+      connectionType: "API",
+      apiHeaders: [{ name: "", value: "bearer-token" }],
+    };
+    render(wrap(<StepConnection form={form} patch={vi.fn()} />));
+    expect(screen.getAllByText("กรุณากรอก Header name และ Value ให้ครบ").length).toBeGreaterThan(0);
+  });
+
+  it("does not show header error message for entirely empty rows (API type)", () => {
+    const form: AgencyFormState = {
+      ...DEFAULT_FORM_STATE,
+      connectionType: "API",
+      apiHeaders: [{ name: "", value: "" }],
+    };
+    render(wrap(<StepConnection form={form} patch={vi.fn()} />));
+    expect(screen.queryByText("กรุณากรอก Header name และ Value ให้ครบ")).not.toBeInTheDocument();
+  });
 });

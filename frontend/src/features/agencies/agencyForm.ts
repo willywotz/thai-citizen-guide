@@ -122,11 +122,29 @@ export function isStepGeneralValid(s: Pick<AgencyFormState, "name" | "shortName"
   return Boolean(s.name.trim() && s.shortName.trim());
 }
 
+export function isUrlValid(url: string): boolean {
+  return z.string().url().safeParse(url).success;
+}
+
+/** Returns indices of header rows that are partially filled and invalid.
+ * A row is invalid when it has a value but a blank/empty name, or a name but a blank/empty value.
+ * Entirely empty rows ({ name: "", value: "" }) are ignored — they are not errors.
+ */
+export function invalidHeaderIndices(headers: ApiHeader[]): number[] {
+  return headers.reduce<number[]>((acc, h, i) => {
+    const hasName = h.name.trim().length > 0;
+    const hasValue = h.value.trim().length > 0;
+    // Partial rows: one side filled, the other empty
+    if ((hasName && !hasValue) || (!hasName && hasValue)) acc.push(i);
+    return acc;
+  }, []);
+}
+
 export function isStepConnectionValid(
-  s: Pick<AgencyFormState, "connectionType" | "endpointUrl" | "mcpToolName">,
+  s: Pick<AgencyFormState, "connectionType" | "endpointUrl" | "mcpToolName" | "apiHeaders">,
 ): boolean {
-  const urlResult = z.string().url().safeParse(s.endpointUrl);
-  if (!urlResult.success) return false;
+  if (!isUrlValid(s.endpointUrl)) return false;
+  if (invalidHeaderIndices(s.apiHeaders).length > 0) return false;
   if (s.connectionType === "MCP") return Boolean(s.mcpToolName.trim());
   return true;
 }

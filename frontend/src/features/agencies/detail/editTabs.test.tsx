@@ -63,6 +63,46 @@ describe("ConnectionTab", () => {
     expect(screen.getByPlaceholderText("https://…")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/"query": "__query__"/)).toBeInTheDocument();
   });
+
+  it("shows URL error message when endpoint URL is invalid", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    const input = screen.getByLabelText("Endpoint URL");
+    await user.clear(input);
+    await user.type(input, "not-a-valid-url");
+    expect(screen.getByText("URL ไม่ถูกต้อง")).toBeInTheDocument();
+  });
+
+  it("does not show URL error message when endpoint URL is empty", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    const input = screen.getByLabelText("Endpoint URL");
+    await user.clear(input);
+    expect(screen.queryByText("URL ไม่ถูกต้อง")).not.toBeInTheDocument();
+  });
+
+  it("disables save button when a header has a value but no name", async () => {
+    const user = userEvent.setup();
+    const agency = activeAgency();
+    render(wrap(<ConnectionTab agency={{ ...agency, apiHeaders: [{ name: "", value: "bearer-token" }] }} />));
+    expect(screen.getByRole("button", { name: /บันทึก/ })).toBeDisabled();
+  });
+
+  it("does not disable save button for entirely empty header rows", async () => {
+    const user = userEvent.setup();
+    render(wrap(<ConnectionTab agency={activeAgency()} />));
+    // activeAgency has a valid URL, adding an empty header row should not block
+    const addBtn = screen.getByRole("button", { name: /เพิ่ม header/ });
+    await user.click(addBtn);
+    // Save button should still be enabled (empty row is not an error)
+    expect(screen.getByRole("button", { name: /บันทึก/ })).not.toBeDisabled();
+  });
+
+  it("shows header error message when a header has a value but no name", () => {
+    const agency = activeAgency();
+    render(wrap(<ConnectionTab agency={{ ...agency, apiHeaders: [{ name: "", value: "bearer-token" }] }} />));
+    expect(screen.getAllByText("กรุณากรอก Header name และ Value ให้ครบ").length).toBeGreaterThan(0);
+  });
 });
 
 describe("RoutingTab", () => {
