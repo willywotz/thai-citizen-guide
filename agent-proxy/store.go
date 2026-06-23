@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -19,8 +20,12 @@ func getAgency(ctx context.Context, pool *pgxpool.Pool, id string) (agency, erro
 }
 
 func insertConnectionLog(ctx context.Context, pool *pgxpool.Pool, agencyID, status string, latency int64, detail, requestBody, responseBody string) error {
+	id, err := uuidV7()
+	if err != nil {
+		return fmt.Errorf("generate log id: %w", err)
+	}
 	const q = "insert into connection_logs (id, action, connection_type, status, latency_ms, detail, created_at, agency_id, request_body, response_body) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
-	_, err := pool.Exec(ctx, q, uuidV7(), "proxy", "API", status, latency, detail, now(), agencyID, requestBody, responseBody)
+	_, err = pool.Exec(ctx, q, id, "proxy", "API", status, latency, detail, now(), agencyID, requestBody, responseBody)
 	return err
 }
 
