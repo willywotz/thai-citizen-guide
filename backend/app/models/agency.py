@@ -40,6 +40,10 @@ class Agency(Model):
     # Set True when the health rule auto-set maintenance; lets only rule-set
     # maintenance be auto-reactivated. Cleared on every manual status change.
     auto_maintenance = fields.BooleanField(default=False)
+    # Baseline for health measures: rows older than this are ignored by
+    # error_window / embedded_health / health_history. Set on each connection
+    # test. NULL = count all history.
+    stats_reset_at = fields.DatetimeField(null=True)
 
     # Scope
     data_scope = fields.JSONField(default=list)                 # list[str]
