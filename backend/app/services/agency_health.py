@@ -24,16 +24,20 @@ async def _rows(agency_id: UUID, since: datetime) -> list[dict]:
     ).order_by("created_at").values("status", "latency_ms", "created_at")
 
 
-async def error_window(agency_id: UUID) -> tuple[int, int]:
+async def error_window(agency_id: UUID, reset_at: datetime | None = None) -> tuple[int, int]:
     """Return (checks, failures) over the trailing 24h for an agency."""
     since = now() - timedelta(hours=24)
+    if reset_at and reset_at > since:
+        since = reset_at
     rows = await _rows(agency_id, since)
     failures = sum(1 for r in rows if r["status"] != "success")
     return len(rows), failures
 
 
-async def embedded_health(agency_id: UUID) -> dict:
+async def embedded_health(agency_id: UUID, reset_at: datetime | None = None) -> dict:
     since = now() - timedelta(hours=24)
+    if reset_at and reset_at > since:
+        since = reset_at
     rows = await _rows(agency_id, since)
     if not rows:
         return {"state": "unknown", "uptime_24h": None, "avg_latency_ms_24h": None, "last_check_at": None}
@@ -56,11 +60,14 @@ async def embedded_health(agency_id: UUID) -> dict:
     }
 
 
-async def health_history(agency_id: UUID, window: str) -> list[dict]:
+async def health_history(agency_id: UUID, window: str, reset_at: datetime | None = None) -> list[dict]:
     count, step = _WINDOW.get(window, _WINDOW["24h"])
     end = now()
     start = end - count * step
-    rows = await _rows(agency_id, start)
+    row_since = start
+    if reset_at and reset_at > start:
+        row_since = reset_at
+    rows = await _rows(agency_id, row_since)
     buckets = []
     for i in range(count):
         b_start = start + i * step
