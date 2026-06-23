@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Badge } from "@/shared/components/ui/badge";
@@ -19,6 +19,7 @@ import { th } from "date-fns/locale";
 import { cn } from "@/shared/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { PAGE_SIZE as PAGE_SIZES } from "@/shared/constants/query";
+import { usePaginatedFilter } from "@/shared/hooks/usePaginatedFilter";
 
 const PAGE_SIZE = PAGE_SIZES.history;
 
@@ -29,28 +30,32 @@ export default function HistoryPage() {
   const [deleteTarget, setDeleteTarget] = useState<HistoryItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [page, setPage] = useState(1);
   const { data: conversations = [], isLoading } = useChatHistory(search, filterAgency || undefined);
   const queryClient = useQueryClient();
 
-  // Filter by date range client-side
-  const filteredConversations = useMemo(() => {
-    if (!dateRange?.from) return conversations;
-    return conversations.filter((c) => {
+  const dateFilterFn = useCallback(
+    (c: HistoryItem) => {
+      if (!dateRange?.from) return true;
       const d = new Date(c.date);
       if (dateRange.from && isBefore(d, startOfDay(dateRange.from))) return false;
       if (dateRange.to && isAfter(d, endOfDay(dateRange.to))) return false;
       return true;
-    });
-  }, [conversations, dateRange]);
+    },
+    [dateRange],
+  );
 
-  // Reset page when filters change
-  const totalPages = Math.max(1, Math.ceil(filteredConversations.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const paginatedConversations = useMemo(() => {
-    const start = (safePage - 1) * PAGE_SIZE;
-    return filteredConversations.slice(start, start + PAGE_SIZE);
-  }, [filteredConversations, safePage]);
+  const {
+    pageItems: paginatedConversations,
+    filteredItems: filteredConversations,
+    total,
+    totalPages,
+    page: safePage,
+    setPage,
+  } = usePaginatedFilter({
+    items: conversations,
+    pageSize: PAGE_SIZE,
+    filterFn: dateFilterFn,
+  });
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -218,7 +223,7 @@ export default function HistoryPage() {
               </CardContent>
             </Card>
           ))}
-          {filteredConversations.length === 0 && (
+          {total === 0 && (
             <p className="text-center text-sm text-muted-foreground py-12">ไม่พบผลลัพธ์</p>
           )}
 
@@ -226,7 +231,7 @@ export default function HistoryPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-muted-foreground">
-                แสดง {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredConversations.length)} จาก {filteredConversations.length} รายการ
+                แสดง {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, total)} จาก {total} รายการ
               </span>
               <div className="flex items-center gap-1">
                 <Button

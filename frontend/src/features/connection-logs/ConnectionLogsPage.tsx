@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Activity, RefreshCw } from "lucide-react";
 import { useConnectionLogs, useConnectionLogInfo } from "./useConnectionLogs";
@@ -10,6 +10,7 @@ import { ConnectionLogStats } from "./ConnectionLogStats";
 import { ConnectionLogFilters } from "./ConnectionLogFilters";
 import { ConnectionLogsTable } from "./ConnectionLogsTable";
 import { PAGE_SIZE as PAGE_SIZES } from "@/shared/constants/query";
+import { usePaginatedFilter } from "@/shared/hooks/usePaginatedFilter";
 
 const PAGE_SIZE = PAGE_SIZES.connectionLogs;
 
@@ -36,12 +37,21 @@ export default function ConnectionLogsPage() {
     [agencies]
   );
 
-  const filtered = useMemo(() => items.filter((log) => {
-    if (filterStatus && log.status !== filterStatus) return false;
-    if (filterType && log.connection_type !== filterType) return false;
-    if (filterAgency && log.agency_id !== filterAgency) return false;
-    return true;
-  }), [items, filterStatus, filterType, filterAgency]);
+  const logFilterFn = useCallback(
+    (log: ConnectionLog) => {
+      if (filterStatus && log.status !== filterStatus) return false;
+      if (filterType && log.connection_type !== filterType) return false;
+      if (filterAgency && log.agency_id !== filterAgency) return false;
+      return true;
+    },
+    [filterStatus, filterType, filterAgency],
+  );
+
+  const { filteredItems: filtered } = usePaginatedFilter({
+    items,
+    pageSize: PAGE_SIZE,
+    filterFn: logFilterFn,
+  });
 
   const hasFilters = !!(filterStatus || filterType || filterAgency || search);
 

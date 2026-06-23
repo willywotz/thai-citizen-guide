@@ -11,6 +11,7 @@ import {
 import { ScrollText } from 'lucide-react';
 import { useAuditLog } from './useAuditLog';
 import { PAGE_SIZE as PAGE_SIZES } from '@/shared/constants/query';
+import { usePaginatedFilter } from '@/shared/hooks/usePaginatedFilter';
 
 const PAGE_SIZE = PAGE_SIZES.audit;
 
@@ -35,7 +36,17 @@ export default function AuditLogPage() {
   const [action, setAction] = useState<string>(ALL);
   const [objectType, setObjectType] = useState<string>(ALL);
   const [actor, setActor] = useState('');
-  const [offset, setOffset] = useState(0);
+
+  // resetKey changes whenever server-side filters change → hook resets page to 1
+  const resetKey = `${action}|${objectType}|${actor}`;
+
+  const { page, setPage } = usePaginatedFilter({
+    items: [] as never[],
+    pageSize: PAGE_SIZE,
+    resetKey,
+  });
+
+  const offset = (page - 1) * PAGE_SIZE;
 
   const { data, isLoading, isError } = useAuditLog({
     action: action === ALL ? undefined : action,
@@ -47,12 +58,8 @@ export default function AuditLogPage() {
 
   const entries = data?.data ?? [];
   const total = data?.total ?? 0;
-  const hasNext = offset + PAGE_SIZE < total;
-
-  function resetOffset(fn: () => void) {
-    fn();
-    setOffset(0);
-  }
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasNext = page < totalPages;
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -62,7 +69,7 @@ export default function AuditLogPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={action} onValueChange={(v) => resetOffset(() => setAction(v))}>
+        <Select value={action} onValueChange={setAction}>
           <SelectTrigger className="w-56">
             <SelectValue placeholder="การกระทำทั้งหมด" />
           </SelectTrigger>
@@ -74,7 +81,7 @@ export default function AuditLogPage() {
           </SelectContent>
         </Select>
 
-        <Select value={objectType} onValueChange={(v) => resetOffset(() => setObjectType(v))}>
+        <Select value={objectType} onValueChange={setObjectType}>
           <SelectTrigger className="w-44">
             <SelectValue placeholder="ประเภทอ็อบเจกต์ทั้งหมด" />
           </SelectTrigger>
@@ -89,7 +96,7 @@ export default function AuditLogPage() {
         <Input
           placeholder="ค้นหาอีเมลผู้กระทำ..."
           value={actor}
-          onChange={(e) => resetOffset(() => setActor(e.target.value))}
+          onChange={(e) => setActor(e.target.value)}
           className="max-w-xs"
         />
       </div>
@@ -146,8 +153,8 @@ export default function AuditLogPage() {
           <Button
             variant="outline"
             size="sm"
-            disabled={offset === 0}
-            onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
           >
             ก่อนหน้า
           </Button>
@@ -155,7 +162,7 @@ export default function AuditLogPage() {
             variant="outline"
             size="sm"
             disabled={!hasNext}
-            onClick={() => setOffset((o) => o + PAGE_SIZE)}
+            onClick={() => setPage(page + 1)}
           >
             ถัดไป
           </Button>
