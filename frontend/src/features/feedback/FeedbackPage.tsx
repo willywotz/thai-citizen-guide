@@ -11,11 +11,12 @@ import {
   Line,
   Legend,
 } from "recharts";
-import { ThumbsDown, MessageSquareWarning } from "lucide-react";
+import { ThumbsDown } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { QueryStateBoundary } from "@/shared/components/QueryStateBoundary";
 import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
 import { FeedbackSummaryCards } from "@/features/feedback/FeedbackSummaryCards";
 import { CustomTooltip } from "@/features/feedback/chartTooltip";
@@ -23,7 +24,7 @@ import { CustomTooltip } from "@/features/feedback/chartTooltip";
 export default function FeedbackPage() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
-  const { data: stats, isLoading } = useFeedbackStats();
+  const { data: stats, isLoading, isError, refetch } = useFeedbackStats();
 
   const colors = useMemo(
     () => ({
@@ -44,19 +45,16 @@ export default function FeedbackPage() {
 
       <FeedbackSummaryCards />
 
-      {isLoading ? (
-        <Skeleton className="h-72" />
-      ) : !stats || stats.totalRatings === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <MessageSquareWarning className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">ยังไม่มีข้อมูล Feedback</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              ข้อมูลจะแสดงเมื่อผู้ใช้เริ่มให้คะแนนคำตอบ
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
+      <QueryStateBoundary
+        isLoading={isLoading}
+        isError={isError}
+        hasData={!!stats && stats.totalRatings > 0}
+        onRetry={refetch}
+        emptyMessage="ยังไม่มีข้อมูล Feedback"
+        loading={<Skeleton className="h-72" />}
+      >
+        {/* empty state rendered by QueryStateBoundary when hasData=false */}
+        {stats && stats.totalRatings > 0 && (
         <>
           <div className="grid lg:grid-cols-2 gap-4">
             <Card>
@@ -194,7 +192,8 @@ export default function FeedbackPage() {
             </Card>
           )}
         </>
-      )}
+        )}
+      </QueryStateBoundary>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
-import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity, ThumbsDown } from "lucide-react";
+import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity, ThumbsDown, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTheme } from "next-themes";
 
@@ -33,13 +33,15 @@ export default function DashboardPage() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
-  const { data: stats, isLoading: statsLoading, dataUpdatedAt } = useDashboardStats();
-  const { data: agencyUsage } = useAgencyUsage();
-  const { data: weeklyTrend } = useWeeklyTrend();
-  const { data: categoryStats } = useCategoryData();
+  const { data: stats, isLoading: statsLoading, isError: statsError, dataUpdatedAt, refetch: refetchStats } = useDashboardStats();
+  const { data: agencyUsage, isError: agencyUsageError } = useAgencyUsage();
+  const { data: weeklyTrend, isError: weeklyTrendError } = useWeeklyTrend();
+  const { data: categoryStats, isError: categoryError } = useCategoryData();
   const { data: agencies = [] } = useAgencies();
   const { data: feedbackStats } = useFeedbackStats();
   const { data: llmUsage = [] } = useLlmUsage("model");
+
+  const anyError = statsError || agencyUsageError || weeklyTrendError || categoryError;
 
   const chartColors = useMemo(() => ({
     grid: isDark ? "hsl(220 15% 25%)" : "hsl(214 25% 92%)",
@@ -77,6 +79,13 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
+      {anyError && (
+        <div role="alert" aria-live="assertive" className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>เกิดข้อผิดพลาดในการโหลดข้อมูล</span>
+          <button onClick={() => refetchStats()} className="ml-auto underline text-xs">ลองอีกครั้ง</button>
+        </div>
+      )}
       <div className="flex items-center justify-between animate-fade-in">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Dashboard สถิติการใช้งาน</h2>

@@ -24,7 +24,7 @@ export default function ConnectionLogsPage() {
   const [selectedLog, setSelectedLog] = useState<ConnectionLog | null>(null);
 
   const { data: logInfo } = useConnectionLogInfo();
-  const { data, isLoading, isFetching } = useConnectionLogs({ page, limit: PAGE_SIZE, search });
+  const { data, isLoading, isFetching, isError } = useConnectionLogs({ page, limit: PAGE_SIZE, search });
 
   const items = data?.items ?? [];
   const totalItems = data?.total_items ?? 0;
@@ -77,7 +77,7 @@ export default function ConnectionLogsPage() {
       />
 
       <ConnectionLogsTable
-        items={filtered} isLoading={isLoading} agencyMap={agencyMap}
+        items={filtered} isLoading={isLoading} isError={isError} agencyMap={agencyMap}
         selectedLog={selectedLog} onSelectLog={setSelectedLog} onCloseLog={() => setSelectedLog(null)}
         page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage}
       />

@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { ThemeProvider } from "next-themes";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
+import { server } from "@/mocks/server";
 import DashboardPage from "./DashboardPage";
 
 function renderPage() {
@@ -18,6 +20,15 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+describe("DashboardPage error state", () => {
+  it("shows an error alert when the dashboard stats endpoint fails", async () => {
+    server.use(http.get("*/api/v1/dashboard/stats", () => HttpResponse.error()));
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByText(/เกิดข้อผิดพลาด/)).toBeInTheDocument();
+  });
+});
 
 describe("DashboardPage feedback section", () => {
   it("shows the summary cards and a link to the feedback page", async () => {

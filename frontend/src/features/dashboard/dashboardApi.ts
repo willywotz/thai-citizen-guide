@@ -24,39 +24,23 @@ async function fetchFromApi(): Promise<DashboardApiResponse> {
 }
 
 export async function fetchDashboardStats(): Promise<typeof dashboardStats> {
-  try {
-    const res = await fetchFromApi();
-    return res.data.stats;
-  } catch {
-    return dashboardStats;
-  }
+  const res = await fetchFromApi();
+  return res.data.stats;
 }
 
 export async function fetchAgencyUsage(): Promise<typeof agencyUsageData> {
-  try {
-    const res = await fetchFromApi();
-    return res.data.agencyUsage;
-  } catch {
-    return [];
-  }
+  const res = await fetchFromApi();
+  return res.data.agencyUsage;
 }
 
 export async function fetchWeeklyTrend(): Promise<typeof weeklyTrendData> {
-  try {
-    const res = await fetchFromApi();
-    return res.data.weeklyTrend;
-  } catch {
-    return [];
-  }
+  const res = await fetchFromApi();
+  return res.data.weeklyTrend;
 }
 
 export async function fetchCategoryData(): Promise<typeof categoryData> {
-  try {
-    const res = await fetchFromApi();
-    return res.data.categoryData;
-  } catch {
-    return [];
-  }
+  const res = await fetchFromApi();
+  return res.data.categoryData;
 }
 
 export async function fetchLlmUsage(groupBy: string = "model"): Promise<LlmUsageRow[]> {

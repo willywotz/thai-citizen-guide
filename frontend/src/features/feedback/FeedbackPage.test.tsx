@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { ThemeProvider } from "next-themes";
 import { describe, expect, it } from "vitest";
 
+import { server } from "@/mocks/server";
 import FeedbackPage from "./FeedbackPage";
 
 function renderPage() {
@@ -15,6 +17,22 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+describe("FeedbackPage error state", () => {
+  it("shows an error alert when the feedback stats endpoint fails", async () => {
+    server.use(http.get("*/api/v1/feedback/stats", () => HttpResponse.error()));
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByText(/ไม่สามารถโหลดข้อมูลได้/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ลองอีกครั้ง/ })).toBeInTheDocument();
+  });
+
+  it("shows empty state (not error) when stats succeed but totalRatings is 0", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Feedback ทั้งหมด")).toBeInTheDocument());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
 
 describe("FeedbackPage", () => {
   it("renders summary cards, charts, and low-rated questions from stats", async () => {
