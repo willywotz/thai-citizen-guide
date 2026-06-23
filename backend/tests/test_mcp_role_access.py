@@ -73,6 +73,58 @@ async def test_inactive_user_returns_none(db):
     assert resolved is None
 
 
+@pytest.mark.asyncio
+async def test_fetch_agencies_stable_ids_across_payload_keys():
+    """Repeated __user_id__ / __conversation_id__ placeholders in one response
+    must resolve to the SAME value (ids resolved once, not per key)."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from app.mcp import server
+
+    ctx = MagicMock()
+    # Simulate no stored ids so defaults are generated.
+    ctx.get_state = AsyncMock(return_value=None)
+
+    # Agency with two payload keys carrying __user_id__ and two __conversation_id__.
+    agency = {
+        "id": "a1",
+        "name": "A",
+        "status": "active",
+        "description": "d",
+        "connection_type": "API",
+        "data_scope": [],
+        "endpoint_url": "http://e/",
+        "expected_payload": {
+            "uid1": "__user_id__",
+            "uid2": "prefix-__user_id__",
+            "cid1": "__conversation_id__",
+            "cid2": "tag-__conversation_id__",
+        },
+        "api_headers": [],
+    }
+
+    with patch.object(server.Agency, "all", return_value=MagicMock(
+        values=AsyncMock(return_value=[agency])
+    )), patch.object(server, "get_http_request", return_value=MagicMock(
+        headers={"X-Forwarded-Host": "example.test"},
+        url=MagicMock(scheme="https"),
+    )):
+        agencies = await server._fetch_agencies(ctx)
+
+    payload = agencies[0]["expected_payload"]
+
+    # Both uid* values must be equal (same resolved id).
+    assert payload["uid1"] == payload["uid2"].removeprefix("prefix-"), (
+        f"user_id not stable: uid1={payload['uid1']!r} uid2={payload['uid2']!r}"
+    )
+    # Both cid* values must be equal.
+    assert payload["cid1"] == payload["cid2"].removeprefix("tag-"), (
+        f"conversation_id not stable: cid1={payload['cid1']!r} cid2={payload['cid2']!r}"
+    )
+    # Values must not be the placeholder strings themselves.
+    assert "__user_id__" not in payload["uid1"]
+    assert "__conversation_id__" not in payload["cid1"]
+
+
 def test_mcp_server_module_has_no_role_check():
     """Structural guard: AuthMiddleware source must not contain role gating.
 

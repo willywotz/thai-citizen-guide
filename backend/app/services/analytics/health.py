@@ -18,51 +18,92 @@ async def get_agency_health() -> AgencyHealthData:
 
         agencies = await Agency.all().values("id", "name", "short_name", "status")
 
-        agencies_health = []
+        if not agencies:
+            return AgencyHealthData(
+                agencies=[],
+                historical=[],
+                incidents=[],
+                slaCompliance=[],
+                generatedAt=now(),
+            )
 
+        current_cutoff = now() - timedelta(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES)
+        week_cutoff = now() - timedelta(days=7)
+        day_cutoff = now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)
+
+        placeholder = "$1" if conn.capabilities.dialect == "postgres" else "?"
+
+        current_latency_rows = await conn.execute_query_dict(
+            f"""
+            SELECT agency_id, AVG(latency_ms) AS avg_latency
+            FROM connection_logs
+            WHERE created_at >= {placeholder}
+            GROUP BY agency_id
+            """,
+            [current_cutoff],
+        )
+        current_latency = {str(r["agency_id"]): r["avg_latency"] for r in current_latency_rows}
+
+        avg_latency_rows = await conn.execute_query_dict(
+            f"""
+            SELECT agency_id, AVG(latency_ms) AS avg_latency
+            FROM connection_logs
+            WHERE created_at >= {placeholder}
+            GROUP BY agency_id
+            """,
+            [week_cutoff],
+        )
+        avg_latency = {str(r["agency_id"]): r["avg_latency"] for r in avg_latency_rows}
+
+        error_rate_rows = await conn.execute_query_dict(
+            f"""
+            SELECT agency_id,
+                   COUNT(*) AS total_count,
+                   SUM(CASE WHEN status <> 'success' THEN 1 ELSE 0 END) AS error_count
+            FROM connection_logs
+            WHERE created_at >= {placeholder}
+            GROUP BY agency_id
+            """,
+            [week_cutoff],
+        )
+        error_stats = {
+            str(r["agency_id"]): (r["total_count"], r["error_count"])
+            for r in error_rate_rows
+        }
+
+        day_count_rows = await conn.execute_query_dict(
+            f"""
+            SELECT agency_id, COUNT(*) AS total
+            FROM connection_logs
+            WHERE created_at >= {placeholder}
+            GROUP BY agency_id
+            """,
+            [day_cutoff],
+        )
+        day_counts = {str(r["agency_id"]): r["total"] for r in day_count_rows}
+
+        agencies_health = []
         for ag in agencies:
+            ag_id = str(ag["id"])
             status = {"active": "healthy"}.get(ag["status"], "down")
 
-            currentLatency = await ConnectionLog \
-                .annotate(avg_latency=RawSQL("AVG(latency_ms)")) \
-                .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES)) \
-                .group_by("agency_id") \
-                .values("avg_latency")
-            currentLatency = currentLatency[0]["avg_latency"] if len(currentLatency) > 0 and currentLatency[0]["avg_latency"] is not None else 0
-
-            avgLatency = await ConnectionLog \
-                .annotate(avg_latency=RawSQL("AVG(latency_ms)")) \
-                .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=7)) \
-                .group_by("agency_id") \
-                .values("avg_latency")
-            avgLatency = avgLatency[0]["avg_latency"] if len(avgLatency) > 0 and avgLatency[0]["avg_latency"] is not None else 0
-
-            # Assumption: status == 'success' marks success; anything else is a failure.
-            # Consistent with ConnectionLog usage elsewhere ("success" on HTTP 200, "error" otherwise).
-            errorRateRow = await ConnectionLog \
-                .annotate(error_count=RawSQL("SUM(CASE WHEN status <> 'success' THEN 1 ELSE 0 END)"), total_count=RawSQL("COUNT(*)")) \
-                .filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=7)) \
-                .group_by("agency_id") \
-                .values("error_count", "total_count")
-            total_count = errorRateRow[0]["total_count"] if len(errorRateRow) > 0 else 0
-            error_count = errorRateRow[0]["error_count"] if len(errorRateRow) > 0 else 0
-            errorRate = (error_count / total_count * 100) if total_count > 0 else 0
-
-            totalDayRequest = await ConnectionLog.filter(agency_id=ag["id"], created_at__gte=now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)).count()
+            cur_lat = current_latency.get(ag_id) or 0
+            avg_lat = avg_latency.get(ag_id) or 0
+            total_count, error_count = error_stats.get(ag_id, (0, 0))
+            error_rate = (error_count / total_count * 100) if total_count else 0
+            total_day = day_counts.get(ag_id, 0)
 
             agencies_health.append(AgencyHealth(
-                id=str(ag["id"]),
+                id=ag_id,
                 name=ag["name"],
                 shortName=ag["short_name"],
                 status=status,
-                uptime=round(100.0 - errorRate, 2),
-                currentLatency=currentLatency // 1,
-                avgLatency=avgLatency // 1,
-                errorRate=round(errorRate, 2),
-                # Float division: low-traffic agencies (< AVG_LATENCY_WINDOW_DAYS*1440 requests)
-                # would floor to 0 with integer division; use round() for a meaningful rate.
-                requestsPerMin=round(totalDayRequest / (settings.AVG_LATENCY_WINDOW_DAYS * 1440), 2),
-                lastCheckedAt=now()
+                uptime=round(100.0 - error_rate, 2),
+                currentLatency=cur_lat // 1,
+                avgLatency=avg_lat // 1,
+                errorRate=round(error_rate, 2),
+                requestsPerMin=round(total_day / (settings.AVG_LATENCY_WINDOW_DAYS * 1440), 2),
+                lastCheckedAt=now(),
             ))
 
         rawHistorical = await ConnectionLog \
@@ -76,14 +117,11 @@ async def get_agency_health() -> AgencyHealthData:
             .values("date", "agency_id", "latency", "uptime")
 
         historical = {}
-
         for entry in rawHistorical:
             date = entry["date"]
             agency_id = str(entry["agency_id"])
-
             if date not in historical:
                 historical[date] = {"time": date}
-
             historical[date][f"{agency_id}_latency"] = entry["latency"] // 1
             historical[date][f"{agency_id}_uptime"] = round(entry["uptime"], 2)
 
@@ -94,5 +132,5 @@ async def get_agency_health() -> AgencyHealthData:
         historical=historical,
         incidents=[],
         slaCompliance=[],
-        generatedAt=now()
+        generatedAt=now(),
     )
