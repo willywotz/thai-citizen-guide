@@ -6,11 +6,53 @@ import { agencyUsageData, categoryData, dashboardStats, weeklyTrendData } from "
 
 import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies, mockFeedbackStats, row } from "./fixtures";
 
+const MOCK_AGENCY_HEALTH = {
+  agencies: [
+    { id: "rd", name: "กรมสรรพากร", shortName: "RD", status: "healthy", uptime: 99.2, currentLatency: 320, avgLatency: 310, errorRate: 0.1, requestsPerMin: 42, lastCheckedAt: "2026-06-23T08:00:00Z" },
+    { id: "fda", name: "สำนักงานอาหารและยา", shortName: "อย.", status: "degraded", uptime: 71.0, currentLatency: 1230, avgLatency: 1100, errorRate: 2.4, requestsPerMin: 12, lastCheckedAt: "2026-06-23T08:00:00Z" },
+  ],
+  historical: [
+    { time: "00:00", rd_latency: 310, fda_latency: 1100 },
+    { time: "01:00", rd_latency: 290, fda_latency: 1200 },
+  ],
+  incidents: [],
+  slaCompliance: [
+    { agency: "กรมสรรพากร", uptime: 99.2, target: 99.0, met: true },
+  ],
+  generatedAt: "2026-06-23T08:00:00Z",
+};
+
+const MOCK_HEATMAP = {
+  range: "7d" as const,
+  days: 7,
+  sampleSize: 1000,
+  totalMessages: 5000,
+  days_labels: ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"],
+  hours: Array.from({ length: 24 }, (_, i) => i),
+  agencies: [{ id: "rd", name: "กรมสรรพากร" }],
+  hourlyByAgency: [{ agency: "กรมสรรพากร", agencyId: "rd", data: Array(24).fill(10) }],
+  dayHourMatrix: [{ day: "จ", dayIndex: 1, data: Array(24).fill(5) }],
+  insights: {
+    peakDay: "พุธ",
+    peakHour: "10:00",
+    peakValue: 150,
+    totalRequests: 1000,
+    businessHoursPercent: 80,
+    busiest: { agency: "กรมสรรพากร", total: 500, peakHour: 10 },
+    recommendation: "เพิ่มทรัพยากรช่วง 09-11 น.",
+  },
+  generatedAt: "2026-06-23T08:00:00Z",
+};
+
 function findAgency(id: string): AgencyRow | undefined {
   return mockAgencies.find((a) => a.id === id);
 }
 
 export const handlers = [
+  http.get("*/api/v1/agency-health", () => HttpResponse.json(MOCK_AGENCY_HEALTH)),
+
+  http.get("*/api/v1/usage-heatmap", () => HttpResponse.json(MOCK_HEATMAP)),
+
   http.get("*/api/v1/dashboard/stats", () =>
     HttpResponse.json({
       success: true,
