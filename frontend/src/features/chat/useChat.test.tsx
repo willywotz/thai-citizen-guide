@@ -5,6 +5,7 @@ import {
   INITIAL_STREAMING_STATE,
   applyErrorEvent,
   buildAiMessageFromState,
+  buildConnectionLostMessage,
   buildGenericErrorMessage,
 } from './chatHelpers';
 
@@ -152,6 +153,57 @@ describe('B8/S1 — error + no answer produces an error bubble (pure logic)', ()
     // finalizeStreaming will use aiMsg branch, not the error branch
     const shouldShowError = !aiMsg && withAnswer.done && withAnswer.errors.length > 0;
     expect(shouldShowError).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SSE idle timeout → connection-lost bubble
+// ---------------------------------------------------------------------------
+
+describe('SSE idle timeout routes to connection-lost bubble', () => {
+  it('shows buildConnectionLostMessage() when SSE returns true but state.done is false', async () => {
+    // Simulate what chatApi does on idle timeout: resolves true (SSE was used)
+    // but never calls onDone or onError, leaving state.done = false.
+    mockSendSSE.mockResolvedValue(true);
+
+    const { result } = renderHook(() => useChat());
+
+    await act(async () => {
+      await result.current.handleSend('test question');
+    });
+
+    // finalizeStreaming runs: buildAiMessageFromState returns null (no answer),
+    // state.done is false → connection-lost branch
+    const expectedContent = buildConnectionLostMessage().content;
+    await waitFor(() => {
+      const aiMessages = result.current.messages.filter((m) => m.role === 'assistant');
+      expect(aiMessages).toHaveLength(1);
+      expect(aiMessages[0].content).toBe(expectedContent);
+    });
+  });
+
+  it('does NOT show connection-lost bubble when SSE error event fires (generic error branch)', async () => {
+    // Simulate SSE error event: calls onError which sets state.done = true
+    mockSendSSE.mockImplementation(async (_req, callbacks) => {
+      callbacks.onError?.({ message: 'backend exploded', code: 500 });
+      return true;
+    });
+
+    const { result } = renderHook(() => useChat());
+
+    await act(async () => {
+      await result.current.handleSend('test question');
+    });
+
+    const expectedGenericContent = buildGenericErrorMessage().content;
+    const connectionLostContent = buildConnectionLostMessage().content;
+    await waitFor(() => {
+      const aiMessages = result.current.messages.filter((m) => m.role === 'assistant');
+      expect(aiMessages).toHaveLength(1);
+      // Generic error bubble, NOT connection-lost bubble
+      expect(aiMessages[0].content).toBe(expectedGenericContent);
+      expect(aiMessages[0].content).not.toBe(connectionLostContent);
+    });
   });
 });
 

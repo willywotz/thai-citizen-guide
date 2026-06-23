@@ -19,19 +19,11 @@ function sseChunk(event: string, data: unknown): Uint8Array {
  * Returns an MSW handler for POST /api/v1/chat/stream that:
  * 1. Immediately enqueues `initialChunk` into the stream.
  * 2. Never closes the stream (simulating a hung server).
- *
- * The returned `streamController` lets you manually close the stream in tests.
  */
-function makeHangingSSEHandler(initialChunk: Uint8Array): {
-  handler: ReturnType<typeof http.post>;
-  closeStream: () => void;
-} {
-  let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
-
-  const handler = http.post('*/api/v1/chat/stream', () => {
+function makeHangingSSEHandler(initialChunk: Uint8Array): ReturnType<typeof http.post> {
+  return http.post('*/api/v1/chat/stream', () => {
     const stream = new ReadableStream<Uint8Array>({
       start(c) {
-        streamController = c;
         c.enqueue(initialChunk);
         // Do NOT call c.close() — hang forever
       },
@@ -42,11 +34,6 @@ function makeHangingSSEHandler(initialChunk: Uint8Array): {
       headers: { 'Content-Type': 'text/event-stream' },
     });
   });
-
-  return {
-    handler,
-    closeStream: () => streamController?.close(),
-  };
 }
 
 /**
@@ -83,11 +70,11 @@ describe('sendChatQuerySSE — idle timeout', () => {
     vi.useRealTimers();
   });
 
-  it('RED → GREEN: fires connection-lost (onError) when stream hangs past STREAM_IDLE_TIMEOUT_MS', async () => {
-    const { handler } = makeHangingSSEHandler(
-      sseChunk('step', { step: 'thinking' }),
-    );
-    server.use(handler);
+  it('cancels the reader and does NOT call onError when stream hangs past STREAM_IDLE_TIMEOUT_MS', async () => {
+    server.use(makeHangingSSEHandler(sseChunk('step', { step: 'thinking' })));
+
+    // Spy on ReadableStreamDefaultReader.prototype.cancel to detect stream teardown
+    const cancelSpy = vi.spyOn(ReadableStreamDefaultReader.prototype, 'cancel');
 
     const onError = vi.fn();
     const onStep = vi.fn();
@@ -107,12 +94,13 @@ describe('sendChatQuerySSE — idle timeout', () => {
 
     // The step event was received before the hang
     expect(onStep).toHaveBeenCalledTimes(1);
-    // After timeout, the connection-lost path fires via onError
-    expect(onError).toHaveBeenCalledTimes(1);
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.any(String) }),
-    );
-  });
+    // Idle timeout does NOT call onError — routes to connection-lost via !state.done
+    expect(onError).not.toHaveBeenCalled();
+    // The reader must have been cancelled to tear down the underlying stream/connection
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+
+    cancelSpy.mockRestore();
+  }, 15_000);
 
   it('does NOT fire onError when stream completes normally within the timeout', async () => {
     server.use(makeCompletingSSEHandler());

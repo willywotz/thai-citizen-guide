@@ -147,6 +147,7 @@ export async function sendChatQuerySSE(
     }
   };
 
+  let idleTimeout = false;
   try {
     while (true) {
       let done: boolean;
@@ -155,8 +156,14 @@ export async function sendChatQuerySSE(
         ({ done, value } = await readWithIdleTimeout(reader, STREAM_IDLE_TIMEOUT_MS));
       } catch (err) {
         if (err === IDLE_TIMEOUT) {
-          // Stream silent for too long — surface via connection-lost path in useChat
-          callbacks.onError?.({ message: 'Stream idle timeout', code: 0 });
+          // Stream silent for too long — cancel the underlying stream so the
+          // HTTP connection is torn down (fixes the socket/stream leak), then
+          // break WITHOUT marking state.done so finalizeStreaming shows the
+          // connection-lost bubble rather than the generic error bubble.
+          // Fire-and-forget: cancel() may not resolve if the server is truly
+          // hung, so we don't await it. releaseLock() is called in finally.
+          idleTimeout = true;
+          reader.cancel().catch(() => {});
           break;
         }
         throw err;
@@ -169,10 +176,15 @@ export async function sendChatQuerySSE(
       for (const part of parts) dispatch(part);
     }
   } finally {
-    reader.releaseLock();
-
-    // Flush any event not terminated with \n\n
-    dispatch(buffer);
+    // On idle timeout, cancel() is already in-flight (fire-and-forget) and will
+    // release the lock asynchronously — skip releaseLock() to avoid a TypeError
+    // from calling it while a read() is still pending.
+    // On all other paths (normal completion or thrown error), releaseLock() is safe.
+    if (!idleTimeout) {
+      reader.releaseLock();
+      // Flush any event not terminated with \n\n
+      dispatch(buffer);
+    }
   }
 
   return true;
