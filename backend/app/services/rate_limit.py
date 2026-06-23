@@ -168,7 +168,7 @@ class RedisSlidingWindowLimiter:
         recovered = _redis_health.record_success()
         if recovered is not None:
             logger.info(
-                "rate limiter: Redis recovered after %d request(s) failed open",
+                "rate limiter: Redis recovered after %d request(s) degraded to in-process limiter",
                 recovered,
             )
         return RateLimitResult(bool(allowed), int(retry))

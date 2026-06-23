@@ -42,6 +42,8 @@ async def save_turn(
             conv.message_count += 2
             conv.updated_at = now()
             if not succeeded:
+                # One-way ratchet: once "failed", status is never restored to "success",
+                # keeping the conversation out of the similarity cache on recovery.
                 conv.status = "failed"
             await conv.save()
         except DoesNotExist:
