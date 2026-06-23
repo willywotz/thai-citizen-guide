@@ -72,11 +72,11 @@ services:
     networks:
       - chatbot-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
-      interval: 30s
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 15s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 20s
     volumes:
       - backend-uv-cache:/root/.cache/uv
 
@@ -94,11 +94,11 @@ services:
     networks:
       - chatbot-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
-      interval: 30s
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 15s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 20s
     volumes:
       - agent-proxy-go-modules:/go/pkg/mod
       - agent-proxy-go-build-cache:/root/.cache/go-build
@@ -114,10 +114,10 @@ services:
       - chatbot-network
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 20s
     volumes:
       - frontend-pnpm-store:/pnpm/store
 
