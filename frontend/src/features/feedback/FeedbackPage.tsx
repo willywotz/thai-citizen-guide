@@ -19,7 +19,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { QueryStateBoundary } from "@/shared/components/QueryStateBoundary";
 import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
 import { FeedbackSummaryCards } from "@/features/feedback/FeedbackSummaryCards";
-import { CustomTooltip } from "@/features/feedback/chartTooltip";
+import { ChartTooltip } from "@/shared/components/ChartTooltip";
 
 export default function FeedbackPage() {
   const { resolvedTheme } = useTheme();
@@ -85,7 +85,7 @@ export default function FeedbackPage() {
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<ChartTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Line
                       type="monotone"
@@ -140,7 +140,7 @@ export default function FeedbackPage() {
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<ChartTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="up" name="👍" stackId="a" fill={colors.up} radius={[0, 0, 0, 0]} />
                     <Bar

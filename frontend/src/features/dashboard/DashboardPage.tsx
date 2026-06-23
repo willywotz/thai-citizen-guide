@@ -14,20 +14,7 @@ import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
 import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData, useLlmUsage } from "./useDashboard";
 import { DashboardStatsRow } from "./DashboardStatsRow";
 import { DashboardAgencyStatus } from "./DashboardAgencyStatus";
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border bg-card px-3 py-2 shadow-lg">
-      <p className="text-xs font-medium text-foreground">{label}</p>
-      {payload.map((p: any, i: number) => (
-        <p key={i} className="text-xs text-muted-foreground">
-          {p.name}: <span className="font-semibold text-foreground">{p.value?.toLocaleString()}</span>
-        </p>
-      ))}
-    </div>
-  );
-};
+import { ChartTooltip } from "@/shared/components/ChartTooltip";
 
 export default function DashboardPage() {
   const { resolvedTheme } = useTheme();
@@ -123,7 +110,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="questions" name="คำถาม" stroke={chartColors.primary}
                   strokeWidth={2.5} fill="url(#gradientQuestions)"
                   dot={{ r: 4, fill: chartColors.primary, stroke: chartColors.dotStroke, strokeWidth: 2 }}
@@ -151,7 +138,7 @@ export default function DashboardPage() {
                       <Cell key={i} fill={chartColors.palette[i % chartColors.palette.length]} stroke="none" />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex-1 space-y-2.5">
@@ -188,7 +175,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="category" width={110} tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="count" name="จำนวน" radius={[0, 6, 6, 0]} animationDuration={1000} animationEasing="ease-out">
                   {categoryStats?.map((_, i) => (
                     <Cell key={i} fill={chartColors.palette[i % chartColors.palette.length]} />
