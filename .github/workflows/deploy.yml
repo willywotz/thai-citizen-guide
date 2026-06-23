@@ -29,29 +29,39 @@ jobs:
         run: |
           : "${POSTGRES_PASSWORD:?Secret POSTGRES_PASSWORD is not set}"
           : "${JWT_SECRET:?Secret JWT_SECRET is not set}"
-          : "${CORS_ORIGINS:?Secret CORS_ORIGINS is not set}"
-          : "${FRONTEND_BASE_URL:?Secret FRONTEND_BASE_URL is not set}"
           : "${OPENROUTER_API_KEY:?Secret OPENROUTER_API_KEY is not set}"
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
-          FRONTEND_BASE_URL: ${{ secrets.FRONTEND_BASE_URL }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
-      - run: |
-          cat > .env << EOF
-          EXTERNAL_HTTP_PORT=80
-          EXTERNAL_POSTGRES_PORT=5432
-          ENV=production
-          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
-          FRONTEND_BASE_URL=${{ secrets.FRONTEND_BASE_URL }}
-          ONECHAT_V3_URL=${{ secrets.ONECHAT_V3_URL }}
-          ONECHAT_V4_URL=${{ secrets.ONECHAT_V4_URL }}
-          MCP_ENDPOINT_URL=${{ secrets.MCP_ENDPOINT_URL }}
-          OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
-          EOF
+      - name: Write .env
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          FRONTEND_BASE_URL: ${{ secrets.FRONTEND_BASE_URL }}
+          ONECHAT_V3_URL: ${{ secrets.ONECHAT_V3_URL }}
+          ONECHAT_V4_URL: ${{ secrets.ONECHAT_V4_URL }}
+          MCP_ENDPOINT_URL: ${{ secrets.MCP_ENDPOINT_URL }}
+        run: |
+          # Required vars are always written (and guarded above). Optional vars
+          # are written ONLY when their secret is set; when unset, the app's
+          # built-in defaults apply — so OneChat/MCP fall back to their prior
+          # URLs and FRONTEND_BASE_URL to its default without needing a secret.
+          {
+            echo "EXTERNAL_HTTP_PORT=80"
+            echo "EXTERNAL_POSTGRES_PORT=5432"
+            echo "ENV=production"
+            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
+            if [ -n "$CORS_ORIGINS" ]; then echo "CORS_ORIGINS=$CORS_ORIGINS"; fi
+            if [ -n "$FRONTEND_BASE_URL" ]; then echo "FRONTEND_BASE_URL=$FRONTEND_BASE_URL"; fi
+            if [ -n "$ONECHAT_V3_URL" ]; then echo "ONECHAT_V3_URL=$ONECHAT_V3_URL"; fi
+            if [ -n "$ONECHAT_V4_URL" ]; then echo "ONECHAT_V4_URL=$ONECHAT_V4_URL"; fi
+            if [ -n "$MCP_ENDPOINT_URL" ]; then echo "MCP_ENDPOINT_URL=$MCP_ENDPOINT_URL"; fi
+          } > .env
 
       - run: docker compose -f docker-compose.yaml up -d --build --remove-orphans
