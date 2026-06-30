@@ -20,7 +20,7 @@ class ParseSpecRequest(BaseModel):
 @router.post("/mcp/discover", response_model=McpDiscoverResponse, summary="Discover MCP tools at an endpoint")
 async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin)):
     if not body.endpoint_url.strip():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="endpoint_url is required")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="endpoint_url is required")
     try:
         tools = await discover_tools(body.endpoint_url)
     except Exception as exc:  # noqa: BLE001 — surface any MCP/connection failure to the client

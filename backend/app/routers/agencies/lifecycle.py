@@ -79,7 +79,7 @@ async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, 
     await authorize_or_403(user, "agency:change_status", agency)
     if not is_legal_transition(agency.status.value, body.status):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Illegal status transition: {agency.status.value} → {body.status}",
         )
     if agency.status.value == "draft" and body.status == "active":

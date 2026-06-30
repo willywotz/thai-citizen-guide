@@ -200,7 +200,7 @@ async def test_regenerate_weekly_brief_persists_error_row_on_http_failure():
 
 @pytest.mark.asyncio
 async def test_get_agency_health_error_rate_and_uptime_values():
-    """Pin the grouped-query rewrite: 1 failure out of 10 -> 10.0% / 90.0%."""
+    """uptime/errorRate come from error_window (24h, reset-aware): 1/10 -> 10.0% / 90.0%."""
     from app.schemas.insight import AgencyHealthData
     from app.services.analytics import health
 
@@ -211,25 +211,26 @@ async def test_get_agency_health_error_rate_and_uptime_values():
     # Grouped-query call order (all via conn.execute_query_dict):
     #   [0] currentLatency  GROUP BY agency_id
     #   [1] avgLatency      GROUP BY agency_id
-    #   [2] errorRate       GROUP BY agency_id
-    #   [3] dayCount        GROUP BY agency_id
+    #   [2] dayCount        GROUP BY agency_id
+    # errorRate/uptime no longer use SQL — they come from error_window().
     conn.execute_query_dict = AsyncMock(side_effect=[
         [{"agency_id": "ag-1", "avg_latency": 100}],
         [{"agency_id": "ag-1", "avg_latency": 120}],
-        [{"agency_id": "ag-1", "total_count": 10, "error_count": 1}],
         [{"agency_id": "ag-1", "total": 4320}],
     ])
 
     agency = MagicMock()
     agency.all.return_value = MagicMock(values=AsyncMock(return_value=[
-        {"id": "ag-1", "name": "A", "short_name": "A", "status": "active"},
+        {"id": "ag-1", "name": "A", "short_name": "A", "status": "active", "stats_reset_at": None},
     ]))
 
     # rawHistorical still uses the ConnectionLog ORM queryset
     conn_log = _make_query_mock(values_values=[[]])
+    ew = AsyncMock(return_value=(10, 1))  # (checks, failures) over trailing 24h
 
     with patch.object(health, "in_transaction", return_value=_AsyncCM(conn)), \
          patch.object(health, "Agency", agency), \
+         patch.object(health, "error_window", ew), \
          patch.object(health, "ConnectionLog", conn_log):
         result = await health.get_agency_health()
 
@@ -237,11 +238,53 @@ async def test_get_agency_health_error_rate_and_uptime_values():
     ag = result.agencies[0]
     assert ag.errorRate == 10.0
     assert ag.uptime == 90.0
+    ew.assert_awaited_once_with("ag-1", None)
+
+
+@pytest.mark.asyncio
+async def test_get_agency_health_honors_stats_reset_at_and_two_dp():
+    """error_window receives each agency's stats_reset_at; uptime is rounded to 2 dp."""
+    import datetime
+
+    from app.schemas.insight import AgencyHealthData
+    from app.services.analytics import health
+
+    reset = datetime.datetime(2026, 6, 30, 9, 0, tzinfo=datetime.timezone.utc)
+
+    conn = MagicMock()
+    conn.execute_query = AsyncMock()
+    conn.capabilities.dialect = "sqlite"
+    conn.execute_query_dict = AsyncMock(side_effect=[
+        [{"agency_id": "ag-1", "avg_latency": 100}],  # currentLatency
+        [{"agency_id": "ag-1", "avg_latency": 120}],  # avgLatency
+        [{"agency_id": "ag-1", "total": 4320}],       # dayCount
+    ])
+
+    agency = MagicMock()
+    agency.all.return_value = MagicMock(values=AsyncMock(return_value=[
+        {"id": "ag-1", "name": "A", "short_name": "A", "status": "active", "stats_reset_at": reset},
+    ]))
+
+    conn_log = _make_query_mock(values_values=[[]])
+    # 1 failure out of 3 -> error_rate 33.3333..%, uptime 66.6666..% -> 2 dp.
+    ew = AsyncMock(return_value=(3, 1))
+
+    with patch.object(health, "in_transaction", return_value=_AsyncCM(conn)), \
+         patch.object(health, "Agency", agency), \
+         patch.object(health, "error_window", ew), \
+         patch.object(health, "ConnectionLog", conn_log):
+        result = await health.get_agency_health()
+
+    assert isinstance(result, AgencyHealthData)
+    ag = result.agencies[0]
+    assert ag.errorRate == 33.33
+    assert ag.uptime == 66.67
+    ew.assert_awaited_once_with("ag-1", reset)
 
 
 @pytest.mark.asyncio
 async def test_get_agency_health_two_agencies_grouped():
-    """Grouped query: two agencies receive independent metrics from one set of queries."""
+    """Two agencies receive independent metrics; errorRate/uptime via per-agency error_window."""
     from app.schemas.insight import AgencyHealthData
     from app.services.analytics import health
 
@@ -256,25 +299,26 @@ async def test_get_agency_health_two_agencies_grouped():
         [{"agency_id": "ag-1", "avg_latency": 200}, {"agency_id": "ag-2", "avg_latency": 50}],
         # avgLatency (7d)
         [{"agency_id": "ag-1", "avg_latency": 180}, {"agency_id": "ag-2", "avg_latency": 60}],
-        # errorRate (7d)
-        [
-            {"agency_id": "ag-1", "total_count": 20, "error_count": 2},
-            {"agency_id": "ag-2", "total_count": 5, "error_count": 0},
-        ],
         # dayCount
         [{"agency_id": "ag-1", "total": 2880}, {"agency_id": "ag-2", "total": 720}],
     ])
 
     agency = MagicMock()
     agency.all.return_value = MagicMock(values=AsyncMock(return_value=[
-        {"id": "ag-1", "name": "Agency One", "short_name": "A1", "status": "active"},
-        {"id": "ag-2", "name": "Agency Two", "short_name": "A2", "status": "inactive"},
+        {"id": "ag-1", "name": "Agency One", "short_name": "A1", "status": "active", "stats_reset_at": None},
+        {"id": "ag-2", "name": "Agency Two", "short_name": "A2", "status": "inactive", "stats_reset_at": None},
     ]))
 
     conn_log = _make_query_mock(values_values=[[]])
+    # error_window over trailing 24h: ag-1 -> 2/20, ag-2 -> 0/5.
+    windows = {"ag-1": (20, 2), "ag-2": (5, 0)}
+
+    async def _error_window(agency_id, reset_at=None):
+        return windows[agency_id]
 
     with patch.object(health, "in_transaction", return_value=_AsyncCM(conn)), \
          patch.object(health, "Agency", agency), \
+         patch.object(health, "error_window", _error_window), \
          patch.object(health, "ConnectionLog", conn_log):
         result = await health.get_agency_health()
 
