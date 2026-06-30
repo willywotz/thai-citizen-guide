@@ -7,6 +7,7 @@ from tortoise.transactions import in_transaction
 from app.config import settings
 from app.models import Agency, ConnectionLog
 from app.schemas.insight import AgencyHealthData, Agency as AgencyHealth
+from app.services.agency_health import error_window
 from app.utils import now
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ async def get_agency_health() -> AgencyHealthData:
     async with in_transaction() as conn:
         await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
 
-        agencies = await Agency.all().values("id", "name", "short_name", "status")
+        agencies = await Agency.all().values("id", "name", "short_name", "status", "stats_reset_at")
 
         if not agencies:
             return AgencyHealthData(
@@ -55,22 +56,6 @@ async def get_agency_health() -> AgencyHealthData:
         )
         avg_latency = {str(r["agency_id"]): r["avg_latency"] for r in avg_latency_rows}
 
-        error_rate_rows = await conn.execute_query_dict(
-            f"""
-            SELECT agency_id,
-                   COUNT(*) AS total_count,
-                   SUM(CASE WHEN status <> 'success' THEN 1 ELSE 0 END) AS error_count
-            FROM connection_logs
-            WHERE created_at >= {placeholder}
-            GROUP BY agency_id
-            """,
-            [week_cutoff],
-        )
-        error_stats = {
-            str(r["agency_id"]): (r["total_count"], r["error_count"])
-            for r in error_rate_rows
-        }
-
         day_count_rows = await conn.execute_query_dict(
             f"""
             SELECT agency_id, COUNT(*) AS total
@@ -89,8 +74,10 @@ async def get_agency_health() -> AgencyHealthData:
 
             cur_lat = current_latency.get(ag_id) or 0
             avg_lat = avg_latency.get(ag_id) or 0
-            total_count, error_count = error_stats.get(ag_id, (0, 0))
-            error_rate = (error_count / total_count * 100) if total_count else 0
+            # Uptime/error rate over the trailing 24h, honoring per-agency
+            # stats_reset_at — identical window to the /agencies embed.
+            checks, failures = await error_window(ag["id"], ag["stats_reset_at"])
+            error_rate = (failures / checks * 100) if checks else 0
             total_day = day_counts.get(ag_id, 0)
 
             agencies_health.append(AgencyHealth(
