@@ -28,11 +28,12 @@ The `2026-07-02-chat-cache-audit.md` audit found: (a) `pg_trgm`/`fuzzystrmatch` 
 
 - **Delete** `_vector_search`, `_levenshtein_search`, and the `_text_fallback_search` wrapper.
 - **`find_similar_question(query: str)`** — remove the `embedding` parameter. Body becomes:
-  1. `threshold = settings.SIMILARITY_THRESHOLD`
-  2. `cutoff = await effective_cutoff(now() - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS))`
-  3. `match = await _similarity_search(query, threshold, cutoff)`
-  4. if `match is None`: return `None`
-  5. else resolve via `_fetch_answer_by_match` (unchanged).
+  1. if `not settings.SIMILARITY_CACHE_ENABLED`: return `None`  *(single enable/disable gate — see §6)*
+  2. `threshold = settings.SIMILARITY_THRESHOLD`
+  3. `cutoff = await effective_cutoff(now() - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS))`
+  4. `match = await _similarity_search(query, threshold, cutoff)`
+  5. if `match is None`: return `None`
+  6. else resolve via `_fetch_answer_by_match` (unchanged).
 - `_similarity_search`, `_fetch_answer_by_match` retained unchanged. `_similarity_search` already wraps its SQL in `try/except → None`, so no unguarded path remains (audit #5 resolved for the surviving code).
 - **Remove** the `from app.services.embedding import encode_embedding` import and all `SIMILARITY_FALLBACK` references.
 
@@ -49,9 +50,17 @@ The `2026-07-02-chat-cache-audit.md` audit found: (a) `pg_trgm`/`fuzzystrmatch` 
 ### 3. Config — `app/config.py`
 
 - Remove settings: `EMBEDDING_API_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `EMBEDDING_TIMEOUT`, `SIMILARITY_FALLBACK`.
-- Update the `"Embedding / similarity"` settings-group list to keep only `SIMILARITY_THRESHOLD`, `SIMILARITY_WINDOW_SECONDS` (rename group to `"Similarity"`).
+- Add setting `SIMILARITY_CACHE_ENABLED: bool = True` (see §6).
+- Update the `"Embedding / similarity"` settings-group list to keep `SIMILARITY_THRESHOLD`, `SIMILARITY_WINDOW_SECONDS`, `SIMILARITY_CACHE_ENABLED` (rename group to `"Similarity"`).
 - Remove `EMBEDDING_API_KEY` from `SECRET_FIELD_NAMES`.
 - Keep `SIMILARITY_THRESHOLD`, `SIMILARITY_WINDOW_SECONDS`.
+
+### 6. Enable/disable toggle — `SIMILARITY_CACHE_ENABLED`
+
+- **Setting:** `SIMILARITY_CACHE_ENABLED: bool = True` in `app/config.py`, included in the `"Similarity"` settings group so it is DB-overridable via `apply_overrides` / `load_settings_from_db` and toggleable from the Settings UI (same mechanism as the existing flush control).
+- **Semantics:** read-side gate only. When `False`, `find_similar_question` returns `None` immediately (step 1 in §1), so no cached answer is ever served and every query flows to the upstream LLM. Conversation history and `ConnectionLog` persistence are unchanged — disabling never drops normal data, it only stops *serving* cached hits.
+- **Single gate:** the check lives inside `find_similar_question`, so both `/external` and `/stream` honour it without endpoint-level branching.
+- **Default ON:** the cache now functions (pg_trgm migration lands in the same change), so it ships enabled; admins can disable at runtime.
 
 ### 4. Migration — new `19_*`
 
@@ -72,6 +81,7 @@ Generate via `aerich migrate` (for the column drop + MODELS_STATE), then hand-ad
 
 - **Delete** `tests/services/test_embedding.py`, `tests/services/test_embedding_cache.py`.
 - **Rework** `tests/services/test_similarity.py`: drop vector-search and levenshtein cases; keep/extend `_similarity_search` cases against the new single-path `find_similar_question(query)` API.
+- **Add** a toggle test: with `SIMILARITY_CACHE_ENABLED=False`, `find_similar_question(query)` returns `None` and runs no DB query even when a matching Q/A exists; with it `True`, the same query hits.
 - **Check/adjust** `tests/services/test_similarity_join.py` (join behaviour — should be unaffected) and `tests/services/test_similarity_window_pg.py` (Postgres, may reference vector — update to pg_trgm).
 - **Update** `tests/routers/test_chat_cache.py`, `tests/services/test_chat_turn.py`, `tests/routers/test_chat_stream_message_id.py`: stop patching the removed `generate_embedding` / `store_embedding`.
 
@@ -93,6 +103,7 @@ seed: save_turn (+ ConnectionLog)      # no embedding write anymore
 ## Acceptance criteria
 
 - `find_similar_question(query)` returns a cached answer via pg_trgm when a similar prior successful Q/A exists within the window; `None` otherwise; never raises on DB/extension errors.
+- `SIMILARITY_CACHE_ENABLED=False` makes `find_similar_question` return `None` without querying; `True` restores hits. The setting is runtime-toggleable via the Settings UI.
 - No references to `_vector_search`, `_levenshtein_search`, `embedding.py`, `store_embedding`, `EMBEDDING_*`, or `SIMILARITY_FALLBACK` remain in `app/`.
 - Migration 19 creates `pg_trgm` and drops the embedding column + index; `aerich upgrade`/`downgrade` succeed.
 - Full backend suite green.
