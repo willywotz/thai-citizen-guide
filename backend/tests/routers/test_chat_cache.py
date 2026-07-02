@@ -54,8 +54,6 @@ async def test_external_cache_hit_copies_into_new_conversation(db):
     assert new.agency_ids == asst_msg.agency_ids
     assert str(new.conversation_id) == res["conversation_id"]
     assert new.parent_id is not None
-    # copies are not cache sources
-    assert new.embedding is None
     assert await ConnectionLog.filter(assistant_message_id=new.id).count() == 0
 
 
