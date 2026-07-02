@@ -356,10 +356,9 @@ async def _copy_cached_answer(
 ) -> Message:
     """Copy a cached answer into a fresh message owned by `conversation_id`.
 
-    Copies are intentionally NOT cache sources: no embedding is stored and no
-    ConnectionLog is created, so neither vector search (filters on
-    embedding IS NOT NULL) nor the text fallback (requires a ConnectionLog in
-    find_similar_question) will ever resurface a copy.
+    Copies are intentionally NOT cache sources: no ConnectionLog is created,
+    so `_fetch_answer_by_match` (which inner-joins connection_logs in
+    find_similar_question) will never resurface a copy.
     """
     try:
         conv = await Conversation.get(id=conversation_id)
