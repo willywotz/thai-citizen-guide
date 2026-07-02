@@ -20,7 +20,6 @@ from app.schemas.agency import (
     HealthHistoryResponse,
     StatusUpdateRequest,
 )
-from app.services import agency_directory
 from app.services.agency import test_connection
 from app.services.agency_health import health_history
 from app.services.agency_lifecycle import is_legal_transition
@@ -90,7 +89,6 @@ async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, 
     agency.status = body.status
     agency.auto_maintenance = False
     await agency.save(update_fields=["status", "auto_maintenance", "updated_at"])
-    agency_directory.invalidate()
     await record_audit(user, "agency.status_change", object_type="agency", object_id=agency.id, detail={"from": old_status, "to": body.status})
     return await _with_health(agency)
 
@@ -149,16 +147,12 @@ async def test_connection_endpoint(agency_id: uuid.UUID, _: User = Depends(requi
     )
 
     # A passing test on a rule-set maintenance agency brings it back immediately.
-    reactivated = False
     update_fields = ["stats_reset_at", "updated_at"]
     if response.success and agency.status == "maintenance" and agency.auto_maintenance:
         agency.status = "active"
         agency.auto_maintenance = False
         update_fields += ["status", "auto_maintenance"]
-        reactivated = True
     await agency.save(update_fields=update_fields)
-    if reactivated:
-        agency_directory.invalidate()
 
     latency_ms = int(response.latency.replace("ms", ""))
     await ConnectionLog.create(

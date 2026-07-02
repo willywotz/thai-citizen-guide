@@ -6,7 +6,6 @@ rule-set maintenance + error_rate < 50% (>=5)     -> active
 import logging
 
 from app.models import Agency
-from app.services import agency_directory
 from app.services.agency_health import error_window
 from app.services.owner_notify import notify_owners_maintenance
 
@@ -27,7 +26,6 @@ async def reconcile_statuses() -> None:
             ag.status = "maintenance"
             ag.auto_maintenance = True
             await ag.save(update_fields=["status", "auto_maintenance", "updated_at"])
-            agency_directory.invalidate()
             print(f"Auto-maintenance: {ag.name} error_rate={error_rate:.0f}%")
             try:
                 await notify_owners_maintenance(ag)
@@ -37,5 +35,4 @@ async def reconcile_statuses() -> None:
             ag.status = "active"
             ag.auto_maintenance = False
             await ag.save(update_fields=["status", "auto_maintenance", "updated_at"])
-            agency_directory.invalidate()
             print(f"Auto-reactivate: {ag.name} error_rate={error_rate:.0f}%")
