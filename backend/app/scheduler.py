@@ -56,37 +56,66 @@ async def _run_agency_item(agency: Agency) -> None:
                     for v in (agency.api_headers or []):
                         headers[v["name"].lower()] = v["value"]
                     span.set_attribute("agency.api_headers", json.dumps(headers))
-                    payload = {}
-                    for k, v in (agency.expected_payload or {}).items():
-                        payload[k] = v
-                        if v == "__query__":
-                            payload[k] = "ปรึกษากฎหมาย" + scope
-                        if v == "__user_id__":
-                            payload[k] = str(generate_uuid())
-                        if v == "__session_id__":
-                            payload[k] = str(generate_uuid())
-                        if v == "__conversation_id__":
-                            payload[k] = str(generate_uuid())
-                    span.set_attribute("agency.api_payload", json.dumps(payload))
                     span.set_attribute("agency.api_endpoint", agency.endpoint_url)
+
+                    # HEAD-based reachability check: any response counts as success;
+                    # no response within 5s (timeout) is treated as an error.
                     start_ns = time.perf_counter_ns()
-                    resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
-                    end_ns = time.perf_counter_ns()
-                    latency = int((end_ns - start_ns) // 1_000_000)
-                    span.set_attribute("agency.api_latency_ms", latency)
-                    span.set_attribute("agency.api_status_code", resp.status_code)
-                    span.set_attribute("agency.api_response", sanitize_body(resp.text, max_chars=500))
+                    try:
+                        resp = await client.head(agency.endpoint_url, headers=headers, timeout=5.0)
+                        end_ns = time.perf_counter_ns()
+                        latency = int((end_ns - start_ns) // 1_000_000)
+                        span.set_attribute("agency.api_latency_ms", latency)
+                        span.set_attribute("agency.api_status_code", resp.status_code)
+                        status = "success"
+                        detail = f"HEAD {agency.endpoint_url} -> {resp.status_code}"
+                    except httpx.TimeoutException:
+                        end_ns = time.perf_counter_ns()
+                        latency = int((end_ns - start_ns) // 1_000_000)
+                        span.set_attribute("agency.api_latency_ms", latency)
+                        status = "error"
+                        detail = f"HEAD {agency.endpoint_url} timed out after 5s"
                     await ConnectionLog.create(
                         id=str(generate_uuid()),
                         agency=agency,
                         action="test",
                         connection_type="API",
-                        status="success" if resp.status_code == 200 else "error",
+                        status=status,
                         latency_ms=latency,
-                        detail=sanitize_body(f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}"),
-                        request_body=sanitize_body(json.dumps(payload)),
-                        response_body=sanitize_body(resp.text),
+                        detail=sanitize_body(detail),
                     )
+
+                    # POST method (commented out — will revisit later):
+                    # payload = {}
+                    # for k, v in (agency.expected_payload or {}).items():
+                    #     payload[k] = v
+                    #     if v == "__query__":
+                    #         payload[k] = "ปรึกษากฎหมาย" + scope
+                    #     if v == "__user_id__":
+                    #         payload[k] = str(generate_uuid())
+                    #     if v == "__session_id__":
+                    #         payload[k] = str(generate_uuid())
+                    #     if v == "__conversation_id__":
+                    #         payload[k] = str(generate_uuid())
+                    # span.set_attribute("agency.api_payload", json.dumps(payload))
+                    # start_ns = time.perf_counter_ns()
+                    # resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
+                    # end_ns = time.perf_counter_ns()
+                    # latency = int((end_ns - start_ns) // 1_000_000)
+                    # span.set_attribute("agency.api_latency_ms", latency)
+                    # span.set_attribute("agency.api_status_code", resp.status_code)
+                    # span.set_attribute("agency.api_response", sanitize_body(resp.text, max_chars=500))
+                    # await ConnectionLog.create(
+                    #     id=str(generate_uuid()),
+                    #     agency=agency,
+                    #     action="test",
+                    #     connection_type="API",
+                    #     status="success" if resp.status_code == 200 else "error",
+                    #     latency_ms=latency,
+                    #     detail=sanitize_body(f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}"),
+                    #     request_body=sanitize_body(json.dumps(payload)),
+                    #     response_body=sanitize_body(resp.text),
+                    # )
             elif agency.connection_type in ("MCP", "A2A"):
                 span.set_attribute("agency.connection_type", agency.connection_type)
                 result = await test_connection(agency.connection_type, agency)
