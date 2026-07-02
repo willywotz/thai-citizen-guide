@@ -59,7 +59,7 @@ class Message(Model):
     agency_ids = fields.JSONField(default=list, null=True)     # list of agency ids involved in this message
     errors = fields.JSONField(default=list, null=True)       # list of error messages if any
     # JSON-encoded vector; stays TEXT so SQLite tests work. Indexed via idx_messages_embedding_cosine
-    # (HNSW, vector_cosine_ops, dimensions fixed at EMBEDDING_DIMENSIONS=384) on Postgres.
+    # (HNSW, vector_cosine_ops, dimensions fixed at 384) on Postgres.
     embedding = fields.CharField(max_length=50000, null=True)
 
     created_at = fields.DatetimeField(auto_now_add=True)
