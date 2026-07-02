@@ -179,3 +179,16 @@ async def test_text_fallback_both_short_circuits_on_similarity_hit():
     assert result is sentinel
     msim.assert_awaited_once()
     mlev.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_find_similar_returns_none_when_cache_disabled():
+    from app.config import settings
+    from app.services import similarity
+
+    with patch.object(settings, "SIMILARITY_CACHE_ENABLED", False), \
+         patch.object(similarity, "_similarity_search", new=AsyncMock()) as msearch:
+        result = await similarity.find_similar_question("q")
+
+    assert result is None
+    msearch.assert_not_awaited()

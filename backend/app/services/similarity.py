@@ -26,6 +26,9 @@ async def find_similar_question(
     Returns (user_message, assistant_message, connection_log) if a match is found above threshold,
     None otherwise.
     """
+    if not settings.SIMILARITY_CACHE_ENABLED:
+        return None
+
     threshold = settings.SIMILARITY_THRESHOLD
     cutoff = await effective_cutoff(now() - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS))
 
