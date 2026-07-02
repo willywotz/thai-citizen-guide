@@ -22,3 +22,10 @@ def test_openapi_hides_internal_chat_variants():
     assert "/api/v1/chat/stream" in paths
     assert "/api/v1/chat/external" not in paths
     assert "/api/v1/chat/internal" not in paths
+
+
+def test_internal_chat_route_is_removed():
+    """The LangGraph /chat/internal endpoint is fully removed (not just hidden)."""
+    assert not any(getattr(r, "path", "") == "/chat/internal" for r in chat_router.routes)
+    from app.routers import chat as chat_module
+    assert not hasattr(chat_module, "chat_internal")
