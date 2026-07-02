@@ -8,7 +8,6 @@ Public endpoints (schema-visible)
 
 Internal endpoints (hidden from OpenAPI schema, still functional)
 -----------------------------------------------------------------
-  POST /chat/internal   → LangGraph multi-agent pipeline
   POST /chat/external   → OneChat v3 sync (alias of /chat; deprecated)
 """
 
@@ -26,16 +25,13 @@ from opentelemetry.trace import StatusCode
 from tortoise.exceptions import DoesNotExist
 
 from app.auth.dependencies import get_current_user_optional
-from app.concurrency import spawn_logged
 from app.config import settings
 from app.models.connection_log import ConnectionLog
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.chat.graph import build_graph
-from app.services.chat.llm import classify_message_category, extract_tag, store_embedding
+from app.services.chat.llm import classify_message_category
 from app.services.chat.turn import save_turn
-from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
 from app.services.quota import QuotaExceeded, check_global_budget, check_user_quota
@@ -57,93 +53,6 @@ async def enforce_user_rate_limit(user) -> None:
             detail="Rate limit exceeded",
             headers={"Retry-After": str(result.retry_after)},
         )
-
-
-# ─── Internal endpoint (LangGraph pipeline) ────────────────────────────────────
-
-@router.post("/internal", include_in_schema=False)  # internal LangGraph pipeline
-async def chat_internal(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-    if user is not None:
-        await enforce_user_rate_limit(user)
-    try:
-        await check_global_budget()
-        if user is not None:
-            await check_user_quota(user.id)
-    except QuotaExceeded as e:
-        raise HTTPException(status_code=429, detail=str(e))
-    start = time.time()
-    query = body.query.strip()
-
-    if not query:
-        return {"success": False, "error": "Missing query"}
-
-    embedding = await generate_embedding(query)
-    cached = await find_similar_question(query=query, embedding=embedding)
-    if cached:
-        user_msg, asst_msg, _ = cached
-        conversation_id = body.conversation_id or str(generate_uuid())
-        new_asst_msg = await _copy_cached_answer(
-            query=query,
-            conversation_id=conversation_id,
-            user=user,
-            user_msg=user_msg,
-            asst_msg=asst_msg,
-        )
-        return {
-            "success": True,
-            "data": {
-                "message_id": new_asst_msg.id,
-                "answer": asst_msg.content,
-                "references": asst_msg.sources if asst_msg.sources else [],
-                "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
-                "agencies": [],
-                "confidence": settings.SIMILARITY_THRESHOLD,
-                "cached": True,
-            },
-            "conversation_id": conversation_id,
-            "responseTime": 0,
-        }
-
-    conversation_id = body.conversation_id or str(generate_uuid())
-    result = await build_graph().ainvoke({"query": query, "conversation_id": conversation_id})
-    response_time = int((time.time() - start) * 1000)
-    answer = result.get("final_answer", "").strip()
-
-    references = []
-    answer, refs_raw = extract_tag(answer, "references")
-    if refs_raw is not None:
-        try:
-            references = json.loads(refs_raw)
-        except json.JSONDecodeError:
-            references = []
-
-    answer, category = extract_tag(answer, "category")
-
-    routes = result.get("routes", [])
-    results = result.get("results", [])
-    succeeded = bool(routes) and any(r.get("status") == "ok" for r in results)
-
-    saved = await save_turn(
-        query=query, conversation_id=conversation_id, answer=answer,
-        references=references, category=category,
-        agency_ids=[str(ag["agency_id"]) for ag in routes],
-        response_time=response_time, user=user, succeeded=succeeded,
-    )
-    spawn_logged(store_embedding(saved.user_message_id, query), name="store_embedding")
-
-    return {
-        "success": True,
-        "data": {
-            "message_id": saved.assistant_message_id,
-            "answer": answer,
-            "references": references,
-            "agentSteps": [],
-            "agencies": [],
-            "confidence": 0.0,
-        },
-        "conversation_id": conversation_id,
-        "responseTime": response_time,
-    }
 
 
 # ─── External endpoint (OneChat v3) ────────────────────────────────────────────
@@ -173,8 +82,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             raise HTTPException(status_code=400, detail="Missing query")
 
         if not body.conversation_id:
-            embedding = await generate_embedding(query)
-            cached = await find_similar_question(query=query, embedding=embedding)
+            cached = await find_similar_question(query=query)
             if cached:
                 user_msg, asst_msg, _ = cached
                 span.set_attribute("cache_hit", True)
@@ -254,7 +162,6 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         )
 
         background_tasks.add_task(classify_message_category, saved.user_message_id, query, answer)
-        background_tasks.add_task(store_embedding, saved.user_message_id, query)
 
         return {
             "success": True,
@@ -297,8 +204,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
         span.set_attribute("query", query)
 
         if not body.conversation_id:
-            embedding = await generate_embedding(query)
-            cached = await find_similar_question(query=query, embedding=embedding)
+            cached = await find_similar_question(query=query)
             if cached:
                 user_msg, asst_msg, conn_log = cached
 
@@ -450,10 +356,9 @@ async def _copy_cached_answer(
 ) -> Message:
     """Copy a cached answer into a fresh message owned by `conversation_id`.
 
-    Copies are intentionally NOT cache sources: no embedding is stored and no
-    ConnectionLog is created, so neither vector search (filters on
-    embedding IS NOT NULL) nor the text fallback (requires a ConnectionLog in
-    find_similar_question) will ever resurface a copy.
+    Copies are intentionally NOT cache sources: no ConnectionLog is created,
+    so `_fetch_answer_by_match` (which inner-joins connection_logs in
+    find_similar_question) will never resurface a copy.
     """
     try:
         conv = await Conversation.get(id=conversation_id)
@@ -531,5 +436,4 @@ async def _save_stream_conversation(
         assistant_message_id=saved.assistant_message_id,
     )
     background_tasks.add_task(classify_message_category, saved.user_message_id, query, answer)
-    background_tasks.add_task(store_embedding, saved.user_message_id, query)
     return saved.assistant_message_id

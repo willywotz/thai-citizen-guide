@@ -10,7 +10,6 @@ from collections import defaultdict
 
 from app.config import settings
 from app.models import Agency
-from app.services import agency_directory
 from app.services.owner_notify import notify_owners_maintenance
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,6 @@ async def record_dispatch_result(agency_id: str, *, success: bool) -> None:
         status="maintenance", auto_maintenance=True
     )
     if updated:
-        agency_directory.invalidate()
         logger.warning("circuit breaker tripped agency %s into maintenance", agency_id)
         try:
             agency = await Agency.get(id=agency_id)

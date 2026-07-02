@@ -43,8 +43,7 @@ async def test_cached_stream_emits_message_id_in_done(db):
     )
     conn_log = MagicMock(response_body=json.dumps({"answer": "cached answer"}))
 
-    with patch.object(chat_router, "generate_embedding", new=AsyncMock(return_value=[0.1])), \
-         patch.object(chat_router, "find_similar_question",
+    with patch.object(chat_router, "find_similar_question",
                       new=AsyncMock(return_value=(user_msg, asst_msg, conn_log))):
         resp = await chat_router.chat_stream(ChatRequest(query="q"), MagicMock(), BackgroundTasks(), None)
         chunks = [c async for c in resp.body_iterator]

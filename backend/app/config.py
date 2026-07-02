@@ -118,14 +118,9 @@ class Settings(BaseSettings):
     GLOBAL_DAILY_COST_LIMIT_USD: float = 0.0  # 0 = unlimited
 
     # ── Embedding / similarity ──────────────────────────────────────────────
-    EMBEDDING_API_URL: str = "https://api.openai.com/v1/embeddings"
-    EMBEDDING_API_KEY: str = ""
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
-    EMBEDDING_DIMENSIONS: int = 384
-    EMBEDDING_TIMEOUT: int = 5
     SIMILARITY_THRESHOLD: float = 0.95
     SIMILARITY_WINDOW_SECONDS: int = 259200  # 3 days
-    SIMILARITY_FALLBACK: str = "both"  # "similarity", "levenshtein", or "both"
+    SIMILARITY_CACHE_ENABLED: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -179,12 +174,12 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
     "Agency health": ["BREAKER_FAILURE_THRESHOLD", "AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
     "Executive summary": ["BRIEF_REGEN_INTERVAL_HOURS", "WEEKLY_BRIEF_TIMEOUT"],
     "Analytics": ["AVG_LATENCY_WINDOW_DAYS", "FEEDBACK_TREND_DAYS", "BUSINESS_HOURS_START", "BUSINESS_HOURS_END"],
-    "Embedding / similarity": ["EMBEDDING_API_URL", "EMBEDDING_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_DIMENSIONS", "EMBEDDING_TIMEOUT", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_FALLBACK"],
+    "Similarity": ["SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_CACHE_ENABLED"],
     "Quota": ["USER_MONTHLY_TOKEN_QUOTA", "GLOBAL_DAILY_COST_LIMIT_USD"],
 }
 
 SECRET_FIELD_NAMES: set[str] = {
-    "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY", "EMBEDDING_API_KEY",
+    "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
     "EMAIL_SMTP_PASSWORD",
 }
 
