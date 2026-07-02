@@ -38,8 +38,7 @@ async def _origin_answer():
 async def test_external_cache_hit_copies_into_new_conversation(db):
     conv, user_msg, asst_msg = await _origin_answer()
 
-    with patch.object(chat_router, "generate_embedding", new=AsyncMock(return_value=[0.1])), \
-         patch.object(chat_router, "find_similar_question",
+    with patch.object(chat_router, "find_similar_question",
                       new=AsyncMock(return_value=(user_msg, asst_msg, MagicMock()))):
         res = await chat_router.chat_external(ChatRequest(query="คำถามใหม่"), BackgroundTasks(), None)
 
@@ -64,8 +63,7 @@ async def test_external_cache_hit_copies_into_new_conversation(db):
 async def test_external_cache_hit_rating_does_not_touch_origin(db):
     conv, user_msg, asst_msg = await _origin_answer()
 
-    with patch.object(chat_router, "generate_embedding", new=AsyncMock(return_value=[0.1])), \
-         patch.object(chat_router, "find_similar_question",
+    with patch.object(chat_router, "find_similar_question",
                       new=AsyncMock(return_value=(user_msg, asst_msg, MagicMock()))):
         res = await chat_router.chat_external(ChatRequest(query="คำถามใหม่"), BackgroundTasks(), None)
 

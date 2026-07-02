@@ -54,7 +54,7 @@ async def test_match_resolution_returns_correct_objects():
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
     ), patch.object(
-        similarity, "_text_fallback_search", new=AsyncMock(return_value=user_msg)
+        similarity, "_similarity_search", new=AsyncMock(return_value=user_msg)
     ):
         result = await similarity.find_similar_question("how to renew passport")
 
@@ -77,7 +77,7 @@ async def test_match_resolution_preserves_payload_fields():
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
     ), patch.object(
-        similarity, "_text_fallback_search", new=AsyncMock(return_value=user_msg)
+        similarity, "_similarity_search", new=AsyncMock(return_value=user_msg)
     ):
         result = await similarity.find_similar_question("how to renew passport")
 
@@ -102,7 +102,7 @@ async def test_non_success_conversation_excluded():
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
     ), patch.object(
-        similarity, "_text_fallback_search", new=AsyncMock(return_value=user_msg)
+        similarity, "_similarity_search", new=AsyncMock(return_value=user_msg)
     ):
         result = await similarity.find_similar_question("how to renew passport")
 
@@ -119,7 +119,7 @@ async def test_no_match_returns_none():
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
     ), patch.object(
-        similarity, "_text_fallback_search", new=AsyncMock(return_value=None)
+        similarity, "_similarity_search", new=AsyncMock(return_value=None)
     ):
         result = await similarity.find_similar_question("completely unique question")
 
@@ -142,7 +142,7 @@ async def test_missing_assistant_message_returns_none():
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
     ), patch.object(
-        similarity, "_text_fallback_search", new=AsyncMock(return_value=user_msg)
+        similarity, "_similarity_search", new=AsyncMock(return_value=user_msg)
     ):
         result = await similarity.find_similar_question("orphan question")
 
@@ -171,7 +171,7 @@ async def test_missing_conn_log_returns_none():
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
     ), patch.object(
-        similarity, "_text_fallback_search", new=AsyncMock(return_value=user_msg)
+        similarity, "_similarity_search", new=AsyncMock(return_value=user_msg)
     ):
         result = await similarity.find_similar_question("no-log question")
 
@@ -209,7 +209,7 @@ async def test_query_count_tail_is_one_raw_join(monkeypatch):
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
     ), patch.object(
-        similarity, "_text_fallback_search", new=AsyncMock(return_value=user_msg)
+        similarity, "_similarity_search", new=AsyncMock(return_value=user_msg)
     ):
         result = await similarity.find_similar_question("how to renew passport")
 

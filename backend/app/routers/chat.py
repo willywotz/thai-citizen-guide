@@ -32,7 +32,6 @@ from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat.llm import classify_message_category, store_embedding
 from app.services.chat.turn import save_turn
-from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
 from app.services.quota import QuotaExceeded, check_global_budget, check_user_quota
@@ -83,8 +82,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             raise HTTPException(status_code=400, detail="Missing query")
 
         if not body.conversation_id:
-            embedding = await generate_embedding(query)
-            cached = await find_similar_question(query=query, embedding=embedding)
+            cached = await find_similar_question(query=query)
             if cached:
                 user_msg, asst_msg, _ = cached
                 span.set_attribute("cache_hit", True)
@@ -207,8 +205,7 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
         span.set_attribute("query", query)
 
         if not body.conversation_id:
-            embedding = await generate_embedding(query)
-            cached = await find_similar_question(query=query, embedding=embedding)
+            cached = await find_similar_question(query=query)
             if cached:
                 user_msg, asst_msg, conn_log = cached
 
