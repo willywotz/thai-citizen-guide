@@ -26,6 +26,7 @@ from app.services.agency_health import health_history
 from app.services.agency_lifecycle import is_legal_transition
 from app.services.audit import record_audit
 from app.services.log_sanitize import sanitize_body
+from app.utils import now
 
 router = APIRouter()
 
@@ -78,7 +79,7 @@ async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, 
     await authorize_or_403(user, "agency:change_status", agency)
     if not is_legal_transition(agency.status.value, body.status):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Illegal status transition: {agency.status.value} → {body.status}",
         )
     if agency.status.value == "draft" and body.status == "active":
@@ -107,10 +108,10 @@ async def run_agency_conformance(agency_id: str, user: User = Depends(get_curren
 @router.get("/{agency_id}/health/history", response_model=HealthHistoryResponse, summary="Agency health history")
 async def agency_health_history(agency_id: uuid.UUID, window: str = "24h"):
     try:
-        await Agency.get(id=agency_id)
+        agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    buckets = await health_history(agency_id, window)
+    buckets = await health_history(agency_id, window, agency.stats_reset_at)
     return HealthHistoryResponse(data=[HealthHistoryBucket(**b) for b in buckets])
 
 
@@ -124,6 +125,9 @@ async def test_connection_endpoint(agency_id: uuid.UUID, _: User = Depends(requi
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+
+    # Each test resets the health measurement baseline to this moment.
+    agency.stats_reset_at = now()
 
     raw = await test_connection(agency.connection_type, agency)
 
@@ -143,6 +147,18 @@ async def test_connection_endpoint(agency_id: uuid.UUID, _: User = Depends(requi
         server_info=raw.get("serverInfo"),
         agent_card=AgentCardInfo(**agent_card_raw) if agent_card_raw else None,
     )
+
+    # A passing test on a rule-set maintenance agency brings it back immediately.
+    reactivated = False
+    update_fields = ["stats_reset_at", "updated_at"]
+    if response.success and agency.status == "maintenance" and agency.auto_maintenance:
+        agency.status = "active"
+        agency.auto_maintenance = False
+        update_fields += ["status", "auto_maintenance"]
+        reactivated = True
+    await agency.save(update_fields=update_fields)
+    if reactivated:
+        agency_directory.invalidate()
 
     latency_ms = int(response.latency.replace("ms", ""))
     await ConnectionLog.create(
