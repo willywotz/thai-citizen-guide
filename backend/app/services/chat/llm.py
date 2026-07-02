@@ -2,7 +2,6 @@ import logging
 
 from app.config import settings
 from app.models.conversation import Message
-from app.services.embedding import encode_embedding, generate_embedding
 from app.services.llm_client import openrouter_chat
 
 logger = logging.getLogger(__name__)
@@ -31,10 +30,3 @@ async def classify_message_category(message_id: str, query: str, answer: str) ->
         await Message.filter(id=message_id).update(category=category)
     except Exception as e:
         logger.error("Error classifying message category: %s", e)
-
-
-async def store_embedding(message_id: str, query: str) -> None:
-    embedding = await generate_embedding(query)
-    if embedding is not None:
-        encoded = encode_embedding(embedding)
-        await Message.filter(id=message_id).update(embedding=encoded)

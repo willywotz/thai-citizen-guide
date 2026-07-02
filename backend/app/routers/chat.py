@@ -30,7 +30,7 @@ from app.models.connection_log import ConnectionLog
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.chat.llm import classify_message_category, store_embedding
+from app.services.chat.llm import classify_message_category
 from app.services.chat.turn import save_turn
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
@@ -162,7 +162,6 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         )
 
         background_tasks.add_task(classify_message_category, saved.user_message_id, query, answer)
-        background_tasks.add_task(store_embedding, saved.user_message_id, query)
 
         return {
             "success": True,
@@ -438,5 +437,4 @@ async def _save_stream_conversation(
         assistant_message_id=saved.assistant_message_id,
     )
     background_tasks.add_task(classify_message_category, saved.user_message_id, query, answer)
-    background_tasks.add_task(store_embedding, saved.user_message_id, query)
     return saved.assistant_message_id
