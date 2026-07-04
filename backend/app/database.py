@@ -12,6 +12,9 @@ async def init_db() -> None:
     await Tortoise.init(config=TORTOISE_ORM)
     await Tortoise.generate_schemas(safe=True)
 
+    from app.services.llm.seed import seed_llm_defaults
+    await seed_llm_defaults()
+
 async def close_db() -> None:
     """Close all Tortoise ORM connections."""
     await Tortoise.close_connections()
