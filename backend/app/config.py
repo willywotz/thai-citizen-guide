@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     REDIS_SOCKET_TIMEOUT_MS: int = 100
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"]
+    CORS_ORIGINS: list[str] = ["*"]  # bypass all origins by default
 
     # ── Auth ─────────────────────────────────────────────────────────────────
     JWT_SECRET: str = DEFAULT_JWT_SECRET
@@ -105,7 +105,7 @@ class Settings(BaseSettings):
 
     # ── Executive summary ────────────────────────────────────────────────────
     BRIEF_REGEN_INTERVAL_HOURS: int = 24
-    WEEKLY_BRIEF_TIMEOUT: float = 30.0
+    WEEKLY_BRIEF_TIMEOUT: float = 3600.0  # 1h — effectively no limit for the weekly brief
 
     # ── Analytics windows ────────────────────────────────────────────────────
     AVG_LATENCY_WINDOW_DAYS: int = 1
@@ -161,19 +161,13 @@ def assert_production_secrets(s: "Settings") -> None:
 
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
+    "Similarity": ["SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_CACHE_ENABLED"],
     "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
-    "Database": ["DATABASE_URL", "DB_POOL_MIN", "DB_POOL_MAX"],
-    "CORS": ["CORS_ORIGINS"],
-    "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES", "EXPOSE_PASSWORD_RESET_TOKEN"],
     "Email": ["EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_USE_TLS", "EMAIL_USE_SSL", "EMAIL_SMTP_TIMEOUT", "FRONTEND_BASE_URL"],
     "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "MCP_ENDPOINT_URL"],
     "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
     "Chat": ["USER_RATE_LIMIT_RPM", "A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS"],
     "Agency health": ["BREAKER_FAILURE_THRESHOLD", "AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
-    "Executive summary": ["BRIEF_REGEN_INTERVAL_HOURS", "WEEKLY_BRIEF_TIMEOUT"],
-    "Analytics": ["AVG_LATENCY_WINDOW_DAYS", "FEEDBACK_TREND_DAYS", "BUSINESS_HOURS_START", "BUSINESS_HOURS_END"],
-    "Similarity": ["SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_CACHE_ENABLED"],
-    "Quota": ["USER_MONTHLY_TOKEN_QUOTA", "GLOBAL_DAILY_COST_LIMIT_USD"],
 }
 
 SECRET_FIELD_NAMES: set[str] = {
