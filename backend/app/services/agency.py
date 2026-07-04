@@ -32,7 +32,6 @@ async def parse_spec(spec_text: str) -> dict[str, Any]:
     Raises ValueError on LLM API error or missing tool call arguments.
     """
     payload = {
-        "model": settings.PARSE_SPEC_LLM_MODEL,
         "messages": [
             {
                 "role": "system",
@@ -112,22 +111,13 @@ async def parse_spec(spec_text: str) -> dict[str, Any]:
         "tool_choice": {"type": "function", "function": {"name": "extract_api_spec"}},
     }
 
-    async with httpx.AsyncClient(timeout=settings.PARSE_SPEC_TIMEOUT) as client:
-        resp = await client.post(
-            settings.PARSE_SPEC_URL,
-            headers={"Content-Type": "application/json", "apikey": settings.PARSE_SPEC_API_KEY},
-            json=payload,
-        )
-
-    resp.raise_for_status()  # raises httpx.HTTPStatusError for non-2xx
-
-    data = resp.json()
-    tool_call = (data.get("choices") or [{}])[0].get("message", {}).get("tool_calls", [{}])[0]
+    from app.services.llm import chat
+    res = await chat(purpose="parse_spec", messages=payload["messages"],
+                     tools=payload["tools"], tool_choice=payload["tool_choice"])
+    tool_call = (res.tool_calls or [{}])[0]
     args_raw = tool_call.get("function", {}).get("arguments")
-
     if not args_raw:
         raise ValueError("Failed to parse specification")
-
     return _json.loads(args_raw)
 
 

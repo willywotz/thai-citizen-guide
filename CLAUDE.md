@@ -25,6 +25,21 @@ Workflow: branch off `dev` → open a PR into `dev` for development → promote 
 
 Write failing test → confirm fail → minimal code to pass → confirm pass → refactor. No exceptions.
 
+## Database Migrations (aerich) — Mandatory
+
+Before creating, editing, or hand-writing ANY migration, read **[`docs/aerich-migrations.md`](docs/aerich-migrations.md)**.
+
+The one rule that prevents our recurring breakage: **never hand-author or carry `MODELS_STATE` forward.** That base64 blob is aerich's diff baseline for the *next* `aerich migrate`; a stale one makes the next autogen emit duplicate ops (`column ... already exists`). Always regenerate it with `aerich migrate` run against a DB that has every prior migration applied:
+
+```bash
+cd backend
+.venv/bin/aerich upgrade                        # apply all existing migrations first
+# ...change models...
+.venv/bin/aerich migrate --name <description>   # regenerates MODELS_STATE correctly
+```
+
+After `aerich migrate`, `git status` MUST show exactly one new file and nothing modified/deleted. Hand-add raw-SQL objects aerich doesn't track (`CREATE EXTENSION`, `hnsw`/`gin` expression indexes) idempotently. See the guide for the dirty-volume "already exists" fix and recovery steps.
+
 ## Development Workflow
 
 **ALWAYS follow these steps after making code changes:**
