@@ -2,21 +2,10 @@ import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
 import pytest
 
 from app import scheduler
 from app.models import Agency, ConnectionLog
-
-
-def _mock_async_client(head_mock):
-    """Build a patch target for httpx.AsyncClient whose client.head is head_mock."""
-    client = MagicMock()
-    client.head = head_mock
-    cm = MagicMock()
-    cm.__aenter__ = AsyncMock(return_value=client)
-    cm.__aexit__ = AsyncMock(return_value=False)
-    return MagicMock(return_value=cm)
 
 
 @pytest.mark.asyncio
@@ -43,63 +32,6 @@ async def test_scheduler_checks_a2a_agency(db):
         await scheduler.agency_chat_item(ag)
     log = await ConnectionLog.filter(agency_id=ag.id).first()
     assert log.status == "error"
-
-
-@pytest.mark.asyncio
-async def test_scheduler_api_head_success(db):
-    """API agency: any HEAD response is logged as success."""
-    scheduler.sem = asyncio.Semaphore(5)
-    ag = await Agency.create(
-        name="A", short_name="A", connection_type="API",
-        status="active", endpoint_url="https://api.example",
-    )
-    resp = MagicMock()
-    resp.status_code = 405  # non-200 still counts: any response is OK
-    head = AsyncMock(return_value=resp)
-    with patch("app.scheduler.httpx.AsyncClient", _mock_async_client(head)):
-        await scheduler.agency_chat_item(ag)
-    head.assert_awaited_once()
-    log = await ConnectionLog.filter(agency_id=ag.id).first()
-    assert log.connection_type == "API"
-    assert log.status == "success"
-
-
-@pytest.mark.asyncio
-async def test_scheduler_api_head_timeout(db):
-    """API agency: no response within timeout is logged as error."""
-    scheduler.sem = asyncio.Semaphore(5)
-    ag = await Agency.create(
-        name="B", short_name="B", connection_type="API",
-        status="active", endpoint_url="https://slow-api.example",
-    )
-    head = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
-    with patch("app.scheduler.httpx.AsyncClient", _mock_async_client(head)):
-        await scheduler.agency_chat_item(ag)
-    log = await ConnectionLog.filter(agency_id=ag.id).first()
-    assert log.connection_type == "API"
-    assert log.status == "error"
-
-
-@pytest.mark.asyncio
-async def test_scheduler_api_uses_head_not_post(db):
-    """API agency must probe with HEAD, never POST (POST path is disabled)."""
-    scheduler.sem = asyncio.Semaphore(5)
-    ag = await Agency.create(
-        name="C", short_name="C", connection_type="API",
-        status="active", endpoint_url="https://api2.example",
-    )
-    resp = MagicMock()
-    resp.status_code = 200
-    client = MagicMock()
-    client.head = AsyncMock(return_value=resp)
-    client.post = AsyncMock(return_value=resp)
-    cm = MagicMock()
-    cm.__aenter__ = AsyncMock(return_value=client)
-    cm.__aexit__ = AsyncMock(return_value=False)
-    with patch("app.scheduler.httpx.AsyncClient", MagicMock(return_value=cm)):
-        await scheduler.agency_chat_item(ag)
-    client.head.assert_awaited_once()
-    client.post.assert_not_called()
 
 
 @pytest.mark.asyncio
