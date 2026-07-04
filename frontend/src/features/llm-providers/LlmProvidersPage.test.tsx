@@ -170,6 +170,25 @@ describe("LlmProvidersPage create flow", () => {
     );
     await waitFor(() => expect(screen.queryByText("เพิ่มผู้ให้บริการ LLM")).not.toBeInTheDocument());
   });
+
+  it("preserves an explicit 0 for max_queue_size instead of falling back to the default", async () => {
+    mockCreateProvider.mockResolvedValue(makeProvider({ id: "new-2", name: "Fail Fast Provider" }));
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /เพิ่มผู้ให้บริการ/ }));
+    await userEvent.type(screen.getByLabelText("ชื่อ"), "Fail Fast Provider");
+    await userEvent.type(screen.getByLabelText("Base URL"), "https://my.example.com/v1");
+    const maxQueueInput = screen.getByLabelText("คิวสูงสุด");
+    await userEvent.clear(maxQueueInput);
+    await userEvent.type(maxQueueInput, "0");
+    await userEvent.click(screen.getByRole("button", { name: /^สร้าง$/ }));
+
+    await waitFor(() =>
+      expect(mockCreateProvider).toHaveBeenCalledWith(
+        expect.objectContaining({ max_queue_size: 0 }),
+      ),
+    );
+  });
 });
 
 describe("LlmProvidersPage edit flow", () => {

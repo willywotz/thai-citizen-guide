@@ -14,6 +14,11 @@ import {
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { LlmProvider, LlmProviderInput } from "./llmProviderApi";
 
+function numOr(v: string, d: number): number {
+  const n = Number(v);
+  return v.trim() === "" || Number.isNaN(n) ? d : n;
+}
+
 interface Props {
   target: LlmProvider | null;
   mutation: UseMutationResult<
@@ -64,11 +69,11 @@ export function EditLlmProviderDialog({ target, mutation, onClose }: Props) {
         ...(apiKey !== "" && apiKey !== MASKED_KEY ? { api_key: apiKey } : {}),
         auth_header: form.auth_header.trim() || "Authorization",
         auth_scheme: form.auth_scheme.trim() || "Bearer",
-        timeout_seconds: Number(form.timeout_seconds) || 60,
+        timeout_seconds: numOr(form.timeout_seconds, 60),
         request_usage: form.request_usage,
         rate_limit_rps: form.rate_limit_rps.trim() === "" ? null : Number(form.rate_limit_rps),
         rate_limit_rpm: form.rate_limit_rpm.trim() === "" ? null : Number(form.rate_limit_rpm),
-        max_queue_size: Number(form.max_queue_size) || 50,
+        max_queue_size: numOr(form.max_queue_size, 50),
         enabled: form.enabled,
       },
     });
