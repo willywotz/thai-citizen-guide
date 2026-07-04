@@ -1,5 +1,9 @@
+import asyncio
 import time
+from collections import defaultdict
 from dataclasses import dataclass
+
+from app.services.rate_limit import build_limiter
 
 KNOWN_PURPOSES = ("classification", "brief", "judge", "parse_spec")
 _CACHE_TTL_S = 30.0
@@ -73,3 +77,35 @@ async def _resolve(purpose: str) -> _Resolved:
     )
     _cache[purpose] = (resolved, time.monotonic())
     return resolved
+
+
+_provider_limiter = build_limiter()
+_queue_waiters: dict[str, int] = defaultdict(int)
+
+
+async def _acquire(name: str, rps: int | None, rpm: int | None, max_queue_size: int) -> None:
+    """Wait for a rate slot (rps then rpm windows). Fail fast when the queue is full.
+
+    rps is acquired before rpm so a denied rpm wastes at most one rps slot (recovers
+    within 1s); this never over-admits either window.
+    """
+    if not rps and not rpm:
+        return
+    if _queue_waiters[name] >= max_queue_size:
+        raise LlmError(f"provider {name!r} rate-limit queue is full", provider=name, kind="queue_full")
+    _queue_waiters[name] += 1
+    try:
+        while True:
+            if rps:
+                r = await _provider_limiter.check(f"llm:{name}:s", limit=rps, window_s=1.0)
+                if not r.allowed:
+                    await asyncio.sleep(max(r.retry_after, 0.02))
+                    continue
+            if rpm:
+                r = await _provider_limiter.check(f"llm:{name}:m", limit=rpm, window_s=60.0)
+                if not r.allowed:
+                    await asyncio.sleep(max(r.retry_after, 0.02))
+                    continue
+            return
+    finally:
+        _queue_waiters[name] -= 1
