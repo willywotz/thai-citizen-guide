@@ -20,7 +20,6 @@ from app.auth.security import (
 from app.config import settings
 from app.models.user import User
 from app.schemas.user import UserCreate
-from app.services.email import send_password_reset_email
 
 
 def ensure_not_self(acting_user_id: uuid.UUID, target_id: uuid.UUID) -> None:
@@ -82,9 +81,8 @@ async def create_user(data: UserCreate) -> tuple[User, dict]:
         user.reset_token = token
         user.reset_token_expires = reset_token_expiry()
         await user.save(update_fields=["reset_token", "reset_token_expires"])
-        emailed = await send_password_reset_email(user.email, token)
-        extra["email_sent"] = emailed
-        if not emailed and settings.EXPOSE_PASSWORD_RESET_TOKEN:
+        extra["email_sent"] = False
+        if settings.EXPOSE_PASSWORD_RESET_TOKEN:
             extra["reset_token"] = token
 
     return user, extra

@@ -10,7 +10,6 @@ from collections import defaultdict
 
 from app.config import settings
 from app.models import Agency
-from app.services.owner_notify import notify_owners_maintenance
 
 logger = logging.getLogger(__name__)
 _consecutive_failures: dict[str, int] = defaultdict(int)
@@ -28,9 +27,4 @@ async def record_dispatch_result(agency_id: str, *, success: bool) -> None:
     )
     if updated:
         logger.warning("circuit breaker tripped agency %s into maintenance", agency_id)
-        try:
-            agency = await Agency.get(id=agency_id)
-            await notify_owners_maintenance(agency)
-        except Exception:
-            logger.exception("failed to notify owners for agency %s", agency_id)
     _consecutive_failures.pop(agency_id, None)
