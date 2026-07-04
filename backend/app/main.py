@@ -33,6 +33,7 @@ from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, public_status, users, settings as settings_router
+from app.routers import llm as llm_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
@@ -133,6 +134,7 @@ app.include_router(insight.router, prefix="/api/v1")
 app.include_router(public_status.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(audit_log.router, prefix="/api/v1")
+app.include_router(llm_router.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # MCP transport — intentionally outside the role chokepoint

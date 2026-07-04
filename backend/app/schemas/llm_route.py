@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+
+
+class LLMRouteBase(BaseModel):
+    purpose: str
+    provider_id: uuid.UUID
+    model: str
+    timeout_override: float | None = None
+    enabled: bool = True
+
+
+class LLMRouteCreate(LLMRouteBase):
+    """Request body for creating a new LLM route."""
+    pass
+
+
+class LLMRouteUpdate(BaseModel):
+    """Request body for partial update of an LLM route (all fields optional)."""
+    purpose: str | None = None
+    provider_id: uuid.UUID | None = None
+    model: str | None = None
+    timeout_override: float | None = None
+    enabled: bool | None = None
+
+
+class LLMRouteResponse(BaseModel):
+    """Response schema — includes the resolved provider name for display."""
+    id: uuid.UUID
+    purpose: str
+    provider_id: uuid.UUID
+    provider_name: str
+    model: str
+    timeout_override: float | None = None
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LLMRouteListResponse(BaseModel):
+    """Paginated list of LLM routes."""
+    data: list[LLMRouteResponse]
+    total: int
