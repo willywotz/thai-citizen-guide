@@ -31,6 +31,8 @@ const ForgotPasswordPage = lazy(() => import("@/features/auth/ForgotPasswordPage
 const ResetPasswordPage = lazy(() => import("@/features/auth/ResetPasswordPage"));
 const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
+const LlmProvidersPage = lazy(() => import("@/features/llm-providers/LlmProvidersPage"));
+const LlmRoutesPage = lazy(() => import("@/features/llm-routes/LlmRoutesPage"));
 const UsersPage = lazy(() => import("@/features/users/UsersPage"));
 const AuditLogPage = lazy(() => import("@/features/audit/AuditLogPage"));
 const UsageAnalyticsPage = lazy(() => import("@/features/usage/UsageAnalyticsPage"));
@@ -113,6 +115,8 @@ const App = () => (
 
                 {/* admin only */}
                 <Route path="/settings" element={<ProtectedRoute requireAdmin><SettingsPage /></ProtectedRoute>} />
+                <Route path="/llm-providers" element={<ProtectedRoute requireAdmin><LlmProvidersPage /></ProtectedRoute>} />
+                <Route path="/llm-routes" element={<ProtectedRoute requireAdmin><LlmRoutesPage /></ProtectedRoute>} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

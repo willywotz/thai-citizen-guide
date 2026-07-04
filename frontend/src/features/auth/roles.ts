@@ -27,6 +27,8 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   "/users": ["auditor", "admin"],
   "/audit-log": ["auditor", "admin"],
   "/settings": ["admin"],
+  "/llm-providers": ["admin"],
+  "/llm-routes": ["admin"],
 };
 
 export const READ_ONLY_ROLES: Role[] = ["viewer", "auditor"];

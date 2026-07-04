@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck, BarChart3, ScrollText } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck, BarChart3, ScrollText, Cpu, Route } from "lucide-react";
 import { NavLink } from "@/shared/components/NavLink";
 import {
   Sidebar,
@@ -35,6 +35,8 @@ const navItems = [
   { title: "บันทึกการตรวจสอบ", url: "/audit-log", icon: ScrollText },
   { title: "การใช้งาน API Key", url: "/usage", icon: BarChart3 },
   { title: "ตั้งค่าระบบ", url: "/settings", icon: Settings },
+  { title: "LLM Providers", url: "/llm-providers", icon: Cpu },
+  { title: "LLM Routes", url: "/llm-routes", icon: Route },
 ];
 
 export function AppSidebar() {
