@@ -74,14 +74,14 @@ Expected: FAIL — `ImportError: cannot import name 'LlmProvider'`.
 
 `backend/app/models/llm_provider.py`:
 ```python
-import uuid
-
 from tortoise import fields
 from tortoise.models import Model
 
+from app.utils import generate_uuid
+
 
 class LlmProvider(Model):
-    id = fields.UUIDField(primary_key=True, default=uuid.uuid4)
+    id = fields.UUIDField(primary_key=True, default=generate_uuid)
     name = fields.CharField(max_length=50, unique=True)
     base_url = fields.CharField(max_length=500)
     api_key = fields.TextField(default="")
@@ -102,14 +102,14 @@ class LlmProvider(Model):
 
 `backend/app/models/llm_route.py`:
 ```python
-import uuid
-
 from tortoise import fields
 from tortoise.models import Model
 
+from app.utils import generate_uuid
+
 
 class LlmRoute(Model):
-    id = fields.UUIDField(primary_key=True, default=uuid.uuid4)
+    id = fields.UUIDField(primary_key=True, default=generate_uuid)
     purpose = fields.CharField(max_length=50, unique=True)
     provider = fields.ForeignKeyField(
         "models.LlmProvider", related_name="routes", on_delete=fields.RESTRICT
