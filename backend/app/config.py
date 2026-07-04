@@ -47,19 +47,7 @@ class Settings(BaseSettings):
     MIN_PASSWORD_LENGTH: int = 6
     RESET_TOKEN_EXPIRE_HOURS: int = 1
     RESET_TOKEN_BYTES: int = 32
-    EXPOSE_PASSWORD_RESET_TOKEN: bool = True  # Set False in production; deliver token by email instead
-
-    # ── Email ────────────────────────────────────────────────────────────────
-    EMAIL_SMTP_HOST: str = ""          # empty = email disabled (non-breaking default)
-    EMAIL_SMTP_PORT: int = 587
-    EMAIL_SMTP_USER: str = ""
-    EMAIL_SMTP_PASSWORD: str = ""
-    EMAIL_FROM: str = ""               # falls back to EMAIL_SMTP_USER if empty
-    EMAIL_USE_TLS: bool = True
-    EMAIL_USE_SSL: bool = False
-    EMAIL_SMTP_TIMEOUT: int = 10
-    # Must match the deployed frontend origin (same as the relevant CORS origin) or reset-email links will point to the wrong host.
-    FRONTEND_BASE_URL: str = "http://localhost:8080"
+    EXPOSE_PASSWORD_RESET_TOKEN: bool = True  # reset/set-password token is returned in the API response
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
@@ -163,7 +151,6 @@ def assert_production_secrets(s: "Settings") -> None:
 SETTINGS_GROUPS: dict[str, list[str]] = {
     "Similarity": ["SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_CACHE_ENABLED"],
     "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
-    "Email": ["EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_USE_TLS", "EMAIL_USE_SSL", "EMAIL_SMTP_TIMEOUT", "FRONTEND_BASE_URL"],
     "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "MCP_ENDPOINT_URL"],
     "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
     "Chat": ["USER_RATE_LIMIT_RPM", "A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS"],
@@ -172,7 +159,6 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
 
 SECRET_FIELD_NAMES: set[str] = {
     "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
-    "EMAIL_SMTP_PASSWORD",
 }
 
 settings = Settings()
