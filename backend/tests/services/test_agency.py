@@ -44,18 +44,8 @@ async def test_test_connection_unknown_type():
 @pytest.mark.asyncio
 async def test_parse_spec_raises_on_http_error():
     from app.services.agency import parse_spec
-    import httpx
+    from app.services.llm import LlmError
 
-    mock_response = MagicMock()
-    mock_response.status_code = 429
-    mock_response.headers = {"content-type": "application/json"}
-    mock_response.text = "Rate limit exceeded"
-    mock_response.is_error = True
-    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "429", request=MagicMock(), response=mock_response
-    )
-
-    with patch("app.services.agency.httpx.AsyncClient") as MockClient:
-        MockClient.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
-        with pytest.raises(httpx.HTTPStatusError):
+    with patch("app.services.llm.chat", AsyncMock(side_effect=LlmError("parse_spec: provider returned 429", status=429))):
+        with pytest.raises(LlmError):
             await parse_spec("some spec text")

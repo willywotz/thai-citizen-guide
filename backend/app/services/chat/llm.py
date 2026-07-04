@@ -1,8 +1,6 @@
 import logging
 
-from app.config import settings
 from app.models.conversation import Message
-from app.services.llm_client import openrouter_chat
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +18,9 @@ async def classify_message_category(message_id: str, query: str, answer: str) ->
 
 คำตอบ: {answer}
 """
-    payload = {
-        "model": settings.CLASSIFICATION_MODEL,
-        "messages": [{"role": "user", "content": content}],
-    }
-    resp = await openrouter_chat(payload, purpose="classification")
+    from app.services.llm import LlmError, chat
     try:
-        category = resp.json()["choices"][0]["message"]["content"].strip()
-        await Message.filter(id=message_id).update(category=category)
-    except Exception as e:
+        res = await chat(purpose="classification", messages=[{"role": "user", "content": content}])
+        await Message.filter(id=message_id).update(category=res.content)
+    except (LlmError, Exception) as e:
         logger.error("Error classifying message category: %s", e)

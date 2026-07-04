@@ -116,21 +116,21 @@ async def test_get_executive_summary_smoke():
     conv.filter.return_value = conv
     conv.count = AsyncMock(return_value=0)
 
-    openrouter_mock = AsyncMock()
+    chat_mock = AsyncMock()
 
     with (
         patch.object(brief, "in_transaction", return_value=_AsyncCM(conn)),
         patch.object(brief, "Message", msg),
         patch.object(brief, "Conversation", conv),
         patch.object(brief, "_latest_brief", new=AsyncMock(return_value="brief")),
-        patch.object(brief, "openrouter_chat", openrouter_mock),
+        patch("app.services.llm.chat", chat_mock),
     ):
         result = await brief.get_executive_summary()
 
     assert isinstance(result, ExecutiveData)
     assert result.weeklyBrief == "brief"
     # GET must read the cached brief from the DB and never call the LLM.
-    openrouter_mock.assert_not_called()
+    chat_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -155,18 +155,23 @@ async def test_regenerate_weekly_brief_persists_ok_row():
     """A successful LLM call inserts an ExecutiveBrief row with status 'ok'."""
     from app.services.analytics import brief
 
+    from app.services.llm import LlmResult, LlmUsageInfo
+
     created = MagicMock(content="generated brief", status="ok")
     brief_model = MagicMock()
     brief_model.create = AsyncMock(return_value=created)
 
-    resp = MagicMock()
-    resp.json.return_value = {"choices": [{"message": {"content": "  generated brief  "}}]}
+    llm_result = LlmResult(
+        content="generated brief", tool_calls=None,
+        usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
+        raw={},
+    )
 
     with (
         patch.object(brief, "_compute_executive_metrics", new=AsyncMock(return_value={})),
         patch.object(brief, "_build_brief_prompt", return_value="prompt"),
         patch.object(brief, "ExecutiveBrief", brief_model),
-        patch.object(brief, "openrouter_chat", new=AsyncMock(return_value=resp)),
+        patch("app.services.llm.chat", new=AsyncMock(return_value=llm_result)),
     ):
         result = await brief.regenerate_weekly_brief()
 
@@ -189,7 +194,7 @@ async def test_regenerate_weekly_brief_persists_error_row_on_http_failure():
         patch.object(brief, "_compute_executive_metrics", new=AsyncMock(return_value={})),
         patch.object(brief, "_build_brief_prompt", return_value="prompt"),
         patch.object(brief, "ExecutiveBrief", brief_model),
-        patch.object(brief, "openrouter_chat", new=AsyncMock(side_effect=RuntimeError("network error"))),
+        patch("app.services.llm.chat", new=AsyncMock(side_effect=RuntimeError("network error"))),
     ):
         await brief.regenerate_weekly_brief()
 
