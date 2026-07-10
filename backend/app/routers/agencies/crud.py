@@ -30,6 +30,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Fields that identify *how* an agency is reached. Changing any of these on a
+# live agency invalidates its conformance battery, so it must be re-vetted.
+_CONNECTION_IDENTITY_FIELDS = frozenset(
+    {"connection_type", "endpoint_url", "api_headers", "expected_payload", "mcp_tool_name"}
+)
+
 
 # list_agencies and create_agency are registered by __init__.py directly
 # on the /agencies prefix router to avoid FastAPI's empty-path constraint.
@@ -125,6 +131,14 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = D
             h.model_dump() if hasattr(h, "model_dump") else h
             for h in update_data["api_headers"]
         ]
+
+    connection_changed = any(
+        field in update_data and update_data[field] != getattr(agency, field)
+        for field in _CONNECTION_IDENTITY_FIELDS
+    )
+    if connection_changed and agency.status in ("active", "maintenance"):
+        update_data["status"] = "draft"
+        update_data["conformance_report"] = None
 
     await agency.update_from_dict(update_data).save()
     try:

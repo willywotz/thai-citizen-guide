@@ -192,6 +192,14 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `GET /public/popular-questions` (no more hardcoded `suggestedQuestions` in `mockData.ts`).
   The public portal's หน่วยงานที่เชื่อมต่อ block (`AgencyCards` + `usePublicAgencies`) is fed by
   the anonymous `GET /public/agencies`.
+- **Agency detail** (`features/agencies/detail/`): tabs ภาพรวม · Health · **แก้ไข (Edit)** · Logs.
+  The Edit tab (`EditTab`) — shown only when **not** `isReadOnly` (admin/agency_owner; hidden from
+  auditor/viewer) — consolidates General/Connection/Routing editing, each a section with its own
+  save. It replaced the former standalone Connection/Routing tabs. The setup wizard
+  (`/agencies/{id}/setup`) still handles guided first-time setup + activation. Editing any
+  connection-identity field on an **active/maintenance** agency demotes it to `draft` (see below +
+  ADR `docs/adr/0002-agency-edit-connection-demote.md`); the Connection section confirms before
+  saving such a change.
 - **Chat streaming** (`features/chat/chatApi.ts`): consumes `/chat/stream` SSE via native `fetch`
   (events `step`, `agencies`, `intent`, `routing`, `agency_start`, `agency_responded`,
   `agency_verified`, `answer`, `done`, `error`), with a per-chunk idle timeout and a JSON-polling
@@ -233,7 +241,13 @@ An `API` agency exposes an HTTP `POST` endpoint. The gateway builds the body fro
 `__conversation_id__`, `__user_id__`) and sends `api_headers` (lowercased) + `content-type: json`.
 **Return HTTP 200 for every valid question** (non-2xx = error contribution). Before `draft → active`,
 an agency must pass a **5-check conformance battery**: `responds`, `non_empty`, `thai_text`,
-`concurrency_3`, `garbage_input` (stored in `agency.conformance_report`). Transient errors retry up
+`concurrency_3`, `garbage_input` (stored in `agency.conformance_report`). Editing any
+connection-identity field (`connection_type`/`endpoint_url`/`api_headers`/`expected_payload`/
+`mcp_tool_name`) of an **active** or **maintenance** agency demotes it back to `draft` and clears
+`conformance_report` — done atomically in `PATCH /agencies/{id}` (a system reset that bypasses the
+`is_legal_transition` guard, which otherwise forbids `→ draft`); `disabled`/`draft` are unaffected
+and general/routing edits never demote. See ADR `docs/adr/0002-agency-edit-connection-demote.md`.
+Transient errors retry up
 to 3× with backoff; 4xx/5xx do not. `MCP` and `A2A` connection types are also supported.
 Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md`.
 

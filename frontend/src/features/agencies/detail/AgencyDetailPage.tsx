@@ -12,6 +12,7 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import { useAuth } from "@/features/auth/useAuth";
 import type { AgencyLifecycleStatus } from "@/shared/types/agency";
 
 import {
@@ -22,17 +23,17 @@ import {
   TRANSITION_LABEL,
 } from "../lifecycle";
 import { useAgencies, useUpdateAgencyStatus } from "../useAgencies";
-import { ConnectionTab } from "./ConnectionTab";
+import { EditTab } from "./EditTab";
 import { HealthTab } from "./HealthTab";
 import { LogsTab } from "./LogsTab";
 import { OverviewTab } from "./OverviewTab";
-import { RoutingTab } from "./RoutingTab";
 
 export default function AgencyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: agencies = [], isLoading } = useAgencies();
   const statusMutation = useUpdateAgencyStatus();
+  const { isReadOnly } = useAuth();
 
   const agency = agencies.find((a) => a.id === id);
 
@@ -127,8 +128,7 @@ export default function AgencyDetailPage() {
         <TabsList>
           <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
           <TabsTrigger value="health">Health</TabsTrigger>
-          <TabsTrigger value="connection">การเชื่อมต่อ</TabsTrigger>
-          <TabsTrigger value="routing">Routing</TabsTrigger>
+          {!isReadOnly && <TabsTrigger value="edit">แก้ไข</TabsTrigger>}
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
@@ -137,12 +137,11 @@ export default function AgencyDetailPage() {
         <TabsContent value="health">
           <HealthTab agencyId={agency.id} />
         </TabsContent>
-        <TabsContent value="connection">
-          <ConnectionTab agency={agency} />
-        </TabsContent>
-        <TabsContent value="routing">
-          <RoutingTab agency={agency} />
-        </TabsContent>
+        {!isReadOnly && (
+          <TabsContent value="edit">
+            <EditTab agency={agency} />
+          </TabsContent>
+        )}
         <TabsContent value="logs">
           <LogsTab agencyId={agency.id} />
         </TabsContent>

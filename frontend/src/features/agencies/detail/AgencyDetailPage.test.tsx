@@ -2,11 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { mockAgencies, resetMockData } from "@/mocks/fixtures";
 
 import AgencyDetailPage from "./AgencyDetailPage";
+
+const auth = { isReadOnly: false };
+vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
+
+beforeEach(() => {
+  auth.isReadOnly = false;
+});
 
 afterEach(() => {
   resetMockData();
@@ -30,11 +37,21 @@ function renderDetail(id: string) {
 }
 
 describe("AgencyDetailPage", () => {
-  it("renders header with status badge and the five tabs", async () => {
+  it("renders header with status badge and the four tabs", async () => {
     renderDetail(ACTIVE_ID);
     await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
     expect(screen.getByText("Active")).toBeInTheDocument();
-    for (const tab of ["ภาพรวม", "Health", "การเชื่อมต่อ", "Routing", "Logs"]) {
+    for (const tab of ["ภาพรวม", "Health", "แก้ไข", "Logs"]) {
+      expect(screen.getByRole("tab", { name: new RegExp(tab) })).toBeInTheDocument();
+    }
+  });
+
+  it("hides the edit tab for a read-only user", async () => {
+    auth.isReadOnly = true;
+    renderDetail(ACTIVE_ID);
+    await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
+    expect(screen.queryByRole("tab", { name: "แก้ไข" })).not.toBeInTheDocument();
+    for (const tab of ["ภาพรวม", "Health", "Logs"]) {
       expect(screen.getByRole("tab", { name: new RegExp(tab) })).toBeInTheDocument();
     }
   });
