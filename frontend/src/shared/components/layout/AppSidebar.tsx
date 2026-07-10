@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck, BarChart3, ScrollText, Cpu, Route } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck, BarChart3, ScrollText, Cpu, Route, Sparkles } from "lucide-react";
 import { NavLink } from "@/shared/components/NavLink";
 import {
   Sidebar,
@@ -16,7 +16,6 @@ import { useAuth } from "@/features/auth/useAuth";
 import { canAccess } from "@/features/auth/roles";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
-import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 const navItems = [
   { title: "แชท", url: "/chat", icon: MessageSquare },
@@ -37,6 +36,7 @@ const navItems = [
   { title: "ตั้งค่าระบบ", url: "/settings", icon: Settings },
   { title: "LLM Providers", url: "/llm-providers", icon: Cpu },
   { title: "LLM Routes", url: "/llm-routes", icon: Route },
+  { title: "คำถามยอดนิยม", url: "/popular-questions", icon: Sparkles },
 ];
 
 export function AppSidebar() {
@@ -59,20 +59,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarContent>
-        {/* Logo area */}
-        <div className="p-4 border-b border-sidebar-border">
-          {!collapsed ? (
-            <div className="flex items-center gap-2">
-              <AppLogo className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" />
-              <div>
-                <p className="font-semibold text-sm text-sidebar-foreground">AI Portal กลาง</p>
-                <p className="text-[10px] text-muted-foreground">ระบบบูรณาการข้อมูล</p>
-              </div>
+        {/* Title area */}
+        {!collapsed && (
+          <div className="p-4 border-b border-sidebar-border">
+            <div>
+              <p className="font-semibold text-sm text-sidebar-foreground">AI Chatbot Portal กลาง</p>
+              <p className="text-[10px] text-muted-foreground">ระบบบูรณาการข้อมูล</p>
             </div>
-          ) : (
-            <AppLogo className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Navigation */}
         <SidebarGroup>

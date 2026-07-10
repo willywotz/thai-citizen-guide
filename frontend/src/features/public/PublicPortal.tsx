@@ -1,21 +1,21 @@
-import { Send, Search, X, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Send, Search, X, ArrowRight, ArrowLeft, Bot } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
-import { agencies, suggestedQuestions } from '@/shared/data/mockData';
 import { MessageBubble } from '@/features/chat/MessageBubble';
 import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
 import { LandingHero } from '@/features/public/LandingHero';
-import { AgencyCards } from '@/features/public/AgencyCards';
 import { SuggestedQuestions } from '@/features/public/SuggestedQuestions';
+import { InfoLinks } from '@/features/public/InfoLinks';
 import { useChat } from '@/features/chat/useChat';
+import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
 import { useState } from 'react';
-import { AppLogo } from '@/shared/components/ui/AppLogo';
 
 export default function PublicPortal() {
   const {
     messages, input, setInput, isTyping, activeStepCount, currentSteps,
     streamingState, scrollRef, handleSend, handleRate, reset, cancelStream, hasMessages,
   } = useChat();
+  const { data: popularQuestions } = usePublicPopularQuestions();
   const [chatMode, setChatMode] = useState(false);
 
   const isStreaming = isTyping && streamingState.pipelineSteps.length > 0 && !streamingState.done;
@@ -40,8 +40,7 @@ export default function PublicPortal() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <AppLogo className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm" />
-          <span className="font-semibold text-foreground">AI Portal กลาง</span>
+          <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
         </div>
         <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
           เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
@@ -57,7 +56,7 @@ export default function PublicPortal() {
               ))}
               {isTyping && (
                 <div className="flex items-start gap-3 mb-4">
-                  <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>
                   <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
                     {isStreaming ? (
                       <StreamingProgress state={streamingState} />
@@ -117,21 +116,17 @@ export default function PublicPortal() {
               </div>
             </div>
 
-            {/* <AgencyCards agencies={agencies} /> */}
-            <SuggestedQuestions questions={suggestedQuestions} agencies={agencies} onSelect={onSend} />
+            {popularQuestions && popularQuestions.length > 0 && (
+              <SuggestedQuestions questions={popularQuestions} onSelect={onSend} />
+            )}
           </main>
 
           <footer className="border-t border-border py-6 px-6">
             <div className="max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <AppLogo className="w-6 h-6 rounded-md flex items-center justify-center text-white font-bold text-[8px]" />
-                <span className="text-xs text-muted-foreground">© 2568 AI Portal กลาง</span>
+                <span className="text-xs text-muted-foreground">© 2568 AI Chatbot Portal กลาง</span>
               </div>
-              <div className="flex gap-4 text-xs text-muted-foreground">
-                <a href="#" className="hover:text-foreground transition-colors">เกี่ยวกับระบบ</a>
-                <a href="#" className="hover:text-foreground transition-colors">นโยบายข้อมูล</a>
-                <a href="#" className="hover:text-foreground transition-colors">ติดต่อเรา</a>
-              </div>
+              <InfoLinks />
             </div>
           </footer>
         </>

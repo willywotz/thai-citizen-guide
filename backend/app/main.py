@@ -32,9 +32,10 @@ from app.database import init_db, close_db
 from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
-from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, public_status, users, settings as settings_router
+from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import llm as llm_router
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
+from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
 
@@ -74,6 +75,7 @@ async def lifespan(app: FastAPI):
     await load_settings_from_db()
     await _run_seed_admin()
     await _run_seed_agencies()
+    await seed_popular_questions()
     await start_scheduler()
 
     async with mcp_app.lifespan(app):
@@ -131,6 +133,7 @@ app.include_router(connection_logs.router, prefix="/api/v1")
 app.include_router(api_key.router, prefix="/api/v1")
 app.include_router(executive_summary.router, prefix="/api/v1")
 app.include_router(insight.router, prefix="/api/v1")
+app.include_router(popular_questions.router, prefix="/api/v1")
 app.include_router(public_status.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(audit_log.router, prefix="/api/v1")

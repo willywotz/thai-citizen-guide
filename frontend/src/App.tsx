@@ -24,6 +24,7 @@ const HistoryPage = lazy(() => import("@/features/history/HistoryPage"));
 const ArchitecturePage = lazy(() => import("@/features/architecture/ArchitecturePage"));
 const ConnectionLogsPage = lazy(() => import("@/features/connection-logs/ConnectionLogsPage"));
 const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
+const InfoPage = lazy(() => import("@/features/public/InfoPage"));
 const StatusPage = lazy(() => import("@/features/status/StatusPage"));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
 const SignupPage = lazy(() => import("@/features/auth/SignupPage"));
@@ -33,6 +34,7 @@ const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const LlmProvidersPage = lazy(() => import("@/features/llm-providers/LlmProvidersPage"));
 const LlmRoutesPage = lazy(() => import("@/features/llm-routes/LlmRoutesPage"));
+const PopularQuestionsPage = lazy(() => import("@/features/popular-questions/PopularQuestionsPage"));
 const UsersPage = lazy(() => import("@/features/users/UsersPage"));
 const AuditLogPage = lazy(() => import("@/features/audit/AuditLogPage"));
 const UsageAnalyticsPage = lazy(() => import("@/features/usage/UsageAnalyticsPage"));
@@ -66,6 +68,9 @@ const App = () => (
             <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<PublicPortal />} />
+              <Route path="/about" element={<InfoPage />} />
+              <Route path="/data-policy" element={<InfoPage />} />
+              <Route path="/contact" element={<InfoPage />} />
               <Route path="/status" element={<StatusPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
@@ -117,6 +122,7 @@ const App = () => (
                 <Route path="/settings" element={<ProtectedRoute requireAdmin><SettingsPage /></ProtectedRoute>} />
                 <Route path="/llm-providers" element={<ProtectedRoute requireAdmin><LlmProvidersPage /></ProtectedRoute>} />
                 <Route path="/llm-routes" element={<ProtectedRoute requireAdmin><LlmRoutesPage /></ProtectedRoute>} />
+                <Route path="/popular-questions" element={<ProtectedRoute requireAdmin><PopularQuestionsPage /></ProtectedRoute>} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

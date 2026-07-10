@@ -31,6 +31,8 @@ async def seed_llm_defaults() -> None:
         ("brief", openrouter, settings.CLASSIFICATION_MODEL, float(settings.WEEKLY_BRIEF_TIMEOUT)),
         ("judge", openrouter, settings.CLASSIFICATION_MODEL, None),
         ("parse_spec", thaillm, settings.PARSE_SPEC_LLM_MODEL, None),
+        # Falls back to the classification model/provider until configured otherwise.
+        ("popular_questions", openrouter, settings.CLASSIFICATION_MODEL, None),
     ]
     for purpose, provider, model, timeout_override in routes:
         await LlmRoute.get_or_create(
