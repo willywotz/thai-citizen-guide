@@ -60,13 +60,6 @@ export const agencies: Agency[] = [
   },
 ];
 
-export const suggestedQuestions = [
-  'ขอตรวจสอบทะเบียนยา พาราเซตามอล',
-  'สอบถามเรื่องการลดหย่อนภาษี 2568',
-  'ขั้นตอนการทำบัตรประชาชนใหม่',
-  'ตรวจสอบราคาประเมินที่ดิน กรุงเทพฯ',
-];
-
 export const mockAgentSteps: AgentStep[] = [
   { icon: '🔍', label: 'กำลังวิเคราะห์คำถาม...', status: 'done' },
   { icon: '📋', label: 'วางแผนการสืบค้น → เลือกหน่วยงาน: อย., กรมสรรพากร', status: 'done' },

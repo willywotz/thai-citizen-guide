@@ -2,17 +2,18 @@ import { useEffect } from 'react';
 import { Send, X, Bot } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
-import { suggestedQuestions } from '@/shared/data/mockData';
 import { useSearchParams } from 'react-router-dom';
 import { MessageBubble } from '@/features/chat/MessageBubble';
 import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
 import { useChat } from '@/features/chat/useChat';
+import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
 
 export default function ChatPage() {
   const {
     messages, input, setInput, isTyping, activeStepCount, currentSteps,
     streamingState, scrollRef, handleSend, handleRate, cancelStream, hasMessages,
   } = useChat();
+  const { data: popularQuestions } = usePublicPopularQuestions();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Detect if SSE streaming is active (has pipeline steps but not done)
@@ -39,17 +40,19 @@ export default function ChatPage() {
               สอบถามข้อมูลจากหน่วยงานภาครัฐได้ครบในที่เดียว —{' '}
               <span className="text-foreground font-medium">Single Portal</span> เพื่อประชาชน
             </p>
-            <div className="w-full max-w-lg space-y-2">
-              <p className="text-xs text-muted-foreground mb-2">ลองถามคำถามเหล่านี้:</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {suggestedQuestions.map((q, i) => (
-                  <button key={i} onClick={() => handleSend(q)}
-                    className="text-left text-sm bg-card border border-border rounded-xl p-3 hover:bg-accent hover:border-primary/30 transition-colors">
-                    {q}
-                  </button>
-                ))}
+            {popularQuestions && popularQuestions.length > 0 && (
+              <div className="w-full max-w-lg space-y-2">
+                <p className="text-xs text-muted-foreground mb-2">ลองถามคำถามเหล่านี้:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {popularQuestions.map((q) => (
+                    <button key={q.id} onClick={() => handleSend(q.text)}
+                      className="text-left text-sm bg-card border border-border rounded-xl p-3 hover:bg-accent hover:border-primary/30 transition-colors">
+                      {q.text}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="max-w-3xl mx-auto">

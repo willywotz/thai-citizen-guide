@@ -1,14 +1,13 @@
 import { Send, Search, X, ArrowRight, ArrowLeft, Bot } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
-import { agencies, suggestedQuestions } from '@/shared/data/mockData';
 import { MessageBubble } from '@/features/chat/MessageBubble';
 import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
 import { LandingHero } from '@/features/public/LandingHero';
-import { AgencyCards } from '@/features/public/AgencyCards';
 import { SuggestedQuestions } from '@/features/public/SuggestedQuestions';
 import { InfoLinks } from '@/features/public/InfoLinks';
 import { useChat } from '@/features/chat/useChat';
+import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
 import { useState } from 'react';
 
 export default function PublicPortal() {
@@ -16,6 +15,7 @@ export default function PublicPortal() {
     messages, input, setInput, isTyping, activeStepCount, currentSteps,
     streamingState, scrollRef, handleSend, handleRate, reset, cancelStream, hasMessages,
   } = useChat();
+  const { data: popularQuestions } = usePublicPopularQuestions();
   const [chatMode, setChatMode] = useState(false);
 
   const isStreaming = isTyping && streamingState.pipelineSteps.length > 0 && !streamingState.done;
@@ -116,8 +116,9 @@ export default function PublicPortal() {
               </div>
             </div>
 
-            {/* <AgencyCards agencies={agencies} /> */}
-            <SuggestedQuestions questions={suggestedQuestions} agencies={agencies} onSelect={onSend} />
+            {popularQuestions && popularQuestions.length > 0 && (
+              <SuggestedQuestions questions={popularQuestions} onSelect={onSend} />
+            )}
           </main>
 
           <footer className="border-t border-border py-6 px-6">

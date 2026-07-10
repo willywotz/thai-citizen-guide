@@ -10,7 +10,7 @@ from app.services.rate_limit import build_limiter
 
 logger = logging.getLogger(__name__)
 
-KNOWN_PURPOSES = ("classification", "brief", "judge", "parse_spec")
+KNOWN_PURPOSES = ("classification", "brief", "judge", "parse_spec", "popular_questions")
 _CACHE_TTL_S = 30.0
 
 
