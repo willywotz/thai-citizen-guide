@@ -1,4 +1,10 @@
-import type { Agency } from '@/shared/types';
+/** Minimal card fields; satisfied by both `Agency` and `PublicAgency`. */
+export interface AgencyCardItem {
+  id: string;
+  logo: string;
+  shortName: string;
+  description: string;
+}
 
 const agencyColors: Record<string, string> = {
   fda: 'border-t-[hsl(var(--gov-fda))]',
@@ -15,7 +21,7 @@ const agencyBgColors: Record<string, string> = {
 };
 
 interface AgencyCardsProps {
-  agencies: Agency[];
+  agencies: AgencyCardItem[];
 }
 
 export function AgencyCards({ agencies }: AgencyCardsProps) {

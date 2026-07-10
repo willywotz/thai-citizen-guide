@@ -84,6 +84,9 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
   `insight`, `public_status`, `popular_questions`, `settings`, `audit_log`, `llm`.
   (`seed` router is not mounted.) `popular_questions` exposes anonymous
   `GET /public/popular-questions` + admin CRUD `/popular-questions` + `POST …/regenerate` (202).
+  `public_status` also exposes anonymous `GET /public/agencies` — a display-safe agency directory
+  (id/name/short_name/logo/description/connection_type/status, non-draft only; no internals) that
+  feeds the portal's หน่วยงานที่เชื่อมต่อ block.
 - `models/` — Tortoise ORM (see Data model).
 - `schemas/` — Pydantic request/response models.
 - `services/` — domain logic: `agency*` (health, lifecycle, reconcile, conformance),
@@ -187,6 +190,8 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `/architecture` any role; `/settings`, `/llm-providers`, `/llm-routes`, `/popular-questions`
   admin-only). The portal/chat คำถามยอดนิยม block is fed by the anonymous
   `GET /public/popular-questions` (no more hardcoded `suggestedQuestions` in `mockData.ts`).
+  The public portal's หน่วยงานที่เชื่อมต่อ block (`AgencyCards` + `usePublicAgencies`) is fed by
+  the anonymous `GET /public/agencies`.
 - **Chat streaming** (`features/chat/chatApi.ts`): consumes `/chat/stream` SSE via native `fetch`
   (events `step`, `agencies`, `intent`, `routing`, `agency_start`, `agency_responded`,
   `agency_verified`, `answer`, `done`, `error`), with a per-chunk idle timeout and a JSON-polling

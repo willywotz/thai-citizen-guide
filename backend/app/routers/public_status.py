@@ -37,3 +37,24 @@ async def public_status() -> list[dict]:
 @router.get("/status", summary="Public agency status")
 async def get_public_status() -> list[dict]:
     return await public_status()
+
+
+async def public_agencies() -> list[dict]:
+    """Display-safe agency list for the public portal — no internals."""
+    return [
+        {
+            "id": str(ag.id),
+            "name": ag.name,
+            "short_name": ag.short_name,
+            "logo": ag.logo,
+            "description": ag.description,
+            "connection_type": ag.connection_type.value,
+            "status": ag.status.value,
+        }
+        for ag in await Agency.exclude(status="draft").order_by("name")
+    ]
+
+
+@router.get("/agencies", summary="Public agency directory")
+async def get_public_agencies() -> list[dict]:
+    return await public_agencies()

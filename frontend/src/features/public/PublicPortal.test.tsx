@@ -53,3 +53,19 @@ describe("PublicPortal popular questions", () => {
     await waitFor(() => expect(screen.queryByText("คำถามยอดนิยม")).not.toBeInTheDocument());
   });
 });
+
+describe("PublicPortal connected agencies", () => {
+  it("renders the connected-agencies section from the public endpoint", async () => {
+    renderPortal();
+    expect(await screen.findByText("หน่วยงานที่เชื่อมต่อ")).toBeInTheDocument();
+    expect(await screen.findByText("อย.")).toBeInTheDocument();
+  });
+
+  it("hides the section when no agencies are returned", async () => {
+    server.use(http.get("*/api/v1/public/agencies", () => HttpResponse.json([])));
+    renderPortal();
+    await waitFor(() =>
+      expect(screen.queryByText("หน่วยงานที่เชื่อมต่อ")).not.toBeInTheDocument(),
+    );
+  });
+});

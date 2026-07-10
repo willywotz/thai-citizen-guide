@@ -5,9 +5,11 @@ import { MessageBubble } from '@/features/chat/MessageBubble';
 import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
 import { LandingHero } from '@/features/public/LandingHero';
 import { SuggestedQuestions } from '@/features/public/SuggestedQuestions';
+import { AgencyCards } from '@/features/public/AgencyCards';
 import { InfoLinks } from '@/features/public/InfoLinks';
 import { useChat } from '@/features/chat/useChat';
 import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
+import { usePublicAgencies } from '@/features/public/publicAgenciesApi';
 import { useState } from 'react';
 
 export default function PublicPortal() {
@@ -16,6 +18,7 @@ export default function PublicPortal() {
     streamingState, scrollRef, handleSend, handleRate, reset, cancelStream, hasMessages,
   } = useChat();
   const { data: popularQuestions } = usePublicPopularQuestions();
+  const { data: publicAgencies } = usePublicAgencies();
   const [chatMode, setChatMode] = useState(false);
 
   const isStreaming = isTyping && streamingState.pipelineSteps.length > 0 && !streamingState.done;
@@ -118,6 +121,13 @@ export default function PublicPortal() {
 
             {popularQuestions && popularQuestions.length > 0 && (
               <SuggestedQuestions questions={popularQuestions} onSelect={onSend} />
+            )}
+
+            {publicAgencies && publicAgencies.length > 0 && (
+              <section className="w-full max-w-4xl mt-12">
+                <h2 className="text-sm font-semibold text-foreground text-center mb-5">หน่วยงานที่เชื่อมต่อ</h2>
+                <AgencyCards agencies={publicAgencies} />
+              </section>
             )}
           </main>
 
