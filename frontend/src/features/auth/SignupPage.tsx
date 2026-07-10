@@ -8,7 +8,6 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
-import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -44,9 +43,8 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
-          <AppLogo className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg mx-auto" />
           <CardTitle className="text-xl">สมัครสมาชิก</CardTitle>
-          <p className="text-sm text-muted-foreground">สร้างบัญชี Admin สำหรับ AI Portal กลาง</p>
+          <p className="text-sm text-muted-foreground">สร้างบัญชี Admin สำหรับ AI Chatbot Portal กลาง</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">

@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/lib/apiClient';
 import { Badge } from '@/shared/components/ui/badge';
-import { AppLogo } from '@/shared/components/ui/AppLogo';
 import { REFETCH } from '@/shared/constants/query';
 import { PUBLIC_STATUS_LABEL as STATUS_LABEL, PUBLIC_STATUS_VARIANT as STATUS_VARIANT } from '@/shared/constants/status';
 
@@ -27,7 +26,6 @@ export default function StatusPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center gap-2.5">
-        <AppLogo className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm" />
         <span className="font-semibold text-foreground">สถานะระบบหน่วยงาน</span>
       </header>
 

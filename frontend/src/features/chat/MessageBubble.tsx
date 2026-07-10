@@ -1,12 +1,11 @@
 import { memo, useState } from "react";
-import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp, Bot } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { cn, parseThinkContent } from "@/shared/lib/utils";
 import type { ChatMessage } from "@/shared/types";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 export const MessageBubble = memo(function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
   const [showFeedback, setShowFeedback] = useState(false);
@@ -26,7 +25,7 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
     <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
       {isUser
         ? <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm bg-primary text-primary-foreground">👤</div>
-        : <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />}
+        : <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>}
       <div className={cn("max-w-[75%] space-y-2", isUser && "text-right")}>
         <div className={cn(
           "rounded-2xl px-4 py-3 text-sm leading-relaxed",

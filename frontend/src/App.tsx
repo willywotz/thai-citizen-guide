@@ -24,6 +24,7 @@ const HistoryPage = lazy(() => import("@/features/history/HistoryPage"));
 const ArchitecturePage = lazy(() => import("@/features/architecture/ArchitecturePage"));
 const ConnectionLogsPage = lazy(() => import("@/features/connection-logs/ConnectionLogsPage"));
 const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
+const InfoPage = lazy(() => import("@/features/public/InfoPage"));
 const StatusPage = lazy(() => import("@/features/status/StatusPage"));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
 const SignupPage = lazy(() => import("@/features/auth/SignupPage"));
@@ -66,6 +67,9 @@ const App = () => (
             <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<PublicPortal />} />
+              <Route path="/about" element={<InfoPage />} />
+              <Route path="/data-policy" element={<InfoPage />} />
+              <Route path="/contact" element={<InfoPage />} />
               <Route path="/status" element={<StatusPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
