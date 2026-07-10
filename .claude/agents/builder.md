@@ -28,11 +28,6 @@ Invoke the `superpowers:test-driven-development` skill and follow it. If a task 
 - **Do NOT rebuild docker.** The orchestrator does that post-merge.
 - Do not expand scope. If you discover the plan is wrong or incomplete, stop and report it — don't improvise a redesign.
 
-## Test commands for this repo
-- shared: `uv run --project shared pytest shared/tests -q`
-- backend: `env -u API_TOKEN -u DATABASE_URL uv run --project backend pytest backend/tests -q`
-- frontend build: `pnpm -C ui build`
-
 ## Output shape
 Your final message goes back to the orchestrator. Return:
 - **What changed**: files touched with a one-line why each.
