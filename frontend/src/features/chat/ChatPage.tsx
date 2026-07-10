@@ -7,6 +7,7 @@ import { MessageBubble } from '@/features/chat/MessageBubble';
 import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
 import { useChat } from '@/features/chat/useChat';
 import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
+import { SuggestedQuestions } from '@/features/public/SuggestedQuestions';
 
 export default function ChatPage() {
   const {
@@ -41,17 +42,7 @@ export default function ChatPage() {
               <span className="text-foreground font-medium">Single Portal</span> เพื่อประชาชน
             </p>
             {popularQuestions && popularQuestions.length > 0 && (
-              <div className="w-full max-w-lg space-y-2">
-                <p className="text-xs text-muted-foreground mb-2">ลองถามคำถามเหล่านี้:</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {popularQuestions.map((q) => (
-                    <button key={q.id} onClick={() => handleSend(q.text)}
-                      className="text-left text-sm bg-card border border-border rounded-xl p-3 hover:bg-accent hover:border-primary/30 transition-colors">
-                      {q.text}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <SuggestedQuestions questions={popularQuestions} onSelect={handleSend} />
             )}
           </div>
         ) : (
