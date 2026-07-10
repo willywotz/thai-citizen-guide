@@ -45,9 +45,9 @@ describe("ChatPage popular questions", () => {
 
   it("renders no suggestion section when the endpoint returns an empty list", async () => {
     server.use(
-      http.get("*/api/v1/public/popular-questions", () => HttpResponse.json({ questions: [] })),
+      http.get("*/api/v1/public/popular-questions", () => HttpResponse.json({ data: [] })),
     );
     renderChatPage();
-    await waitFor(() => expect(screen.queryByText(/ลองถามคำถามเหล่านี้/)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("คำถามยอดนิยม")).not.toBeInTheDocument());
   });
 });
