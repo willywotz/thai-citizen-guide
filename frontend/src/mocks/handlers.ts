@@ -249,6 +249,21 @@ export const handlers = [
     });
   }),
 
+  http.get("*/api/v1/public/agencies", () => {
+    const data = mockAgencies
+      .filter((a) => a.status !== "draft")
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        short_name: a.short_name,
+        logo: a.logo,
+        description: a.description,
+        connection_type: a.connection_type,
+        status: a.status,
+      }));
+    return HttpResponse.json(data);
+  }),
+
   http.get("*/api/v1/public/popular-questions", () => {
     const data = mockPopularQuestions
       .filter((q) => !q.hidden)
