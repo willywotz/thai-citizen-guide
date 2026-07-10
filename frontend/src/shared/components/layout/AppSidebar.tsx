@@ -16,7 +16,6 @@ import { useAuth } from "@/features/auth/useAuth";
 import { canAccess } from "@/features/auth/roles";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
-import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 const navItems = [
   { title: "แชท", url: "/chat", icon: MessageSquare },
@@ -59,20 +58,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarContent>
-        {/* Logo area */}
-        <div className="p-4 border-b border-sidebar-border">
-          {!collapsed ? (
-            <div className="flex items-center gap-2">
-              <AppLogo className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" />
-              <div>
-                <p className="font-semibold text-sm text-sidebar-foreground">AI Portal กลาง</p>
-                <p className="text-[10px] text-muted-foreground">ระบบบูรณาการข้อมูล</p>
-              </div>
+        {/* Title area */}
+        {!collapsed && (
+          <div className="p-4 border-b border-sidebar-border">
+            <div>
+              <p className="font-semibold text-sm text-sidebar-foreground">AI Chatbot Portal กลาง</p>
+              <p className="text-[10px] text-muted-foreground">ระบบบูรณาการข้อมูล</p>
             </div>
-          ) : (
-            <AppLogo className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Navigation */}
         <SidebarGroup>

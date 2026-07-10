@@ -8,7 +8,6 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
-import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -48,10 +47,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
-          <AppLogo className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg mx-auto" />
           <CardTitle className="text-xl">เข้าสู่ระบบ Admin</CardTitle>
           <p className="text-sm text-muted-foreground">
-            AI Portal กลาง — ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ
+            AI Chatbot Portal กลาง — ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ
           </p>
         </CardHeader>
         <CardContent>

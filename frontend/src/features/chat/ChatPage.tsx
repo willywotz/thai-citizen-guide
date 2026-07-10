@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Send, X } from 'lucide-react';
+import { Send, X, Bot } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { suggestedQuestions } from '@/shared/data/mockData';
@@ -7,7 +7,6 @@ import { useSearchParams } from 'react-router-dom';
 import { MessageBubble } from '@/features/chat/MessageBubble';
 import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
 import { useChat } from '@/features/chat/useChat';
-import { AppLogo } from '@/shared/components/ui/AppLogo';
 
 export default function ChatPage() {
   const {
@@ -33,7 +32,6 @@ export default function ChatPage() {
       <ScrollArea className="flex-1 p-4">
         {!hasMessages && !isTyping ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-4">
-            <AppLogo className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mb-4" />
             <h1 className="text-3xl md:text-4xl font-bold text-center mb-3 portal-gradient-text">
               ศูนย์บริการข้อมูลภาครัฐ
             </h1>
@@ -60,7 +58,7 @@ export default function ChatPage() {
             ))}
             {isTyping && (
               <div className="flex items-start gap-3 mb-4">
-                <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>
                 <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
                   {isStreaming ? (
                     <StreamingProgress state={streamingState} />
