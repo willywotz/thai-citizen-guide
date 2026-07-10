@@ -78,10 +78,12 @@ Lifespan runs: assert prod secrets → init DB → load DB settings → seed adm
 start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stateless-http**.
 
 **Package map (`app/`):**
-- `routers/` — 17 REST routers, all mounted under `/api/v1`: `auth`, `users`, `agencies/`
+- `routers/` — 18 REST routers, all mounted under `/api/v1`: `auth`, `users`, `agencies/`
   (package: `crud`, `golden`, `lifecycle`, `owners`, `spec`), `conversations`, `messages`,
   `chat`, `dashboard`, `feedback`, `connection_logs`, `api_key`, `executive_summary`,
-  `insight`, `public_status`, `settings`, `audit_log`, `llm`. (`seed` router is not mounted.)
+  `insight`, `public_status`, `popular_questions`, `settings`, `audit_log`, `llm`.
+  (`seed` router is not mounted.) `popular_questions` exposes anonymous
+  `GET /public/popular-questions` + admin CRUD `/popular-questions` + `POST …/regenerate` (202).
 - `models/` — Tortoise ORM (see Data model).
 - `schemas/` — Pydantic request/response models.
 - `services/` — domain logic: `agency*` (health, lifecycle, reconcile, conformance),
@@ -103,12 +105,17 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
 - `regenerate_brief_job` every `BRIEF_REGEN_INTERVAL_HOURS` (24) — weekly executive brief.
 - `purge_old_connection_logs` every 24h (`CONNECTION_LOG_RETENTION_DAYS`, 90).
 - `run_evaluation` every `EVAL_INTERVAL_HOURS` (168 / weekly) — golden-question LLM-judge eval.
+- `regenerate_popular_questions` every `POPULAR_QUESTIONS_REGEN_INTERVAL_HOURS` (24): LLM-synthesizes
+  clean คำถามยอดนิยม (purpose `popular_questions`) from successful user turns in the last
+  `POPULAR_QUESTIONS_WINDOW_DAYS` (30). No-ops below `POPULAR_QUESTIONS_MIN_TURNS` (20) so the
+  dopa/dol/fda seed shows on a fresh deploy. Churn: replaces only unpinned/unhidden `auto` rows;
+  seed/manual/pinned/hidden untouched; hidden `text_key`s act as tombstones (never regenerated).
 
 **External integrations (config.py):** OpenRouter (`CLASSIFICATION_MODEL`
 `google/gemini-2.5-flash-lite`), ThaiLLM parse-spec endpoint, OneChat v3/v4, MCP endpoint.
 LLM providers/models are now also DB-configurable via `LlmProvider`/`LlmRoute` (admin pages):
-a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_spec`) to a
-provider + model. Route resolution is cached (~30s) and invalidated on any provider/route mutation.
+a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_spec`,
+`popular_questions`) to a provider + model. Route resolution is cached (~30s) and invalidated on any provider/route mutation.
 
 **Tests:** pytest (`asyncio_mode=auto`, `backend/tests/`), httpx AsyncClient transport.
 
@@ -130,8 +137,9 @@ provider + model. Route resolution is cached (~30s) and invalidated on any provi
 | `AuditLog` | `audit_logs` | Admin actions; denormalized `actor_email` survives user deletion. |
 | `Relationship` | `relationships` | ReBAC tuples: subject → `relation` (owner/viewer) → object (agency/conversation). |
 | `Setting` | `settings` | Runtime config overrides (key/value/type/group/is_secret), loaded at startup over env defaults. |
+| `PopularQuestion` | `popular_questions` | คำถามยอดนิยม shown on portal/chat. `text`, unique normalized `text_key` (dedupe + hidden-tombstone), nullable `agency` FK (SET_NULL), `source` (seed/auto/manual), `pinned`, `hidden`, `sort_order`, `score`. Published = not-hidden, pinned→sort_order→score→recency, capped `POPULAR_QUESTIONS_DISPLAY_COUNT` (8). |
 
-Migrations: **aerich** (`backend/migrations/`, 20 applied). **Never hand-carry `MODELS_STATE`** —
+Migrations: **aerich** (`backend/migrations/`, 21 applied). **Never hand-carry `MODELS_STATE`** —
 always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
 and the mandatory rules in `CLAUDE.md`.
 
@@ -140,6 +148,10 @@ and the mandatory rules in `CLAUDE.md`.
 - **Bearer token** = JWT (from `POST /api/v1/auth/login`) **or** a `tcg_` API key. Both resolve
   through `app/auth/dependencies.py::_resolve_token`. Optional-auth endpoints (chat, conversations)
   allow anonymous, but a **bad `tcg_` key is rejected (401)** rather than silently degrading.
+  Any **`GET` under `/api/v1/public/`** (e.g. `public_status`, `popular_questions`) is exempt from
+  the role chokepoint for **every** role — the shared frontend `apiClient` attaches the JWT on all
+  requests, so an authenticated `user`/`viewer` hitting a public GET must not 403. Keep routers under
+  that prefix strictly read-only.
 - **Roles**: `user` (chat + architecture list), `viewer` (read-only operational/analytics pages),
   `auditor` (read-only everything except Settings), `agency_owner` (self-service own agencies),
   `admin` (full). Enforced by a **global chokepoint** `enforce_role_allowlist` (allowlists per role
@@ -161,8 +173,8 @@ agency's `endpoint_url` + `api_headers` (cached in-memory, TTL `AGENCY_CACHE_TTL
 React 18 + Vite 5 + TypeScript, **shadcn/ui** (Radix + Tailwind), **TanStack Query**, **axios**,
 **react-router-dom v6**, react-hook-form + zod. **Feature-based** layout under `src/features/*`
 (one dir per page: chat, dashboard, executive, health, heatmap, agencies, history, architecture,
-connection-logs, api-keys, settings, llm-providers, llm-routes, users, audit, usage, feedback,
-public, status, auth). Shared code in `src/shared/*`. Package manager = **pnpm** (Dockerfile uses
+connection-logs, api-keys, settings, llm-providers, llm-routes, popular-questions, users, audit,
+usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package manager = **pnpm** (Dockerfile uses
 `pnpm --frozen-lockfile`; stray `bun.lock`/`package-lock.json` are not authoritative).
 
 - **API layer** (`shared/lib/apiClient.ts`): axios, base URL `VITE_API_BASE_URL` (defaults to
@@ -172,7 +184,9 @@ public, status, auth). Shared code in `src/shared/*`. Package manager = **pnpm**
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
   `/data-policy`, `/contact`, `/status`, `/login`, `/signup`, `/forgot-password`, `/reset-password`.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
-  `/architecture` any role; `/settings`, `/llm-providers`, `/llm-routes` admin-only).
+  `/architecture` any role; `/settings`, `/llm-providers`, `/llm-routes`, `/popular-questions`
+  admin-only). The portal/chat คำถามยอดนิยม block is fed by the anonymous
+  `GET /public/popular-questions` (no more hardcoded `suggestedQuestions` in `mockData.ts`).
 - **Chat streaming** (`features/chat/chatApi.ts`): consumes `/chat/stream` SSE via native `fetch`
   (events `step`, `agencies`, `intent`, `routing`, `agency_start`, `agency_responded`,
   `agency_verified`, `answer`, `done`, `error`), with a per-chunk idle timeout and a JSON-polling

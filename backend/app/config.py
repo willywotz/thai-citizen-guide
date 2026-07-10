@@ -95,6 +95,12 @@ class Settings(BaseSettings):
     BRIEF_REGEN_INTERVAL_HOURS: int = 24
     WEEKLY_BRIEF_TIMEOUT: float = 3600.0  # 1h — effectively no limit for the weekly brief
 
+    # ── Popular questions ────────────────────────────────────────────────────
+    POPULAR_QUESTIONS_REGEN_INTERVAL_HOURS: int = 24
+    POPULAR_QUESTIONS_WINDOW_DAYS: int = 30
+    POPULAR_QUESTIONS_MIN_TURNS: int = 20
+    POPULAR_QUESTIONS_DISPLAY_COUNT: int = 8
+
     # ── Analytics windows ────────────────────────────────────────────────────
     AVG_LATENCY_WINDOW_DAYS: int = 1
     FEEDBACK_TREND_DAYS: int = 14

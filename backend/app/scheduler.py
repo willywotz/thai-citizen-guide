@@ -16,6 +16,7 @@ from app.services.agency import test_connection
 from app.services.agency_reconcile import reconcile_statuses
 from app.services.analytics import regenerate_weekly_brief
 from app.services.evaluation import run_evaluation
+from app.services.popular_questions import regenerate as regenerate_popular_questions
 from app.services.log_sanitize import sanitize_body
 from app.utils import generate_uuid, now
 
@@ -194,6 +195,15 @@ async def regenerate_brief_job() -> None:
         logger.error(f"Error regenerating weekly brief: {e}")
 
 
+async def regenerate_popular_questions_job() -> None:
+    logger.info("Regenerating popular questions...")
+    try:
+        n = await regenerate_popular_questions()
+        logger.info("Popular questions regenerated: %d new row(s)", n)
+    except Exception as e:
+        logger.error(f"Error regenerating popular questions: {e}")
+
+
 async def purge_old_connection_logs() -> int:
     logger.info("Purging old connection logs...")
     cutoff = now() - timedelta(days=settings.CONNECTION_LOG_RETENTION_DAYS)
@@ -209,6 +219,10 @@ async def start_scheduler() -> None:
     scheduler.add_job(regenerate_brief_job, IntervalTrigger(hours=settings.BRIEF_REGEN_INTERVAL_HOURS))
     scheduler.add_job(purge_old_connection_logs, IntervalTrigger(hours=24))
     scheduler.add_job(run_evaluation, IntervalTrigger(hours=settings.EVAL_INTERVAL_HOURS))
+    scheduler.add_job(
+        regenerate_popular_questions_job,
+        IntervalTrigger(hours=settings.POPULAR_QUESTIONS_REGEN_INTERVAL_HOURS),
+    )
     scheduler.start()
     logger.info("Scheduler started.")
 

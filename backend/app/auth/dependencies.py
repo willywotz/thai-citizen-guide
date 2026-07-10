@@ -59,6 +59,17 @@ _VIEWER_GET_PATTERN = [
     re.compile(r"^/api/v1/feedback/agencies/[^/]+/low-rated$"),   # Feedback detail
 ]
 _SETTINGS_PREFIX = "/api/v1/settings"
+_PUBLIC_PREFIX = "/api/v1/public"
+
+
+def _is_public_get(method: str, path: str) -> bool:
+    """Anything under ``/api/v1/public/`` is a public GET by definition.
+
+    A logged-in caller's role must never gate an endpoint that an anonymous
+    caller can already reach — see ``app/routers/public_status.py`` and
+    ``app/routers/popular_questions.py`` (both mounted under this prefix).
+    """
+    return method == "GET" and (path == _PUBLIC_PREFIX or path.startswith(_PUBLIC_PREFIX + "/"))
 
 
 def _is_shared_write(method: str, path: str) -> bool:
@@ -243,6 +254,8 @@ async def enforce_role_allowlist(
     dependency in ``app.main`` so it runs once per request.
     """
     if credentials is None:
+        return
+    if _is_public_get(request.method, request.url.path):
         return
     role = await _resolve_role(credentials.credentials)
     check = _ROLE_ALLOWLIST.get(role or "")

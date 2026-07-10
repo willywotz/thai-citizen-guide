@@ -148,7 +148,7 @@ async def test_list_purposes_returns_known_purposes():
     app.dependency_overrides.clear()
     assert r.status_code == 200
     assert r.json() == {"data": list(KNOWN_PURPOSES)}
-    assert len(r.json()["data"]) == 4
+    assert len(r.json()["data"]) == 5
 
 
 @pytest.mark.usefixtures("db")
