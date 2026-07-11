@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cn } from "@/shared/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useAgencies } from "@/features/agencies/useAgencies";
+import { AgencyLogo } from "@/shared/components/AgencyLogo";
 
 interface NodeData {
   id: string;
@@ -124,7 +125,7 @@ export default function ArchitecturePage() {
           {agencies.map((a) => (
             <div key={a.id} className="bg-card border border-border rounded-xl p-4 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-xl">{a.logo}</span>
+                <AgencyLogo logo={a.logo} alt={a.shortName} className="text-xl w-6 h-6 rounded object-cover" />
                 <span className="font-medium text-sm text-foreground">{a.shortName}</span>
               </div>
               <div className="flex items-center gap-2">

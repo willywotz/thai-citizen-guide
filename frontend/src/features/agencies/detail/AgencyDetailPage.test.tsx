@@ -2,11 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { mockAgencies, resetMockData } from "@/mocks/fixtures";
 
 import AgencyDetailPage from "./AgencyDetailPage";
+
+const auth = { isReadOnly: false };
+vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
+
+beforeEach(() => {
+  auth.isReadOnly = false;
+});
 
 afterEach(() => {
   resetMockData();
@@ -15,11 +22,11 @@ afterEach(() => {
 const ACTIVE_ID = "11111111-1111-1111-1111-111111111111";
 const DRAFT_ID = "33333333-3333-3333-3333-333333333333";
 
-function renderDetail(id: string) {
+function renderDetail(id: string, search = "") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/agencies/${id}`]}>
+      <MemoryRouter initialEntries={[`/agencies/${id}${search}`]}>
         <Routes>
           <Route path="/agencies/:id" element={<AgencyDetailPage />} />
           <Route path="/agencies/:id/setup" element={<div>wizard</div>} />
@@ -30,11 +37,21 @@ function renderDetail(id: string) {
 }
 
 describe("AgencyDetailPage", () => {
-  it("renders header with status badge and the five tabs", async () => {
+  it("renders header with status badge and the four tabs", async () => {
     renderDetail(ACTIVE_ID);
     await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
     expect(screen.getByText("Active")).toBeInTheDocument();
-    for (const tab of ["ภาพรวม", "Health", "การเชื่อมต่อ", "Routing", "Logs"]) {
+    for (const tab of ["ภาพรวม", "Health", "แก้ไข", "Logs"]) {
+      expect(screen.getByRole("tab", { name: new RegExp(tab) })).toBeInTheDocument();
+    }
+  });
+
+  it("hides the edit tab for a read-only user", async () => {
+    auth.isReadOnly = true;
+    renderDetail(ACTIVE_ID);
+    await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
+    expect(screen.queryByRole("tab", { name: "แก้ไข" })).not.toBeInTheDocument();
+    for (const tab of ["ภาพรวม", "Health", "Logs"]) {
       expect(screen.getByRole("tab", { name: new RegExp(tab) })).toBeInTheDocument();
     }
   });
@@ -61,6 +78,19 @@ describe("AgencyDetailPage", () => {
       "href",
       `/agencies/${DRAFT_ID}/setup`,
     );
+  });
+
+  it("opens the edit tab when the URL requests it", async () => {
+    renderDetail(ACTIVE_ID, "?tab=edit");
+    await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "แก้ไข" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("falls back to the overview tab when tab=edit is requested by a read-only user", async () => {
+    auth.isReadOnly = true;
+    renderDetail(ACTIVE_ID, "?tab=edit");
+    await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("shows overview stat cards", async () => {

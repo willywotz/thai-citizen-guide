@@ -27,7 +27,7 @@ class Agency(Model):
     id = fields.UUIDField(primary_key=True, default=generate_uuid)
     name = fields.CharField(max_length=255)
     short_name = fields.CharField(max_length=50, null=True)
-    logo = fields.CharField(max_length=20, null=True)           # emoji icon
+    logo = fields.CharField(max_length=255, null=True)           # emoji icon or uploaded image URL
     description = fields.TextField(null=True)
 
     # Connection

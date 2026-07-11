@@ -49,7 +49,7 @@ export const DEFAULT_FORM_STATE: AgencyFormState = {
   description: "",
   connectionType: "API",
   endpointUrl: "",
-  color: "hsl(213 70% 45%)",
+  color: "#2563eb",
   scopeInput: "",
   dataScope: [],
   status: "draft",

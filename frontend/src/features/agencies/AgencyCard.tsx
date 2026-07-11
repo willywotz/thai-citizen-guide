@@ -3,6 +3,7 @@ import { ArrowRight, MoreVertical, Pencil, Trash2, Wifi } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/features/auth/useAuth";
+import { AgencyLogo } from "@/shared/components/AgencyLogo";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -70,7 +71,7 @@ export const AgencyCard = memo(function AgencyCard({
               className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
               style={{ backgroundColor: `${agency.color}15` }}
             >
-              {agency.logo}
+              <AgencyLogo logo={agency.logo} alt={agency.name} className="w-full h-full rounded-xl" />
             </div>
             <div>
               <CardTitle className="text-sm flex items-center gap-1.5">
@@ -90,7 +91,7 @@ export const AgencyCard = memo(function AgencyCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/agencies/${agency.id}`); }}>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/agencies/${agency.id}?tab=edit`); }}>
                   <Pencil className="h-3.5 w-3.5 mr-2" /> แก้ไข
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTest(agency); }}>

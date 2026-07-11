@@ -17,6 +17,7 @@ from app.auth.dependencies import get_current_user, require_admin
 from app.models.agency import Agency
 from app.models.user import User
 from app.routers.agencies._utils import _with_health
+from app.routers.agencies.logo import sweep_agency_logo_files
 from app.schemas.agency import (
     AgencyCreate,
     AgencyListResponse,
@@ -29,6 +30,12 @@ from app.services.cache_flush import flush_similarity_cache
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Fields that identify *how* an agency is reached. Changing any of these on a
+# live agency invalidates its conformance battery, so it must be re-vetted.
+_CONNECTION_IDENTITY_FIELDS = frozenset(
+    {"connection_type", "endpoint_url", "api_headers", "expected_payload", "mcp_tool_name"}
+)
 
 
 # list_agencies and create_agency are registered by __init__.py directly
@@ -126,6 +133,14 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = D
             for h in update_data["api_headers"]
         ]
 
+    connection_changed = any(
+        field in update_data and update_data[field] != getattr(agency, field)
+        for field in _CONNECTION_IDENTITY_FIELDS
+    )
+    if connection_changed and agency.status in ("active", "maintenance"):
+        update_data["status"] = "draft"
+        update_data["conformance_report"] = None
+
     await agency.update_from_dict(update_data).save()
     try:
         await flush_similarity_cache()
@@ -143,6 +158,7 @@ async def delete_agency(agency_id: uuid.UUID, user: User = Depends(get_current_u
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
     await authorize_or_403(user, "agency:delete", agency)
     await agency.delete()
+    sweep_agency_logo_files(agency_id)
     await record_audit(user, "agency.delete", object_type="agency", object_id=agency_id)
 
 
