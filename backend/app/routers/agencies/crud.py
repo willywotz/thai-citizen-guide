@@ -17,6 +17,7 @@ from app.auth.dependencies import get_current_user, require_admin
 from app.models.agency import Agency
 from app.models.user import User
 from app.routers.agencies._utils import _with_health
+from app.routers.agencies.logo import sweep_agency_logo_files
 from app.schemas.agency import (
     AgencyCreate,
     AgencyListResponse,
@@ -157,6 +158,7 @@ async def delete_agency(agency_id: uuid.UUID, user: User = Depends(get_current_u
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
     await authorize_or_403(user, "agency:delete", agency)
     await agency.delete()
+    sweep_agency_logo_files(agency_id)
     await record_audit(user, "agency.delete", object_type="agency", object_id=agency_id)
 
 

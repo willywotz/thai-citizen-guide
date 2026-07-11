@@ -1,3 +1,5 @@
+import { AgencyLogo } from "@/shared/components/AgencyLogo";
+
 /** Minimal card fields; satisfied by both `Agency` and `PublicAgency`. */
 export interface AgencyCardItem {
   id: string;
@@ -34,7 +36,7 @@ export function AgencyCards({ agencies }: AgencyCardsProps) {
           style={{ animationDelay: `${i * 80}ms` }}
         >
           <span className={`text-3xl w-12 h-12 rounded-xl flex items-center justify-center ${agencyBgColors[a.id] || ''}`}>
-            {a.logo}
+            <AgencyLogo logo={a.logo} alt={a.shortName} className="w-full h-full rounded-xl" />
           </span>
           <span className="text-xs font-semibold text-foreground text-center">{a.shortName}</span>
           <span className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2">

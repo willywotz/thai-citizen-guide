@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.auth.dependencies import require_admin
 from app.models.user import User
-from app.routers.agencies import crud, golden, lifecycle, owners, spec
+from app.routers.agencies import crud, golden, lifecycle, logo, owners, spec
 from app.schemas.agency import AgencyCreate, AgencyListResponse, AgencyResponse
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
@@ -29,6 +29,7 @@ router.include_router(owners.router)    # /mine, /{id}/owners
 # Sub-resource routers
 router.include_router(lifecycle.router)  # /{id}/status, /{id}/conformance, /{id}/health/history, /{id}/test
 router.include_router(golden.router)     # /{id}/golden-questions, /{id}/eval-results
+router.include_router(logo.router)       # /{id}/logo (GET/POST)
 
 # CRUD parametric routes last (/{id} catch-all)
 router.include_router(crud.router)       # /{id}, /{id}/increment-calls
@@ -42,3 +43,5 @@ agency_health_history = lifecycle.agency_health_history
 mcp_discover = spec.mcp_discover
 add_agency_owner = owners.add_agency_owner
 list_my_agencies = owners.list_my_agencies
+upload_agency_logo = logo.upload_agency_logo
+get_agency_logo = logo.get_agency_logo

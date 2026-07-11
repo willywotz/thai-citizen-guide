@@ -79,7 +79,7 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
 
 **Package map (`app/`):**
 - `routers/` — 18 REST routers, all mounted under `/api/v1`: `auth`, `users`, `agencies/`
-  (package: `crud`, `golden`, `lifecycle`, `owners`, `spec`), `conversations`, `messages`,
+  (package: `crud`, `golden`, `lifecycle`, `owners`, `spec`, `logo`), `conversations`, `messages`,
   `chat`, `dashboard`, `feedback`, `connection_logs`, `api_key`, `executive_summary`,
   `insight`, `public_status`, `popular_questions`, `settings`, `audit_log`, `llm`.
   (`seed` router is not mounted.) `popular_questions` exposes anonymous
@@ -126,7 +126,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 
 | Model | Table | Purpose / key fields |
 |---|---|---|
-| `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. |
+| `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. `logo` holds an emoji **or** an uploaded-image URL (`/api/v1/agencies/{id}/logo?v=<hash>`). |
 | `User` | `users` | Account. `role` = `user|viewer|auditor|agency_owner|admin`, bcrypt `hashed_password`, reset-token fields. |
 | `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, per-key `rate_limit_rpm`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
@@ -142,7 +142,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | `Setting` | `settings` | Runtime config overrides (key/value/type/group/is_secret), loaded at startup over env defaults. |
 | `PopularQuestion` | `popular_questions` | คำถามยอดนิยม shown on portal/chat. `text`, unique normalized `text_key` (dedupe + hidden-tombstone), nullable `agency` FK (SET_NULL), `source` (seed/auto/manual), `pinned`, `hidden`, `sort_order`, `score`. Published = not-hidden, pinned→sort_order→score→recency, capped `POPULAR_QUESTIONS_DISPLAY_COUNT` (8). |
 
-Migrations: **aerich** (`backend/migrations/`, 21 applied). **Never hand-carry `MODELS_STATE`** —
+Migrations: **aerich** (`backend/migrations/`, 22 applied). **Never hand-carry `MODELS_STATE`** —
 always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
 and the mandatory rules in `CLAUDE.md`.
 
@@ -154,7 +154,11 @@ and the mandatory rules in `CLAUDE.md`.
   Any **`GET` under `/api/v1/public/`** (e.g. `public_status`, `popular_questions`) is exempt from
   the role chokepoint for **every** role — the shared frontend `apiClient` attaches the JWT on all
   requests, so an authenticated `user`/`viewer` hitting a public GET must not 403. Keep routers under
-  that prefix strictly read-only.
+  that prefix strictly read-only. The chokepoint also exempts one non-`/public/` path: **`GET
+  /api/v1/agencies/{id}/logo`** (public agency-logo image; `_AGENCY_LOGO_GET_PATTERN` in
+  `auth/dependencies.py`, GET-only so the `POST` upload stays guarded). Uploaded logos are stored on
+  the `agency-uploads` named volume (backend-only mount, `Settings.UPLOAD_DIR`) as content-hashed
+  files and served by the backend with `immutable` caching — see ADR 0003.
 - **Roles**: `user` (chat + architecture list), `viewer` (read-only operational/analytics pages),
   `auditor` (read-only everything except Settings), `agency_owner` (self-service own agencies),
   `admin` (full). Enforced by a **global chokepoint** `enforce_role_allowlist` (allowlists per role
@@ -199,7 +203,13 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   (`/agencies/{id}/setup`) still handles guided first-time setup + activation. Editing any
   connection-identity field on an **active/maintenance** agency demotes it to `draft` (see below +
   ADR `docs/adr/0002-agency-edit-connection-demote.md`); the Connection section confirms before
-  saving such a change.
+  saving such a change. The card's แก้ไข action deep-links to `/agencies/{id}?tab=edit` (detail
+  page reads `?tab=`; read-only users fall back to overview). The General section's **color** field
+  is a native `<input type="color">` (shared `ColorField`; legacy `hsl()` values are converted to
+  hex via `features/agencies/color.ts`), and its **logo** accepts an emoji **or an uploaded image**
+  (upload button → `useUploadAgencyLogo`; image-only in the Edit tab). Agency logos everywhere
+  render through the shared `shared/components/AgencyLogo` (`<img>` for `/api/`·`/uploads/`·`http`·
+  `data:` values, else the emoji). See ADR `docs/adr/0003-agency-logo-image-upload.md`.
 - **Chat streaming** (`features/chat/chatApi.ts`): consumes `/chat/stream` SSE via native `fetch`
   (events `step`, `agencies`, `intent`, `routing`, `agency_start`, `agency_responded`,
   `agency_verified`, `answer`, `done`, `error`), with a per-chunk idle timeout and a JSON-polling

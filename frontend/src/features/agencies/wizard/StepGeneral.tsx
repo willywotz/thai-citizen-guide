@@ -3,6 +3,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 
 import type { AgencyFormState } from "../agencyForm";
+import { ColorField } from "../ColorField";
 
 interface Props {
   form: AgencyFormState;
@@ -25,10 +26,7 @@ export function StepGeneral({ form, patch }: Props) {
           <Label htmlFor="wiz-logo">โลโก้ (emoji)</Label>
           <Input id="wiz-logo" value={form.logo} onChange={(e) => patch({ logo: e.target.value })} />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="wiz-color">สี</Label>
-          <Input id="wiz-color" value={form.color} onChange={(e) => patch({ color: e.target.value })} />
-        </div>
+        <ColorField id="wiz-color" value={form.color} onChange={(hex) => patch({ color: hex })} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="wiz-desc">คำอธิบาย</Label>

@@ -1,3 +1,4 @@
+import { AgencyLogo } from "@/shared/components/AgencyLogo";
 import { Badge } from "@/shared/components/ui/badge";
 
 import type { AgencyFormState } from "../agencyForm";
@@ -24,7 +25,7 @@ export function StepReview({ form }: Props) {
           className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
           style={{ backgroundColor: `${form.color}15` }}
         >
-          {form.logo}
+          <AgencyLogo logo={form.logo} alt={form.name} className="w-full h-full rounded-xl" />
         </div>
         <div>
           <p className="font-medium">{form.name}</p>

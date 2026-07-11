@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Badge } from "@/shared/components/ui/badge";
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
+import { AgencyLogo } from "@/shared/components/AgencyLogo";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { useAuth } from "@/features/auth/useAuth";
@@ -31,6 +32,7 @@ import { OverviewTab } from "./OverviewTab";
 export default function AgencyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: agencies = [], isLoading } = useAgencies();
   const statusMutation = useUpdateAgencyStatus();
   const { isReadOnly } = useAuth();
@@ -67,6 +69,8 @@ export default function AgencyDetailPage() {
   };
 
   const showHealthDot = agency.status === "active" || agency.status === "maintenance";
+  const requestedTab = searchParams.get("tab");
+  const defaultTab = requestedTab === "edit" && !isReadOnly ? "edit" : "overview";
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -79,7 +83,7 @@ export default function AgencyDetailPage() {
             className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
             style={{ backgroundColor: `${agency.color}15` }}
           >
-            {agency.logo}
+            <AgencyLogo logo={agency.logo} alt={agency.name} className="w-full h-full rounded-xl" />
           </div>
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -124,7 +128,7 @@ export default function AgencyDetailPage() {
         </div>
       )}
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
           <TabsTrigger value="health">Health</TabsTrigger>
