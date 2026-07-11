@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     DB_POOL_MIN: int = 1
     DB_POOL_MAX: int = 10
 
+    # ── Uploads ──────────────────────────────────────────────────────────────
+    # Single source of truth for on-disk upload storage (named Docker volume in
+    # docker-compose.yaml, backend service only). Agency logos live under
+    # {UPLOAD_DIR}/agency-logos/.
+    UPLOAD_DIR: str = "/app/uploads"
+
     # ── Redis (distributed rate limiting) ────────────────────────────────────
     REDIS_URL: str = ""           # empty = in-process limiter (single worker)
     REDIS_SOCKET_TIMEOUT_MS: int = 100

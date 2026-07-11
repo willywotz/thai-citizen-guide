@@ -60,6 +60,11 @@ _VIEWER_GET_PATTERN = [
 ]
 _SETTINGS_PREFIX = "/api/v1/settings"
 _PUBLIC_PREFIX = "/api/v1/public"
+# Agency logo images are already publicly exposed via GET /public/agencies;
+# serving them at /agencies/{id}/logo (not under /public/) keeps the URL an
+# <img> tag hits stable, but it must still bypass the role allowlist so an
+# authenticated user/viewer/auditor's attached JWT doesn't 403 the fetch.
+_AGENCY_LOGO_GET_PATTERN = re.compile(r"^/api/v1/agencies/[^/]+/logo$")
 
 
 def _is_public_get(method: str, path: str) -> bool:
@@ -69,7 +74,13 @@ def _is_public_get(method: str, path: str) -> bool:
     caller can already reach — see ``app/routers/public_status.py`` and
     ``app/routers/popular_questions.py`` (both mounted under this prefix).
     """
-    return method == "GET" and (path == _PUBLIC_PREFIX or path.startswith(_PUBLIC_PREFIX + "/"))
+    if method != "GET":
+        return False
+    return (
+        path == _PUBLIC_PREFIX
+        or path.startswith(_PUBLIC_PREFIX + "/")
+        or bool(_AGENCY_LOGO_GET_PATTERN.match(path))
+    )
 
 
 def _is_shared_write(method: str, path: str) -> bool:

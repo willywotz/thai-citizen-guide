@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Pin, Trash2 } from "lucide-react";
+import { AgencyLogo } from "@/shared/components/AgencyLogo";
 import { Badge } from "@/shared/components/ui/badge";
 import {
   Table,
@@ -66,7 +67,9 @@ export function PopularQuestionsList({
               <TableCell className="whitespace-nowrap text-sm">
                 {q.agency ? (
                   <span className="flex items-center gap-1">
-                    {q.agency.logo && <span>{q.agency.logo}</span>}
+                    {q.agency.logo && (
+                      <AgencyLogo logo={q.agency.logo} alt={q.agency.name} className="w-4 h-4 rounded" />
+                    )}
                     <span>{q.agency.name}</span>
                   </span>
                 ) : (

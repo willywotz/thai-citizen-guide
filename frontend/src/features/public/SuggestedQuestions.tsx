@@ -1,5 +1,6 @@
 import { ArrowUpRight, HelpCircle } from 'lucide-react';
 import type { PopularQuestion } from '@/features/popular-questions/popularQuestionsApi';
+import { AgencyLogo } from '@/shared/components/AgencyLogo';
 
 interface SuggestedQuestionsProps {
   questions: PopularQuestion[];
@@ -19,7 +20,7 @@ export function SuggestedQuestions({ questions, onSelect }: SuggestedQuestionsPr
           >
             {q.agency?.logo ? (
               <span className="text-lg shrink-0 mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center">
-                {q.agency.logo}
+                <AgencyLogo logo={q.agency.logo} alt={q.agency.name} className="w-full h-full rounded-lg" />
               </span>
             ) : (
               <span

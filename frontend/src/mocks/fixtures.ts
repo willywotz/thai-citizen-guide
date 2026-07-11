@@ -9,7 +9,7 @@ export function row(partial: Partial<AgencyRow> & Pick<AgencyRow, "id" | "name" 
     description: "",
     data_scope: [],
     total_calls: 0,
-    color: "hsl(213 70% 45%)",
+    color: "#2563eb",
     endpoint_url: "",
     api_key_name: null,
     auth_method: "api_key",

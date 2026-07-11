@@ -1,3 +1,4 @@
+import { AgencyLogo } from "@/shared/components/AgencyLogo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { cn } from "@/shared/lib/utils";
 import type { Agency } from "@/shared/types";
@@ -20,7 +21,7 @@ export function DashboardAgencyStatus({ agencies }: Props) {
             >
               <div className="flex items-center gap-3">
                 <div className="text-xl w-9 h-9 rounded-lg bg-card flex items-center justify-center shadow-sm border border-border/50">
-                  {a.logo}
+                  <AgencyLogo logo={a.logo} alt={a.shortName} className="w-full h-full rounded-lg" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-foreground">{a.shortName}</p>
