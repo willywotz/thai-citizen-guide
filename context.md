@@ -59,11 +59,18 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
    but not currently used for chat similarity. Note: `Conversation.status="failed"` is a one-way
    ratchet, so failed turns never poison the cache.
 3. **Dispatch to OneChat**: sync `/chat` → `chat_external()` POSTs `ONECHAT_V3_URL`;
-   `/chat/stream` proxies `ONECHAT_V4_URL` SSE, re-emitting `answer`/`error`/`done` events.
-   Payload includes `mcp_endpoint_url` so OneChat can call back into agency MCP tools.
-   Existing conversations first do `ensure_session_warmed()` (`services/session.py`).
+   `/chat/stream` proxies the streaming upstream chosen by `CHAT_STREAM_VERSION`
+   (`v5` default → `ONECHAT_V5_URL`; `v4` → `ONECHAT_V4_URL`, the no-redeploy rollback —
+   resolved per request by `routers/chat.py::_stream_upstream()`, unknown values fall back to v5),
+   re-emitting `answer`/`error`/`done` events. **v5** (`spec/v5.md`) adds a `summarize` step event
+   plus `summary`, `references[]` (citations scoped to the summary only — `sections[]` stay raw)
+   and `thread_name`; when upstream summary generation fails it degrades silently to output
+   identical to v4. Payload includes `mcp_endpoint_url` so OneChat can call back into agency MCP
+   tools. Existing conversations first do `ensure_session_warmed()` (`services/session.py`).
 4. **Persist**: `services/chat/turn.py::save_turn()` writes Conversation + user/assistant
-   Messages + a `ConnectionLog` (action=`query`).
+   Messages + a `ConnectionLog` (action=`query`). On a v5 turn the assistant Message also stores
+   `summary`/`summary_references`, and a non-null `thread_name` titles the conversation — but only
+   on the turn that creates it, so the thread is never renamed mid-conversation.
 5. **Classify** (background task): `services/chat/llm.py::classify_message_category()` tags the
    turn with a Thai category via the classification LLM.
 
@@ -130,7 +137,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | `User` | `users` | Account. `role` = `user|viewer|auditor|agency_owner|admin`, bcrypt `hashed_password`, reset-token fields. |
 | `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, per-key `rate_limit_rpm`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
-| `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
+| `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
 | `ConnectionLog` | `connection_logs` | Every agency call/probe. `action` (test/query), `connection_type`, `status`, `latency_ms`, sanitized `request_body`/`response_body`, `message_id`/`assistant_message_id` (links to Message; enables cache). |
 | `GoldenQuestion` / `EvalResult` | `golden_questions` / `eval_results` | Per-agency QA regression set + LLM-judge scores. |
 | `ExecutiveBrief` | `executive_briefs` | Generated weekly narrative brief. |
@@ -211,9 +218,14 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   render through the shared `shared/components/AgencyLogo` (`<img>` for `/api/`·`/uploads/`·`http`·
   `data:` values, else the emoji). See ADR `docs/adr/0003-agency-logo-image-upload.md`.
 - **Chat streaming** (`features/chat/chatApi.ts`): consumes `/chat/stream` SSE via native `fetch`
-  (events `step`, `agencies`, `intent`, `routing`, `agency_start`, `agency_responded`,
-  `agency_verified`, `answer`, `done`, `error`), with a per-chunk idle timeout and a JSON-polling
-  fallback. Message rating uses optimistic UI updates.
+  (events `step` — including v5's `summarize`, `agencies`, `intent`, `routing`, `agency_start`,
+  `agency_responded`, `agency_verified`, `answer`, `done`, `error`), with a per-chunk idle timeout
+  and a JSON-polling fallback. The v5 `summary` + `references[]` render in the shared
+  `shared/components/SummaryCard` above the raw sections;
+  `shared/lib/summary.ts::stripSummaryPrefix` strips the duplicate summary prefix from
+  the composed `answer` (upstream embeds summary → refs → `---` → sections in one string). The
+  same pair renders stored summaries in the history detail dialog (`features/history/MessageItem`).
+  Message rating uses optimistic UI updates.
 - **Serve**: multi-stage Dockerfile → `vite build` → static `dist/` served by nginx
   (`frontend/nginx.conf`, SPA fallback). Container healthcheck hits **`/healthz`** (not `/health`,
   which is a client route).
