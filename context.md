@@ -149,7 +149,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | `Setting` | `settings` | Runtime config overrides (key/value/type/group/is_secret), loaded at startup over env defaults. |
 | `PopularQuestion` | `popular_questions` | คำถามยอดนิยม shown on portal/chat. `text`, unique normalized `text_key` (dedupe + hidden-tombstone), nullable `agency` FK (SET_NULL), `source` (seed/auto/manual), `pinned`, `hidden`, `sort_order`, `score`. Published = not-hidden, pinned→sort_order→score→recency, capped `POPULAR_QUESTIONS_DISPLAY_COUNT` (8). |
 
-Migrations: **aerich** (`backend/migrations/`, 22 applied). **Never hand-carry `MODELS_STATE`** —
+Migrations: **aerich** (`backend/migrations/`, 23 applied). **Never hand-carry `MODELS_STATE`** —
 always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
 and the mandatory rules in `CLAUDE.md`.
 
