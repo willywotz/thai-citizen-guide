@@ -422,6 +422,54 @@ describe('buildGenericErrorMessage', () => {
 // Full pipeline simulation
 // ---------------------------------------------------------------------------
 
+describe('v5 streaming fields', () => {
+  it('records the summarize step with a Thai label', () => {
+    const state = applyStepEvent(baseState(), { name: 'summarize', status: 'running', ms: null });
+    expect(state.currentStep).toBe('summarize');
+    expect(buildAgentStepsFromStreaming(state)[0].label).toBe('สรุปภาพรวม');
+  });
+
+  it('stores summary and references from the answer event', () => {
+    const state = applyAnswerEvent(baseState(), {
+      answer: 'สรุป [1]\n\n---\n\n## หัวข้อ\n\nเนื้อหา',
+      summary: 'สรุป [1]',
+      references: [{ number: 1, agency_id: 'land', agency_name: 'กรมที่ดิน', url: null }],
+      sections: [],
+      errors: [],
+      debug: null,
+    });
+    expect(state.summary).toBe('สรุป [1]');
+    expect(state.summaryReferences[0].agency_name).toBe('กรมที่ดิน');
+  });
+
+  it('defaults summary and references when the upstream omits them (v4 mode)', () => {
+    const state = applyAnswerEvent(baseState(), {
+      answer: 'คำตอบ', sections: [], errors: [], debug: null,
+    } as never);
+    expect(state.summary).toBeNull();
+    expect(state.summaryReferences).toEqual([]);
+  });
+
+  it('records thread_name from the done event', () => {
+    const state = applyDoneEvent(baseState(), {
+      session_id: 's', total_ms: 1, thread_name: 'ค่าธรรมเนียมโอนที่ดิน',
+    });
+    expect(state.threadName).toBe('ค่าธรรมเนียมโอนที่ดิน');
+  });
+
+  it('carries summary onto the built assistant message', () => {
+    const withAnswer = {
+      ...baseState(),
+      answer: 'สรุป [1]\n\n---\n\nเนื้อหา',
+      summary: 'สรุป [1]',
+      summaryReferences: [{ number: 1, agency_id: 'land', agency_name: 'กรมที่ดิน', url: null }],
+    };
+    const msg = buildAiMessageFromState(withAnswer);
+    expect(msg?.summary).toBe('สรุป [1]');
+    expect(msg?.summaryReferences).toHaveLength(1);
+  });
+});
+
 describe('full pipeline state simulation', () => {
   it('processes a realistic SSE event sequence end-to-end', () => {
     let state = baseState();

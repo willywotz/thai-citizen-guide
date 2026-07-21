@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Bot, User, Brain, ChevronDown, ChevronUp } from "lucide-react";
 import { cn, parseThinkContent } from "@/shared/lib/utils";
 import type { ConversationMessage } from "@/shared/types";
+import { SummaryCard } from "@/shared/components/SummaryCard";
+import { stripSummaryPrefix } from "@/shared/lib/summary";
 import ReactMarkdown from "react-markdown";
 
 export function MessageItem({ msg }: { msg: ConversationMessage }) {
@@ -38,9 +40,12 @@ export function MessageItem({ msg }: { msg: ConversationMessage }) {
         )}
         
         {msg.role === 'assistant' ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:my-1 [&>ul]:my-1">
-            <ReactMarkdown>{answer}</ReactMarkdown>
-          </div>
+          <>
+            <SummaryCard summary={msg.summary} references={msg.summary_references} />
+            <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:my-1 [&>ul]:my-1">
+              <ReactMarkdown>{stripSummaryPrefix(answer, msg.summary)}</ReactMarkdown>
+            </div>
+          </>
         ) : (
           <p>{answer}</p>
         )}

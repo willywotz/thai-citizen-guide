@@ -3,6 +3,8 @@ import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp, Bot } from "lucide
 import { Button } from "@/shared/components/ui/button";
 import { cn, parseThinkContent } from "@/shared/lib/utils";
 import type { ChatMessage } from "@/shared/types";
+import { SummaryCard } from "@/shared/components/SummaryCard";
+import { stripSummaryPrefix } from "@/shared/lib/summary";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -53,9 +55,12 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
           {isUser ? (
             <div className="whitespace-pre-wrap">{answer}</div>
           ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
-            </div>
+            <>
+              <SummaryCard summary={message.summary} references={message.summaryReferences} />
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripSummaryPrefix(answer, message.summary)}</ReactMarkdown>
+              </div>
+            </>
           )}
         </div>
         {!isUser && message.sources && (
