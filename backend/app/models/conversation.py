@@ -52,6 +52,8 @@ class Message(Model):
     content = fields.TextField()
     agent_steps = fields.JSONField(default=list)        # list of AgentStep objects
     sources = fields.JSONField(default=list)            # list of source references
+    summary = fields.TextField(null=True)               # v5 executive summary (LLM-written); None in v4 mode
+    summary_references = fields.JSONField(default=list) # v5 references[] — scoped to `summary` only
     rating = fields.CharField(max_length=10, null=True) # up | down | None
     feedback_text = fields.TextField(null=True)
     response_time = fields.IntField(null=True)        # in seconds

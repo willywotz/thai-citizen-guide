@@ -113,3 +113,31 @@ async def test_stream_empty_answer_marks_failed():
     )
     conv = await Conversation.get(id=cid)
     assert conv.status == "failed"  # NEW behavior: empty answer marks failed
+
+
+# ─── v5 summary fields ───────────────────────────────────────────────────────
+
+@pytest.mark.usefixtures("db")
+async def test_message_stores_summary_and_summary_references():
+    """Message carries the v5 executive summary and its reference list."""
+    conv = await _make_conv()
+    msg = await Message.create(
+        conversation=conv,
+        role="assistant",
+        content="a",
+        summary="สรุปครับ ค่าธรรมเนียมอยู่ที่ 2% [1]",
+        summary_references=[{"number": 1, "agency_id": "land", "agency_name": "กรมที่ดิน", "url": None}],
+    )
+    fetched = await Message.get(id=msg.id)
+    assert fetched.summary == "สรุปครับ ค่าธรรมเนียมอยู่ที่ 2% [1]"
+    assert fetched.summary_references[0]["agency_name"] == "กรมที่ดิน"
+
+
+@pytest.mark.usefixtures("db")
+async def test_message_summary_defaults_are_empty():
+    """v4 mode and the v5 degrade path leave both fields empty, not null-ish junk."""
+    conv = await _make_conv()
+    msg = await Message.create(conversation=conv, role="assistant", content="a")
+    fetched = await Message.get(id=msg.id)
+    assert fetched.summary is None
+    assert fetched.summary_references == []
