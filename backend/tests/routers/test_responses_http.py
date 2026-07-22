@@ -2,11 +2,15 @@
 
 import json
 import uuid
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI
+from fastapi.testclient import TestClient
+from tortoise import Tortoise
 
+from app.errors import register_error_handlers
 from app.models.conversation import Conversation, Message
 from app.schemas.responses import ResponsesRequest
 from app.routers import responses as responses_router
@@ -176,6 +180,53 @@ async def test_one_connection_log_per_turn(db):
             BackgroundTasks(), user=None,
         )
     assert await ConnectionLog.filter(action="query").count() == 1
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    await Tortoise.init(db_url="sqlite://:memory:", modules={"models": ["app.models"]})
+    await Tortoise.generate_schemas()
+    try:
+        yield
+    finally:
+        await Tortoise.close_connections()
+
+
+def _client_app() -> FastAPI:
+    """A real ASGI app mounting the responses router.
+
+    Calling `create_response()` as a bare coroutine (as the tests above do)
+    never constructs a `StreamingResponse`, so it cannot catch bugs that only
+    manifest once `StreamingResponse` has committed HTTP headers before the
+    generator's first `__anext__()`. `TestClient` drives the real ASGI stack,
+    so it can.
+    """
+    app = FastAPI(lifespan=_lifespan)
+    register_error_handlers(app)
+    app.include_router(responses_router.router, prefix="/api/v1")
+    return app
+
+
+def test_streaming_unknown_model_returns_400_over_http():
+    with TestClient(_client_app()) as client:
+        r = client.post(
+            "/api/v1/responses", json={"model": "gpt-5", "input": "hi", "stream": True},
+        )
+    assert r.status_code == 400
+    assert r.json()["error"]["param"] == "model"
+
+
+def test_streaming_unknown_previous_response_id_returns_404_over_http():
+    with TestClient(_client_app()) as client:
+        r = client.post(
+            "/api/v1/responses",
+            json={
+                "model": "thai-citizen-guide", "input": "hi", "stream": True,
+                "previous_response_id": f"resp_{uuid.uuid4()}",
+            },
+        )
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "previous_response_not_found"
 
 
 @pytest.mark.asyncio

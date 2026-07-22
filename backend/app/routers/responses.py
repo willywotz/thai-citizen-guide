@@ -118,11 +118,23 @@ async def create_response(
         span.set_attribute("stream", body.stream)
 
         if body.stream:
+            events = run_response(body, user=user, background_tasks=background_tasks)
+            # Prime the generator now, while we're still inside this handler and
+            # any ResponsesApiError from the prelude (rate limit, quota,
+            # resolve_model, resolve_conversation, prepare_turn) is caught by the
+            # normal exception handler. StreamingResponse commits HTTP 200 and
+            # headers before its body iterator's first __anext__(), so priming
+            # after construction would raise once the response has already
+            # started — see run_response()'s docstring for the same hazard.
+            first_event = await events.__anext__()
+
             async def sse() -> AsyncIterator[str]:
-                async for event in run_response(
-                    body, user=user, background_tasks=background_tasks,
-                ):
-                    yield f"event: {event['type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                def render(event: dict) -> str:
+                    return f"event: {event['type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+                yield render(first_event)
+                async for event in events:
+                    yield render(event)
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
