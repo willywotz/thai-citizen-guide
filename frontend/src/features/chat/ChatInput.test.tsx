@@ -25,11 +25,26 @@ describe("ChatInput", () => {
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
+  it("uses a multi-line textarea", () => {
+    render(<ChatInput {...baseProps} />);
+    expect(screen.getByPlaceholderText(/พิมพ์คำถาม/).tagName).toBe("TEXTAREA");
+  });
+
   it("sends on Enter without shift", async () => {
     const onSend = vi.fn();
     render(<ChatInput {...baseProps} input="hi" onSend={onSend} />);
     await userEvent.type(screen.getByPlaceholderText(/พิมพ์คำถาม/), "{Enter}");
     expect(onSend).toHaveBeenCalled();
+  });
+
+  it("does not send on Shift+Enter (newline instead)", async () => {
+    const onSend = vi.fn();
+    render(<ChatInput {...baseProps} input="hi" onSend={onSend} />);
+    await userEvent.type(
+      screen.getByPlaceholderText(/พิมพ์คำถาม/),
+      "{Shift>}{Enter}{/Shift}",
+    );
+    expect(onSend).not.toHaveBeenCalled();
   });
 
   it("shows a cancel button while typing and calls onCancel", async () => {
