@@ -86,12 +86,15 @@ def _is_public_get(method: str, path: str) -> bool:
 def _is_shared_write(method: str, path: str) -> bool:
     """Writes every authenticated role (incl. read-only ones) may perform.
 
-    Chat, message rating, own-conversation management, and the self/auth
-    endpoints. Everything else is a privileged write.
+    Chat (including the OpenAI-compatible /responses surface), message rating,
+    own-conversation management, and the self/auth endpoints. Everything else is
+    a privileged write.
     """
     if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
         return True
-    if method == "POST" and path in ("/api/v1/chat", "/api/v1/chat/stream"):
+    if method == "POST" and path in (
+        "/api/v1/chat", "/api/v1/chat/stream", "/api/v1/responses",
+    ):
         return True
     if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
         return True
