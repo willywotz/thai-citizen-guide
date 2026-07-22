@@ -37,11 +37,30 @@ def test_auth_self_endpoints_allowed():
 
 
 def test_restricted_pages_blocked():
-    assert not _is_allowed_for_basic_user("GET", "/api/v1/dashboard/stats")
     assert not _is_allowed_for_basic_user("GET", "/api/v1/connection-logs")
     assert not _is_allowed_for_basic_user("GET", "/api/v1/api-keys/")
-    assert not _is_allowed_for_basic_user("GET", "/api/v1/executive-summary")
-    assert not _is_allowed_for_basic_user("GET", "/api/v1/insight/usage")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/analytics-insights")
+    assert not _is_allowed_for_basic_user(
+        "GET", "/api/v1/agencies/abc-123/health/history"
+    )
+    assert not _is_allowed_for_basic_user(
+        "GET", "/api/v1/feedback/agencies/abc-123/low-rated"
+    )
+
+
+def test_ops_dashboard_reads_allowed():
+    assert _is_allowed_for_basic_user("GET", "/api/v1/dashboard/stats")
+    assert _is_allowed_for_basic_user("GET", "/api/v1/executive-summary")
+    assert _is_allowed_for_basic_user("GET", "/api/v1/agency-health")
+    assert _is_allowed_for_basic_user("GET", "/api/v1/usage-heatmap")
+    assert _is_allowed_for_basic_user("GET", "/api/v1/insight/usage")
+    assert _is_allowed_for_basic_user("GET", "/api/v1/feedback/stats")
+
+
+def test_executive_summary_regenerate_still_admin_only():
+    assert not _is_allowed_for_basic_user(
+        "POST", "/api/v1/executive-summary/regenerate"
+    )
 
 
 async def test_resolve_role_from_jwt(db):
@@ -113,7 +132,7 @@ async def test_basic_user_blocked_on_restricted_page(db):
     token = await _token_for("b1@x.com", "user")
     with pytest.raises(HTTPException) as e:
         await enforce_role_allowlist(
-            _request("GET", "/api/v1/dashboard/stats"), _creds(token)
+            _request("GET", "/api/v1/connection-logs"), _creds(token)
         )
     assert e.value.status_code == 403
 
@@ -124,6 +143,22 @@ async def test_basic_user_allowed_on_chat(db):
     assert await enforce_role_allowlist(
         _request("POST", "/api/v1/chat"), _creds(token)
     ) is None
+
+
+async def test_basic_user_allowed_on_dashboard_stats(db):
+    token = await _token_for("b4@x.com", "user")
+    assert await enforce_role_allowlist(
+        _request("GET", "/api/v1/dashboard/stats"), _creds(token)
+    ) is None
+
+
+async def test_basic_user_blocked_on_regenerate(db):
+    token = await _token_for("b5@x.com", "user")
+    with pytest.raises(HTTPException) as e:
+        await enforce_role_allowlist(
+            _request("POST", "/api/v1/executive-summary/regenerate"), _creds(token)
+        )
+    assert e.value.status_code == 403
 
 
 async def test_admin_unaffected(db):

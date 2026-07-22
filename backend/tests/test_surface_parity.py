@@ -80,6 +80,14 @@ async def test_user_surface_is_exactly_this(db):
         ("POST", "/api/v1/conversations"),
         ("GET", f"/api/v1/conversations/{_SAMPLE_ID}"),
         ("DELETE", f"/api/v1/conversations/{_SAMPLE_ID}"),
+        # Read-only ops dashboards: Dashboard, Executive, Agency Health, Usage
+        # Heatmap, Usage Analytics, Feedback.
+        ("GET", "/api/v1/dashboard/stats"),
+        ("GET", "/api/v1/executive-summary"),
+        ("GET", "/api/v1/agency-health"),
+        ("GET", "/api/v1/usage-heatmap"),
+        ("GET", "/api/v1/insight/usage"),
+        ("GET", "/api/v1/feedback/stats"),
     }
     # Every /auth/* route and every public GET is also reachable; enumerate them
     # from the route table so new ones are picked up rather than silently missed.
@@ -107,3 +115,8 @@ async def test_admin_reaches_the_whole_route_table(db):
     token = create_access_token({"sub": str(admin.id)})
     reachable = await _reachable_by(token)
     assert reachable == set(_concrete_paths())
+
+
+def test_register_route_removed():
+    """Self-registration is gone; accounts are admin-created via POST /users."""
+    assert ("POST", "/api/v1/auth/register") not in set(_concrete_paths())

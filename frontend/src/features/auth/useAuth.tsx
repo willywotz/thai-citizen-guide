@@ -26,7 +26,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   signOut: () => void;
-  /** Call after a successful login/register to store token + set user */
+  /** Call after a successful login to store token + set user */
   setAuth: (token: string, user: AuthUser) => void;
 }
 

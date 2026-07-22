@@ -28,12 +28,13 @@ describe("AppSidebar visibility", () => {
     auth.user = { id: "1", email: "u@x.com", displayName: "U", role: "user", avatarUrl: null };
   });
 
-  it("shows only chat + architecture for a basic user", () => {
+  it("shows read-only operational pages but not admin-only pages for a basic user", () => {
     auth.user = { ...auth.user!, role: "user" };
     renderSidebar();
     expect(screen.getByText("แชท")).toBeInTheDocument();
     expect(screen.getByText("Architecture")).toBeInTheDocument();
-    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(screen.queryByText("จัดการหน่วยงาน")).not.toBeInTheDocument();
   });
 
   it("shows every nav item for an admin", () => {

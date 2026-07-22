@@ -48,6 +48,18 @@ _PUBLIC_PREFIX = "/api/v1/public"
 # authenticated user's attached JWT doesn't 403 the fetch.
 _AGENCY_LOGO_GET_PATTERN = re.compile(r"^/api/v1/agencies/[^/]+/logo$")
 
+# Read-only ops dashboards a plain `user` may view: Dashboard, Executive,
+# Agency Health, Usage Heatmap, Usage Analytics, Feedback. The write side of
+# each page (e.g. POST /executive-summary/regenerate) stays admin-only.
+_BASIC_USER_GET_EXACT = frozenset({
+    "/api/v1/dashboard/stats",
+    "/api/v1/executive-summary",
+    "/api/v1/agency-health",
+    "/api/v1/usage-heatmap",
+    "/api/v1/insight/usage",
+    "/api/v1/feedback/stats",
+})
+
 
 def _is_public_get(method: str, path: str) -> bool:
     """Anything under ``/api/v1/public/`` is a public GET by definition.
@@ -86,10 +98,12 @@ def _is_shared_write(method: str, path: str) -> bool:
 
 
 def _is_allowed_for_basic_user(method: str, path: str) -> bool:
-    """A plain ``user`` role: chat + architecture list + the shared writes."""
+    """A plain ``user`` role: chat + architecture list + read-only ops pages + shared writes."""
     if _is_shared_write(method, path):
         return True
     if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
+        return True
+    if method == "GET" and path in _BASIC_USER_GET_EXACT:
         return True
     return False
 

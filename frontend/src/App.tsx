@@ -26,7 +26,6 @@ const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
 const InfoPage = lazy(() => import("@/features/public/InfoPage"));
 const StatusPage = lazy(() => import("@/features/status/StatusPage"));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
-const SignupPage = lazy(() => import("@/features/auth/SignupPage"));
 const ForgotPasswordPage = lazy(() => import("@/features/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("@/features/auth/ResetPasswordPage"));
 const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
@@ -72,7 +71,6 @@ const App = () => (
               <Route path="/contact" element={<InfoPage />} />
               <Route path="/status" element={<StatusPage />} />
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
@@ -80,15 +78,15 @@ const App = () => (
                 {/* Every authenticated role */}
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/executive" element={<ExecutivePage />} />
+                <Route path="/health" element={<HealthPage />} />
+                <Route path="/heatmap" element={<HeatmapPage />} />
+                <Route path="/usage" element={<UsageAnalyticsPage />} />
+                <Route path="/feedback" element={<FeedbackPage />} />
 
                 {/* admin only */}
                 <Route element={<ProtectedRoute allowedRoles={["admin"]}><Outlet /></ProtectedRoute>}>
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/executive" element={<ExecutivePage />} />
-                  <Route path="/health" element={<HealthPage />} />
-                  <Route path="/heatmap" element={<HeatmapPage />} />
-                  <Route path="/usage" element={<UsageAnalyticsPage />} />
-                  <Route path="/feedback" element={<FeedbackPage />} />
                   <Route path="/agencies" element={<AgenciesPage />} />
                   <Route path="/agencies/:id" element={<AgencyDetailPage />} />
                   <Route path="/history" element={<HistoryPage />} />

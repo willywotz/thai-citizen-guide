@@ -1,9 +1,11 @@
 """
 Auth router — JWT-based authentication.
 
+Accounts are created by an admin via ``POST /api/v1/users``; there is no
+public self-registration.
+
 Endpoints
 ---------
-  POST  /auth/register          Create a new account
   POST  /auth/login             Sign in → returns access_token
   GET   /auth/me                Return the currently authenticated user
   POST  /auth/forgot-password   Request a password-reset token
@@ -13,11 +15,10 @@ Endpoints
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import get_current_user
 from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
@@ -36,12 +37,6 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 # ---------------------------------------------------------------------------
 # Pydantic schemas (defined inline — small enough not to need a separate file)
 # ---------------------------------------------------------------------------
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str
-    display_name: str | None = None
-
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -69,34 +64,6 @@ def _user_dict(user: User) -> dict:
         "displayName": user.display_name or user.email.split("@")[0],
         "role": user.role,
         "avatarUrl": user.avatar_url,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Register
-# ---------------------------------------------------------------------------
-
-@router.post("/register", status_code=status.HTTP_201_CREATED, summary="Create a new account")
-async def register(body: RegisterRequest) -> dict:
-    if len(body.password) < settings.MIN_PASSWORD_LENGTH:
-        raise HTTPException(status_code=400, detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")
-
-    exists = await User.filter(email=body.email).exists()
-    if exists:
-        raise HTTPException(status_code=409, detail="อีเมลนี้ถูกใช้งานแล้ว")
-
-    user = await User.create(
-        email=body.email,
-        display_name=body.display_name,
-        hashed_password=hash_password(body.password),
-        role="user",
-    )
-
-    token = create_access_token({"sub": str(user.id)})
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": _user_dict(user),
     }
 
 

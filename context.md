@@ -234,7 +234,14 @@ and the mandatory rules in `CLAUDE.md`.
   `auth/dependencies.py`, GET-only so the `POST` upload stays guarded). Uploaded logos are stored on
   the `agency-uploads` named volume (backend-only mount, `Settings.UPLOAD_DIR`) as content-hashed
   files and served by the backend with `immutable` caching — see ADR 0003.
-- **Roles**: `user` (chat + architecture list) and `admin` (full), plus anonymous. Enforced by a
+- **Roles**: `user` (chat, architecture list, and **read-only** Dashboard · Executive · Agency
+  Health · Usage Heatmap · Usage Analytics · Feedback) and `admin` (full), plus anonymous.
+  `user` is read-only on those six pages: the allowlist grants only their six backing GETs
+  (`_BASIC_USER_GET_EXACT`), so writes like `POST /executive-summary/regenerate` stay admin-only
+  and the UI hides the control (`canRegenerate={isAdmin}`) rather than letting it 403.
+  **There is no public self-registration** — `POST /auth/register` and the `/signup` page were
+  removed, because self-serve signup plus these grants would have let anyone reach the
+  operational dashboards. Admins create accounts via `POST /api/v1/users`. Enforced by a
   **global chokepoint** `enforce_role_allowlist` (`dependencies.py`) that is **deny-by-default**:
   anonymous and unresolvable tokens pass through (so the endpoint's own auth returns 401 rather
   than a misleading 403), `admin` passes through to per-endpoint `require_admin`, and **every
@@ -276,7 +283,7 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `localStorage['auth_token']`; response interceptor unwraps the `{error:{message}}` envelope
   (with legacy `detail` fallback).
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
-  `/data-policy`, `/contact`, `/status`, `/login`, `/signup`, `/forgot-password`, `/reset-password`.
+  `/data-policy`, `/contact`, `/status`, `/login`, `/forgot-password`, `/reset-password`.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
   `/architecture` any role; `/settings`, `/llm-providers`, `/llm-routes`, `/popular-questions`
   admin-only). The portal/chat คำถามยอดนิยม block is fed by the anonymous
@@ -377,8 +384,10 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 - **TDD is mandatory** (red → green → refactor). Go changes: run `/use-modern-go`, then gofmt +
   `golangci-lint run --allow-parallel-runners` (repeat until clean).
 - Prefix all shell commands with **`rtk`** (token-optimizing proxy) — see `docs/rtk.md`.
-- Agencies router registers literal paths (`/mine`, `/mcp/discover`, `/parse-spec`) **before**
+- Agencies router registers literal paths (`/mcp/discover`, `/parse-spec`) **before**
   parametric `/{agency_id}` to avoid UUID wildcard shadowing (`routers/agencies/__init__.py`).
+  Note the flip side, now that `/mine` is gone: an unmatched literal falls through to
+  `/{agency_id}` and returns **422** (UUID validation), not 404.
 - Error responses use a unified envelope `{"error":{"code","message","retryable","upstream_status"}}`
   (`app/errors.py`); frontend unwraps it, with legacy `detail` fallback.
 - **Editing `frontend/vite.config.ts` does not affect a running stack.** The dev override's
