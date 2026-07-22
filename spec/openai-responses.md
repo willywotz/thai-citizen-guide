@@ -59,7 +59,7 @@ Source: `MODEL_IDS` and `resolve_model()` in `app/services/responses/request.py`
 | `conversation` | `string \| null` | `null` | See § 3 |
 | `stream` | `boolean` | `false` | HTTP only — the WebSocket transport always streams |
 | `store` | `boolean` | `true` | Accepted, ignored — see § 6 |
-| `generate` | `boolean` | `true` | WebSocket only — `false` warms a conversation without generating; see § 5 |
+| `generate` | `boolean` | `true` | WebSocket only — `false` warms a conversation without generating; see § 8 |
 
 Any other field the OpenAI SDK sends (`temperature`, `tools`, `max_output_tokens`,
 `instructions`, `metadata`, `top_p`, …) is accepted and silently ignored — the schema is
@@ -322,6 +322,7 @@ Source: `ResponsesApiError.envelope()` in `app/services/responses/errors.py`.
 | `rate_limit_exceeded` | 429 | `rate_limit_error` | `app/routers/responses.py` (`_enforce_limits`) |
 | `quota_exceeded` | 429 | `rate_limit_error` | `app/routers/responses.py` (`_enforce_limits`) |
 | `websocket_connection_limit_reached` | — (WS close, not an HTTP status) | `invalid_request_error` | `app/routers/responses.py` (`_connection_limit_frame`) |
+| `no_answer` | 502 | `server_error` | `app/routers/responses.py` (`create_response`) — the non-streaming path ran to completion without a `response.completed` or `response.failed` |
 
 Some errors carry no `code` at all (`code: null`) — e.g. unknown `model`, empty `input`, or a
 `conversation`/`previous_response_id` mismatch — the `param` field identifies the offending

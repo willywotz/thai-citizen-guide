@@ -95,7 +95,7 @@ Lifespan runs: assert prod secrets → init DB → load DB settings → seed adm
 start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stateless-http**.
 
 **Package map (`app/`):**
-- `routers/` — 19 REST routers, all mounted under `/api/v1`: `auth`, `users`, `agencies/`
+- `routers/` — 18 mounted REST routers, all mounted under `/api/v1`: `auth`, `users`, `agencies/`
   (package: `crud`, `golden`, `lifecycle`, `owners`, `spec`, `logo`), `conversations`, `messages`,
   `chat`, `dashboard`, `feedback`, `connection_logs`, `api_key`, `executive_summary`,
   `insight`, `public_status`, `popular_questions`, `settings`, `audit_log`, `llm`, `responses`.
