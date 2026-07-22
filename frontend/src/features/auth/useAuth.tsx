@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api, tokenStorage } from "@/shared/lib/apiClient";
-import { isReadOnlyRole, type Role } from "@/features/auth/roles";
+import { type Role } from "@/features/auth/roles";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,7 +24,6 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   isAdmin: boolean;
-  isReadOnly: boolean;
   isLoading: boolean;
   signOut: () => void;
   /** Call after a successful login/register to store token + set user */
@@ -38,7 +37,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isAdmin: false,
-  isReadOnly: false,
   isLoading: true,
   signOut: () => {},
   setAuth: () => {},
@@ -88,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAdmin: user?.role === "admin",
-        isReadOnly: isReadOnlyRole(user?.role),
         isLoading,
         signOut,
         setAuth,

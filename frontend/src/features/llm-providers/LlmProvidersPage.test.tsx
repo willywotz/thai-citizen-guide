@@ -10,9 +10,6 @@ import type { LlmProvider } from "./llmProviderApi";
 // Mocks
 // ---------------------------------------------------------------------------
 
-const auth = { isReadOnly: false };
-vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
-
 const mockListProviders = vi.fn();
 const mockCreateProvider = vi.fn();
 const mockUpdateProvider = vi.fn();
@@ -64,7 +61,6 @@ function renderPage() {
 
 describe("LlmProvidersPage create button", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     mockListProviders.mockResolvedValue({ data: [], total: 0 });
   });
 
@@ -74,20 +70,9 @@ describe("LlmProvidersPage create button", () => {
     renderPage();
     expect(await screen.findByText("เพิ่มผู้ให้บริการ")).toBeInTheDocument();
   });
-
-  it("hides the create button for a read-only role", async () => {
-    auth.isReadOnly = true;
-    renderPage();
-    await screen.findByText("ยังไม่มีผู้ให้บริการ LLM กรุณาเพิ่มใหม่");
-    expect(screen.queryByText("เพิ่มผู้ให้บริการ")).not.toBeInTheDocument();
-  });
 });
 
 describe("LlmProvidersPage list rendering", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   afterEach(() => vi.clearAllMocks());
 
   it("shows empty state when there are no providers", async () => {
@@ -109,20 +94,10 @@ describe("LlmProvidersPage list rendering", () => {
     expect(screen.getByText("Azure")).toBeInTheDocument();
     expect(screen.getByText("ปิดใช้งาน")).toBeInTheDocument();
   });
-
-  it("hides action buttons for read-only users", async () => {
-    auth.isReadOnly = true;
-    mockListProviders.mockResolvedValue({ data: [makeProvider()], total: 1 });
-    renderPage();
-    await screen.findByText("OpenAI");
-    expect(screen.queryByRole("button", { name: "แก้ไข" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "ลบ" })).not.toBeInTheDocument();
-  });
 });
 
 describe("LlmProvidersPage create flow", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     mockListProviders.mockResolvedValue({ data: [], total: 0 });
   });
 
@@ -192,10 +167,6 @@ describe("LlmProvidersPage create flow", () => {
 });
 
 describe("LlmProvidersPage edit flow", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   afterEach(() => vi.clearAllMocks());
 
   it("opens edit dialog with pre-filled fields and a blank api_key", async () => {
@@ -251,10 +222,6 @@ describe("LlmProvidersPage edit flow", () => {
 });
 
 describe("LlmProvidersPage delete flow", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   afterEach(() => vi.clearAllMocks());
 
   it("opens delete confirm dialog when delete button is clicked", async () => {

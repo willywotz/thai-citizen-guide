@@ -31,15 +31,15 @@ describe("ProtectedRoute allowedRoles", () => {
   });
 
   it("redirects a role not in allowedRoles to /chat", () => {
-    auth.user = { ...auth.user!, role: "viewer" };
-    renderAt("/secret", <ProtectedRoute allowedRoles={["auditor", "admin"]}><div>secret content</div></ProtectedRoute>);
+    auth.user = { ...auth.user!, role: "user" };
+    renderAt("/secret", <ProtectedRoute allowedRoles={["admin"]}><div>secret content</div></ProtectedRoute>);
     expect(screen.getByText("chat page")).toBeInTheDocument();
     expect(screen.queryByText("secret content")).not.toBeInTheDocument();
   });
 
   it("lets a role in allowedRoles through", () => {
-    auth.user = { ...auth.user!, role: "auditor" };
-    renderAt("/secret", <ProtectedRoute allowedRoles={["auditor", "admin"]}><div>secret content</div></ProtectedRoute>);
+    auth.user = { ...auth.user!, role: "admin" };
+    renderAt("/secret", <ProtectedRoute allowedRoles={["admin"]}><div>secret content</div></ProtectedRoute>);
     expect(screen.getByText("secret content")).toBeInTheDocument();
   });
 

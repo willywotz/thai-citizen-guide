@@ -2,18 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { mockAgencies, resetMockData } from "@/mocks/fixtures";
 
 import AgencyDetailPage from "./AgencyDetailPage";
-
-const auth = { isReadOnly: false };
-vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
-
-beforeEach(() => {
-  auth.isReadOnly = false;
-});
 
 afterEach(() => {
   resetMockData();
@@ -46,16 +39,6 @@ describe("AgencyDetailPage", () => {
     }
   });
 
-  it("hides the edit tab for a read-only user", async () => {
-    auth.isReadOnly = true;
-    renderDetail(ACTIVE_ID);
-    await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
-    expect(screen.queryByRole("tab", { name: "แก้ไข" })).not.toBeInTheDocument();
-    for (const tab of ["ภาพรวม", "Health", "Logs"]) {
-      expect(screen.getByRole("tab", { name: new RegExp(tab) })).toBeInTheDocument();
-    }
-  });
-
   it("offers only legal transitions in the status dropdown and applies one", async () => {
     const user = userEvent.setup();
     renderDetail(ACTIVE_ID);
@@ -84,13 +67,6 @@ describe("AgencyDetailPage", () => {
     renderDetail(ACTIVE_ID, "?tab=edit");
     await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
     expect(screen.getByRole("tab", { name: "แก้ไข" })).toHaveAttribute("aria-selected", "true");
-  });
-
-  it("falls back to the overview tab when tab=edit is requested by a read-only user", async () => {
-    auth.isReadOnly = true;
-    renderDetail(ACTIVE_ID, "?tab=edit");
-    await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
-    expect(screen.getByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("shows overview stat cards", async () => {

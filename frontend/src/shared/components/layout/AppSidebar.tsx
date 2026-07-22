@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck, BarChart3, ScrollText, Cpu, Route, Sparkles } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BarChart3, ScrollText, Cpu, Route, Sparkles } from "lucide-react";
 import { NavLink } from "@/shared/components/NavLink";
 import {
   Sidebar,
@@ -24,7 +24,6 @@ const navItems = [
   { title: "Agency Health", url: "/health", icon: Activity },
   { title: "Usage Heatmap", url: "/heatmap", icon: Flame },
   { title: "จัดการหน่วยงาน", url: "/agencies", icon: Building2 },
-  { title: "หน่วยงานของฉัน", url: "/my-agencies", icon: BadgeCheck },
   { title: "ประวัติการสนทนา", url: "/history", icon: History },
   { title: "ประวัติการเชื่อมต่อ", url: "/connection-logs", icon: Activity },
   { title: "Architecture", url: "/architecture", icon: Network },

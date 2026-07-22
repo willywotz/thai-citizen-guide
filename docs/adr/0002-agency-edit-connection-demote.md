@@ -79,3 +79,12 @@ backend ReBAC (`agency:edit`) still limits `agency_owner` to their own agencies.
   explicit admin act.
 - General and Routing edits stay lifecycle-neutral; only the Connection section carries the
   demote semantics.
+
+## Update — 2026-07-23
+
+The role model was collapsed to `user`/`admin`
+(`docs/superpowers/specs/2026-07-23-rbac-simplification-design.md`). The `agency_owner` role and
+the ReBAC layer referenced above no longer exist: the Edit tab is now reachable only by admins,
+and `agency:edit` is a plain `require_admin` check. The `isReadOnly` gate it describes was deleted
+along with the read-only roles. The demote-to-draft decision this ADR records is **unchanged** —
+only the authorization wrapper around it was replaced.

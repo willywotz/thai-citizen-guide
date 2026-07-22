@@ -203,7 +203,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | Model | Table | Purpose / key fields |
 |---|---|---|
 | `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. `logo` holds an emoji **or** an uploaded-image URL (`/api/v1/agencies/{id}/logo?v=<hash>`). |
-| `User` | `users` | Account. `role` = `user|viewer|auditor|agency_owner|admin`, bcrypt `hashed_password`, reset-token fields. |
+| `User` | `users` | Account. `role` = `user|admin`, bcrypt `hashed_password`, reset-token fields. |
 | `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, per-key `rate_limit_rpm`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
 | `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
@@ -214,11 +214,10 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | `LlmRoute` | `llm_routes` | Maps a `purpose` (classification/synthesis/router/…) → provider + `model` (+ timeout). |
 | `LlmUsage` | `llm_usage` | Token/cost tracking per call, dimensioned by user/agency/conversation/api_key. |
 | `AuditLog` | `audit_logs` | Admin actions; denormalized `actor_email` survives user deletion. |
-| `Relationship` | `relationships` | ReBAC tuples: subject → `relation` (owner/viewer) → object (agency/conversation). |
 | `Setting` | `settings` | Runtime config overrides (key/value/type/group/is_secret), loaded at startup over env defaults. |
 | `PopularQuestion` | `popular_questions` | คำถามยอดนิยม shown on portal/chat. `text`, unique normalized `text_key` (dedupe + hidden-tombstone), nullable `agency` FK (SET_NULL), `source` (seed/auto/manual), `pinned`, `hidden`, `sort_order`, `score`. Published = not-hidden, pinned→sort_order→score→recency, capped `POPULAR_QUESTIONS_DISPLAY_COUNT` (8). |
 
-Migrations: **aerich** (`backend/migrations/`, 23 applied). **Never hand-carry `MODELS_STATE`** —
+Migrations: **aerich** (`backend/migrations/`, 24 applied). **Never hand-carry `MODELS_STATE`** —
 always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
 and the mandatory rules in `CLAUDE.md`.
 
@@ -229,17 +228,22 @@ and the mandatory rules in `CLAUDE.md`.
   allow anonymous, but a **bad `tcg_` key is rejected (401)** rather than silently degrading.
   Any **`GET` under `/api/v1/public/`** (e.g. `public_status`, `popular_questions`) is exempt from
   the role chokepoint for **every** role — the shared frontend `apiClient` attaches the JWT on all
-  requests, so an authenticated `user`/`viewer` hitting a public GET must not 403. Keep routers under
+  requests, so an authenticated `user` hitting a public GET must not 403. Keep routers under
   that prefix strictly read-only. The chokepoint also exempts one non-`/public/` path: **`GET
   /api/v1/agencies/{id}/logo`** (public agency-logo image; `_AGENCY_LOGO_GET_PATTERN` in
   `auth/dependencies.py`, GET-only so the `POST` upload stays guarded). Uploaded logos are stored on
   the `agency-uploads` named volume (backend-only mount, `Settings.UPLOAD_DIR`) as content-hashed
   files and served by the backend with `immutable` caching — see ADR 0003.
-- **Roles**: `user` (chat + architecture list), `viewer` (read-only operational/analytics pages),
-  `auditor` (read-only everything except Settings), `agency_owner` (self-service own agencies),
-  `admin` (full). Enforced by a **global chokepoint** `enforce_role_allowlist` (allowlists per role
-  in `dependencies.py`); `admin`/`agency_owner`/anonymous pass through to per-endpoint guards
-  (`require_admin`, `require_admin_or_auditor`, ReBAC in `authz.py`).
+- **Roles**: `user` (chat + architecture list) and `admin` (full), plus anonymous. Enforced by a
+  **global chokepoint** `enforce_role_allowlist` (`dependencies.py`) that is **deny-by-default**:
+  anonymous and unresolvable tokens pass through (so the endpoint's own auth returns 401 rather
+  than a misleading 403), `admin` passes through to per-endpoint `require_admin`, and **every
+  other role — including rows left behind by a not-yet-run migration — falls back to the
+  basic-user allowlist**. That fallback matters: an earlier design failed *open* for unknown
+  roles, which would have let a residual `auditor` mint an API key during a deploy window.
+  The `viewer`/`auditor`/`agency_owner` roles and the ReBAC/ABAC engine (`authz.py`,
+  `relationships` table) were removed 2026-07 — see
+  `docs/superpowers/specs/2026-07-23-rbac-simplification-design.md`.
 - **`POST /api/v1/responses` is a shared write** (`_is_shared_write`), allowed for every
   authenticated role exactly like `/chat` — it is a programmatic surface, not a privileged one.
   The **WebSocket on that same path is not covered by the HTTP chokepoint** (a WS route is a
@@ -280,9 +284,8 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   The public portal's หน่วยงานที่เชื่อมต่อ block (`AgencyCards` + `usePublicAgencies`) is fed by
   the anonymous `GET /public/agencies`.
 - **Agency detail** (`features/agencies/detail/`): tabs ภาพรวม · Health · **แก้ไข (Edit)** · Logs.
-  The Edit tab (`EditTab`) — shown only when **not** `isReadOnly` (admin/agency_owner; hidden from
-  auditor/viewer) — consolidates General/Connection/Routing editing, each a section with its own
-  save. It replaced the former standalone Connection/Routing tabs. The setup wizard
+  The Edit tab (`EditTab`) — shown to admins, the only role that can reach the page — consolidates
+  General/Connection/Routing editing, each a section with its own save. It replaced the former standalone Connection/Routing tabs. The setup wizard
   (`/agencies/{id}/setup`) still handles guided first-time setup + activation. Editing any
   connection-identity field on an **active/maintenance** agency demotes it to `draft` (see below +
   ADR `docs/adr/0002-agency-edit-connection-demote.md`); the Connection section confirms before

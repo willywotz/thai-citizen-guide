@@ -17,7 +17,6 @@ const ExecutivePage = lazy(() => import("@/features/executive/ExecutivePage"));
 const HealthPage = lazy(() => import("@/features/health/HealthPage"));
 const HeatmapPage = lazy(() => import("@/features/heatmap/HeatmapPage"));
 const AgenciesPage = lazy(() => import("@/features/agencies/AgenciesPage"));
-const MyAgenciesPage = lazy(() => import("@/features/agencies/MyAgenciesPage"));
 const AgencyDetailPage = lazy(() => import("@/features/agencies/detail/AgencyDetailPage"));
 const AgencyWizardPage = lazy(() => import("@/features/agencies/wizard/AgencyWizardPage"));
 const HistoryPage = lazy(() => import("@/features/history/HistoryPage"));
@@ -82,38 +81,21 @@ const App = () => (
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
 
-                {/* viewer + auditor + agency_owner + admin */}
-                <Route element={<ProtectedRoute allowedRoles={["viewer", "auditor", "agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
+                {/* admin only */}
+                <Route element={<ProtectedRoute allowedRoles={["admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/executive" element={<ExecutivePage />} />
                   <Route path="/health" element={<HealthPage />} />
                   <Route path="/heatmap" element={<HeatmapPage />} />
-                </Route>
-
-                {/* viewer + auditor + admin (no agency_owner) */}
-                <Route element={<ProtectedRoute allowedRoles={["viewer", "auditor", "admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/usage" element={<UsageAnalyticsPage />} />
                   <Route path="/feedback" element={<FeedbackPage />} />
-                </Route>
-
-                {/* auditor (read-only) + agency_owner + admin */}
-                <Route element={<ProtectedRoute allowedRoles={["auditor", "agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/agencies" element={<AgenciesPage />} />
                   <Route path="/agencies/:id" element={<AgencyDetailPage />} />
                   <Route path="/history" element={<HistoryPage />} />
                   <Route path="/connection-logs" element={<ConnectionLogsPage />} />
                   <Route path="/api-keys" element={<ApiKeysPage />} />
-                </Route>
-
-                {/* agency_owner + admin only (owner-personal / write flows) */}
-                <Route element={<ProtectedRoute allowedRoles={["agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
-                  <Route path="/my-agencies" element={<MyAgenciesPage />} />
                   <Route path="/agencies/new" element={<AgencyWizardPage />} />
                   <Route path="/agencies/:id/setup" element={<AgencyWizardPage />} />
-                </Route>
-
-                {/* auditor (read-only) + admin */}
-                <Route element={<ProtectedRoute allowedRoles={["auditor", "admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/users" element={<UsersPage />} />
                   <Route path="/audit-log" element={<AuditLogPage />} />
                 </Route>
