@@ -37,6 +37,9 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
 
 **nginx routing (`default.conf`, single source of truth):**
 - `/api`, `/sse`, `/messages`, `/mcp`, `/docs`, `/redoc`, `/openapi.json` → `backend:8080`
+  (`/api/v1/responses` also serves a **WebSocket**: an exact-match location adds the
+  `$connection_upgrade` map and a 3700s read timeout, since the app holds sockets for up to
+  60 min — the shared 300s timeout would kill an idle one long before the cap.)
 - `/agent-proxy/` → `agent-proxy:8080`
 - `/jaeger/` → `jaeger:16686`
 - `/` (everything else) → `frontend:8080` (SPA)
@@ -59,13 +62,27 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
    but not currently used for chat similarity. Note: `Conversation.status="failed"` is a one-way
    ratchet, so failed turns never poison the cache.
 3. **Dispatch to OneChat**: sync `/chat` → `chat_external()` POSTs `ONECHAT_V3_URL`;
-   `/chat/stream` proxies `ONECHAT_V4_URL` SSE, re-emitting `answer`/`error`/`done` events.
-   Payload includes `mcp_endpoint_url` so OneChat can call back into agency MCP tools.
-   Existing conversations first do `ensure_session_warmed()` (`services/session.py`).
+   `/chat/stream` proxies the streaming upstream chosen by `CHAT_STREAM_VERSION`
+   (`v5` default → `ONECHAT_V5_URL`; `v4` → `ONECHAT_V4_URL`, the no-redeploy rollback —
+   resolved per request by `routers/chat.py::_stream_upstream()`, unknown values fall back to v5),
+   re-emitting `answer`/`error`/`done` events. **v5** (`spec/v5.md`) adds a `summarize` step event
+   plus `summary`, `references[]` (citations scoped to the summary only — `sections[]` stay raw)
+   and `thread_name`; when upstream summary generation fails it degrades silently to output
+   identical to v4. Payload includes `mcp_endpoint_url` so OneChat can call back into agency MCP
+   tools. Existing conversations first do `ensure_session_warmed()` (`services/session.py`).
 4. **Persist**: `services/chat/turn.py::save_turn()` writes Conversation + user/assistant
-   Messages + a `ConnectionLog` (action=`query`).
+   Messages + a `ConnectionLog` (action=`query`). On a v5 turn the assistant Message also stores
+   `summary`/`summary_references`, and a non-null `thread_name` titles the conversation — but only
+   on the turn that creates it, so the thread is never renamed mid-conversation.
 5. **Classify** (background task): `services/chat/llm.py::classify_message_category()` tags the
    turn with a Thai category via the classification LLM.
+
+`POST /api/v1/responses` is an **OpenAI Responses API compatible** surface over the same
+pipeline (`routers/responses.py`), in three transports: HTTP non-streaming, HTTP SSE, and a
+WebSocket on the same path. It shares one turn implementation with `/chat/stream` via
+`services/chat/stream.py` (`prepare_turn` / `run_turn`), and translates to OpenAI's wire
+format in `services/responses/`. `store` is accepted but ignored, `usage` is always zero, and
+pipeline progress events are not surfaced. See `spec/openai-responses.md`.
 
 In-process agency dispatch (API/MCP/A2A) also exists in `services/chat/dispatch.py`
 (retry/backoff, per-agency timeouts) — used for the direct-orchestration path.
@@ -78,10 +95,10 @@ Lifespan runs: assert prod secrets → init DB → load DB settings → seed adm
 start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stateless-http**.
 
 **Package map (`app/`):**
-- `routers/` — 18 REST routers, all mounted under `/api/v1`: `auth`, `users`, `agencies/`
+- `routers/` — 18 mounted REST routers, all mounted under `/api/v1`: `auth`, `users`, `agencies/`
   (package: `crud`, `golden`, `lifecycle`, `owners`, `spec`, `logo`), `conversations`, `messages`,
   `chat`, `dashboard`, `feedback`, `connection_logs`, `api_key`, `executive_summary`,
-  `insight`, `public_status`, `popular_questions`, `settings`, `audit_log`, `llm`.
+  `insight`, `public_status`, `popular_questions`, `settings`, `audit_log`, `llm`, `responses`.
   (`seed` router is not mounted.) `popular_questions` exposes anonymous
   `GET /public/popular-questions` + admin CRUD `/popular-questions` + `POST …/regenerate` (202).
   `public_status` also exposes anonymous `GET /public/agencies` — a display-safe agency directory
@@ -90,7 +107,9 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
 - `models/` — Tortoise ORM (see Data model).
 - `schemas/` — Pydantic request/response models.
 - `services/` — domain logic: `agency*` (health, lifecycle, reconcile, conformance),
-  `chat/` (dispatch, llm, turn), `analytics/` (brief, dashboard, health), `similarity`,
+  `chat/` (dispatch, llm, turn, **`stream`** — the transport-free turn pipeline shared by
+  `/chat/stream` and `/responses`), `responses/` (request mapping, continuity, event
+  translation, WebSocket session), `analytics/` (brief, dashboard, health), `similarity`,
   `quota`, `rate_limit`, `circuit_breaker`, `session`, `evaluation`, `mcp_discovery`,
   `usage_context`, `log_sanitize`, `audit`, `cache_flush`, `user`.
 - `auth/` — `security.py` (bcrypt, JWT, API-key hashing), `dependencies.py` (auth + RBAC
@@ -130,7 +149,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | `User` | `users` | Account. `role` = `user|viewer|auditor|agency_owner|admin`, bcrypt `hashed_password`, reset-token fields. |
 | `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, per-key `rate_limit_rpm`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
-| `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
+| `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
 | `ConnectionLog` | `connection_logs` | Every agency call/probe. `action` (test/query), `connection_type`, `status`, `latency_ms`, sanitized `request_body`/`response_body`, `message_id`/`assistant_message_id` (links to Message; enables cache). |
 | `GoldenQuestion` / `EvalResult` | `golden_questions` / `eval_results` | Per-agency QA regression set + LLM-judge scores. |
 | `ExecutiveBrief` | `executive_briefs` | Generated weekly narrative brief. |
@@ -142,7 +161,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | `Setting` | `settings` | Runtime config overrides (key/value/type/group/is_secret), loaded at startup over env defaults. |
 | `PopularQuestion` | `popular_questions` | คำถามยอดนิยม shown on portal/chat. `text`, unique normalized `text_key` (dedupe + hidden-tombstone), nullable `agency` FK (SET_NULL), `source` (seed/auto/manual), `pinned`, `hidden`, `sort_order`, `score`. Published = not-hidden, pinned→sort_order→score→recency, capped `POPULAR_QUESTIONS_DISPLAY_COUNT` (8). |
 
-Migrations: **aerich** (`backend/migrations/`, 22 applied). **Never hand-carry `MODELS_STATE`** —
+Migrations: **aerich** (`backend/migrations/`, 23 applied). **Never hand-carry `MODELS_STATE`** —
 always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
 and the mandatory rules in `CLAUDE.md`.
 
@@ -164,6 +183,13 @@ and the mandatory rules in `CLAUDE.md`.
   `admin` (full). Enforced by a **global chokepoint** `enforce_role_allowlist` (allowlists per role
   in `dependencies.py`); `admin`/`agency_owner`/anonymous pass through to per-endpoint guards
   (`require_admin`, `require_admin_or_auditor`, ReBAC in `authz.py`).
+- **`POST /api/v1/responses` is a shared write** (`_is_shared_write`), allowed for every
+  authenticated role exactly like `/chat` — it is a programmatic surface, not a privileged one.
+  The **WebSocket on that same path is not covered by the HTTP chokepoint** (a WS route is a
+  different ASGI protocol): it resolves auth itself in `routers/responses.py::_ws_user`, from
+  the `Authorization` header only. A bad or rate-limited token there degrades to anonymous
+  rather than 401 — deliberate, and there is no query-param token fallback (it would leak keys
+  into access logs).
 - **MCP mount is intentionally outside** the role chokepoint (mounted sub-app bypasses FastAPI
   deps); MCP auth is by API key in `mcp/server.py` — any active user, no role check. See the big
   comment in `main.py` and `tests/test_mcp_role_access.py` before touching this.
@@ -211,9 +237,14 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   render through the shared `shared/components/AgencyLogo` (`<img>` for `/api/`·`/uploads/`·`http`·
   `data:` values, else the emoji). See ADR `docs/adr/0003-agency-logo-image-upload.md`.
 - **Chat streaming** (`features/chat/chatApi.ts`): consumes `/chat/stream` SSE via native `fetch`
-  (events `step`, `agencies`, `intent`, `routing`, `agency_start`, `agency_responded`,
-  `agency_verified`, `answer`, `done`, `error`), with a per-chunk idle timeout and a JSON-polling
-  fallback. Message rating uses optimistic UI updates.
+  (events `step` — including v5's `summarize`, `agencies`, `intent`, `routing`, `agency_start`,
+  `agency_responded`, `agency_verified`, `answer`, `done`, `error`), with a per-chunk idle timeout
+  and a JSON-polling fallback. The v5 `summary` + `references[]` render in the shared
+  `shared/components/SummaryCard` above the raw sections;
+  `shared/lib/summary.ts::stripSummaryPrefix` strips the duplicate summary prefix from
+  the composed `answer` (upstream embeds summary → refs → `---` → sections in one string). The
+  same pair renders stored summaries in the history detail dialog (`features/history/MessageItem`).
+  Message rating uses optimistic UI updates.
 - **Serve**: multi-stage Dockerfile → `vite build` → static `dist/` served by nginx
   (`frontend/nginx.conf`, SPA fallback). Container healthcheck hits **`/healthz`** (not `/health`,
   which is a client route).
@@ -269,6 +300,9 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 - `docs/aerich-migrations.md` — migration discipline (never fake `MODELS_STATE`).
 - `spec/roadmap.md` — product vision & phased roadmap (security → cost tracking → reliability →
   chat consolidation → agency self-service/authz → trust/quality).
+- `spec/openai-responses.md` — the OpenAI Responses API wire contract we implement (models,
+  `input` forms, continuity, the streamed event sequence, the `portal` block, error codes,
+  WebSocket frames, and the documented deviations from OpenAI).
 - `spec/v4-streaming.md`, `spec/mcp-server.md`, `spec/agent-*.md` — OneChat v4 SSE event spec, MCP
   server contract, and orchestrator/agency integration notes.
   ⚠️ `spec/agent-20260623.md`, `agent-onechat.md`, `agent-promes.md` contain **real agency/Dify API

@@ -1,0 +1,207 @@
+<mxfile host="app.diagrams.net" modified="2026-04-08" agent="Claude" version="24.0.0">
+  <diagram name="OneChat Workflow" id="onechat-workflow">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ========== LEGEND ========== -->
+        <mxCell id="leg0" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1" value="LangGraph Node" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="75" width="150" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2" value="LLM Call" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="150" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3" value="External Service" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="165" width="150" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4" value="Decision" style="rhombus;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="210" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========== START ========== -->
+        <mxCell id="start" value="START&#xa;POST /api/v1/chat" style="ellipse;whiteSpace=wrap;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="720" y="40" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ========== validate_request ========== -->
+        <mxCell id="validate" value="validate_request&#xa;(Pydantic schema check)" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="695" y="150" width="250" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========== classify_intent ========== -->
+        <mxCell id="classify_intent" value="classify_intent&#xa;LLM → chitchat | search" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="695" y="250" width="250" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========== intent decision ========== -->
+        <mxCell id="intent_decision" value="intent?" style="rhombus;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="745" y="350" width="150" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ========== respond_chitchat ========== -->
+        <mxCell id="chitchat" value="respond_chitchat&#xa;(hardcoded Thai reply)" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="355" width="230" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========== resolve_runtime_agencies ========== -->
+        <mxCell id="resolve" value="resolve_runtime_agencies&#xa;fastmcp.Client → list_agency" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="695" y="480" width="250" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- MCP Server external -->
+        <mxCell id="mcp_server" value="MCP Server&#xa;185.84.161.145&#xa;/mcp  |  /sse" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="480" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e_resolve_mcp" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;" edge="1" source="resolve" target="mcp_server" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== decompose_and_route ========== -->
+        <mxCell id="decompose" value="decompose_and_route&#xa;LLM → 1–N sub-questions&#xa;per sub-question: classify agencies (conf ≥0.9 → specific, &lt;0.9 → broadcast all)" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="670" y="590" width="300" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ========== invoke_agencies ========== -->
+        <mxCell id="invoke" value="invoke_agencies&#xa;Parallel async per agency&#xa;timeout → retry (tenacity) → circuit breaker" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="670" y="720" width="300" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Agency A -->
+        <mxCell id="agency_a" value="กรมการปกครอง&#xa;203.154.130.166/dopa/chat" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="700" width="200" height="50" as="geometry" />
+        </mxCell>
+        <!-- Agency B -->
+        <mxCell id="agency_b" value="กรมที่ดิน&#xa;203.154.130.166/dol/chat" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="760" width="200" height="50" as="geometry" />
+        </mxCell>
+        <!-- Agency N -->
+        <mxCell id="agency_n" value="Agency N…" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="820" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_invoke_a" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;" edge="1" source="invoke" target="agency_a" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_invoke_b" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;" edge="1" source="invoke" target="agency_b" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_invoke_n" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;" edge="1" source="invoke" target="agency_n" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== verify_relevance ========== -->
+        <mxCell id="verify" value="verify_relevance&#xa;LLM scores each answer 0.0–1.0&#xa;filters low-relevance results" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="670" y="860" width="300" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ========== synthesize_answer ========== -->
+        <mxCell id="synthesize" value="synthesize_answer&#xa;LLM → Markdown summary&#xa;merges all agency results" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="670" y="990" width="300" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- LLM (OpenRouter) external -->
+        <mxCell id="openrouter" value="OpenRouter LLM&#xa;openrouter.ai" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="600" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e_decompose_llm" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;" edge="1" source="decompose" target="openrouter" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_verify_llm" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;" edge="1" source="verify" target="openrouter" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_synth_llm" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;" edge="1" source="synthesize" target="openrouter" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_intent_llm" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;" edge="1" source="classify_intent" target="openrouter" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1120" y="275" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== format_response ========== -->
+        <mxCell id="format" value="format_response&#xa;build ChatResponse JSON" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="695" y="1120" width="250" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========== END ========== -->
+        <mxCell id="end" value="END&#xa;200 OK" style="ellipse;whiteSpace=wrap;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1230" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ========== EDGES (main flow) ========== -->
+        <mxCell id="e_start_validate" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="start" target="validate" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_validate_intent" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="validate" target="classify_intent" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_intent_decision" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="classify_intent" target="intent_decision" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- chitchat branch -->
+        <mxCell id="e_chitchat" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="intent_decision" target="chitchat" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_chitchat" value="chitchat" style="edgeLabel;fontSize=11;fontStyle=1;fillColor=#f8cecc;" vertex="1" connectable="0" parent="e_chitchat">
+          <mxGeometry x="-0.3" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e_chitchat_format" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="chitchat" target="format" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="495" y="1145" />
+              <mxPoint x="820" y="1145" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- search branch -->
+        <mxCell id="e_search" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="intent_decision" target="resolve" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_search" value="search" style="edgeLabel;fontSize=11;fontStyle=1;fillColor=#d5e8d4;" vertex="1" connectable="0" parent="e_search">
+          <mxGeometry x="0.2" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_resolve_decompose" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="resolve" target="decompose" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_decompose_invoke" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="decompose" target="invoke" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_invoke_verify" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="invoke" target="verify" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_verify_synth" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="verify" target="synthesize" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_synth_format" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="synthesize" target="format" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_format_end" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="format" target="end" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== ANNOTATIONS ========== -->
+        <mxCell id="ann_decompose" value="1. Decompose query → 1–N sub-questions&#xa;   (single-issue, no multi-hop)&#xa;2. Route each sub-question in parallel:&#xa;   confidence ≥0.9 → matched agencies only&#xa;   confidence &lt;0.9  → broadcast all agencies" style="text;html=1;strokeColor=#d6b656;fillColor=#fffacd;align=left;verticalAlign=top;spacingLeft=8;fontSize=11;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="590" width="330" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ann_invoke" value="Per-agency reliability stack:&#xa;asyncio.wait_for (timeout)&#xa;→ tenacity retry (exp jitter)&#xa;→ CircuitBreakerManager&#xa;→ AgencyErrorDetail on failure" style="text;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;align=left;verticalAlign=top;spacingLeft=8;fontSize=11;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="720" width="290" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ann_errors" value="⚠ Errors never crash the graph.&#xa;All failures → AgencyErrorDetail[]&#xa;included in final JSON response." style="text;html=1;strokeColor=#b85450;fillColor=#f8cecc;align=left;verticalAlign=top;spacingLeft=8;fontSize=11;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="860" width="280" height="60" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
