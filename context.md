@@ -120,11 +120,26 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
 - `concurrency.py`, `database.py`, `errors.py` (unified error envelope), `utils/` (uuid7, retry).
 
 **Scheduler jobs (`app/scheduler.py`):**
-- `agency_chat_test` every `HEALTH_CHECK_INTERVAL_MINUTES` (15): POST-probes each non-draft/
-  non-disabled agency (omits the `__query__` field on purpose to observe missing-field
-  handling; content rules whitelist e.g. "Message is required"→success), logs to
-  `ConnectionLog`, then `reconcile_statuses()`. Concurrency capped by `AGENCY_CHAT_CONCURRENCY`.
+- `agency_chat_test` every `HEALTH_CHECK_INTERVAL_MINUTES` (15): reachability-probes each
+  non-draft/non-disabled agency via `test_connection` (same call as the admin endpoint —
+  see **Connection test** below), logs to `ConnectionLog`, then `reconcile_statuses()`.
+  Concurrency capped by `AGENCY_CHAT_CONCURRENCY`.
 - `regenerate_brief_job` every `BRIEF_REGEN_INTERVAL_HOURS` (24) — weekly executive brief.
+
+**Connection test (`app/services/agency.py: test_connection`)**
+
+One reachability probe for every `connection_type`: HEAD with a GET fallback, bounded by
+`CONNECTION_TEST_TIMEOUT`. **Any** HTTP response — including 4xx/5xx — means the endpoint is
+reachable and counts as success; only a transport failure (refused / DNS / timeout) is an error.
+No protocol-level handshake is performed: there is no POST chat probe, no MCP JSON-RPC
+`initialize`, and no A2A chat query. Returns `success`, `protocol` (`REST API`|`MCP`|`A2A`|
+`UNKNOWN`), `version` (always `-`), `steps[]`, `latency`, and the REST fields
+`statusCode`/`statusText`/`server`/`contentType`. The `capabilities`/`server_info`/`agent_card`
+response fields remain in the schema but are always null.
+
+Both entry points share it: `GET /api/v1/agencies/{id}/test` (admin-only; also resets
+`stats_reset_at`, clears rule-set `maintenance`, writes a `ConnectionLog`) and the scheduler's
+`agency_chat_test`.
 - `purge_old_connection_logs` every 24h (`CONNECTION_LOG_RETENTION_DAYS`, 90).
 - `run_evaluation` every `EVAL_INTERVAL_HOURS` (168 / weekly) — golden-question LLM-judge eval.
 - `regenerate_popular_questions` every `POPULAR_QUESTIONS_REGEN_INTERVAL_HOURS` (24): LLM-synthesizes

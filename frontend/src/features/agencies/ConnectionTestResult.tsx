@@ -62,7 +62,7 @@ export function ConnectionTestResult({ result, loading }: Props) {
   const title = loading
     ? "กำลังทดสอบการเชื่อมต่อ..."
     : result?.success
-      ? `เชื่อมต่อสำเร็จ — ${result?.protocol} ${result?.version}`
+      ? `เชื่อมต่อสำเร็จ — ${[result?.protocol, result?.version].filter((v) => v && v !== "-").join(" ")}`
       : `เชื่อมต่อล้มเหลว — ${result?.error || 'Unknown error'}`;
 
   return (
