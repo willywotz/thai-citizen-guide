@@ -8,6 +8,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // jsdom render + MSW round-trips exceed vitest's 5s default under full-suite
+    // parallel load on slow filesystems, timing out tests that pass in isolation.
+    testTimeout: 20000,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     coverage: {
       provider: "v8",
