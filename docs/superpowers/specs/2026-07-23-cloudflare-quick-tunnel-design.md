@@ -55,7 +55,7 @@ remember.
 
 ```yaml
 cloudflared:
-  image: cloudflare/cloudflared:YYYY.M.P
+  image: cloudflare/cloudflared:latest
   restart: unless-stopped
   command: tunnel --no-autoupdate --url http://nginx:8080 --metrics 0.0.0.0:2000
   networks:
@@ -64,16 +64,19 @@ cloudflared:
     - nginx
 ```
 
-The image is **pinned to an explicit version**, matching the repo's existing convention
-(`jaegertracing/jaeger:2.18.0`, `certbot/certbot:v5.1.0`) rather than tracking `latest`.
-cloudflared publishes calendar-versioned tags (`YYYY.M.P`); the concrete tag is resolved from the
-current release at implementation time and written literally into the compose file. Likewise
-`curlimages/curl` is pinned to a concrete `8.x.y` tag.
+The image tracks **`latest`**, deliberately breaking the repo's pinning convention
+(`jaegertracing/jaeger:2.18.0`, `certbot/certbot:v5.1.0`). That convention buys reproducibility of
+*our* stack; `cloudflared` is a client of a moving remote service, and Cloudflare deprecates old
+clients server-side. A stale pin eventually produces connection failures that read like a local
+bug. Staying current is worth more here than pinning.
 
-`--no-autoupdate` keeps the pin meaningful — without it the binary self-updates past the pinned
-image. `--metrics 0.0.0.0:2000` exposes the local metrics server (container-internal only, not
-published to the host) that serves the tunnel hostname; this is what makes URL discovery
-structured rather than log-scraping.
+`--no-autoupdate` still applies: Cloudflare recommends disabling self-update in containers, where
+the filesystem is ephemeral and an in-place update just causes a surprise restart. Version churn
+comes from re-pulling the image instead.
+
+`--metrics 0.0.0.0:2000` exposes the local metrics server (container-internal only, not published
+to the host) that serves the tunnel hostname; this is what makes URL discovery structured rather
+than log-scraping.
 
 `depends_on` uses plain start ordering because the `nginx` service defines no healthcheck.
 cloudflared tolerates its origin being briefly unreachable.
@@ -81,7 +84,8 @@ cloudflared tolerates its origin being briefly unreachable.
 ### 2. `scripts/tunnel-url.sh` — the poll-and-parse logic
 
 The only component with real behaviour, so it lives in a real file rather than inline YAML —
-that is what makes it testable. POSIX `sh`, no dependencies beyond `curl`.
+that is what makes it testable. POSIX `sh`, using BusyBox `wget` — the same idiom every
+healthcheck in `docker-compose.yaml` already uses.
 
 ```sh
 #!/usr/bin/env sh
@@ -94,7 +98,7 @@ timeout="${TUNNEL_URL_TIMEOUT:-60}"
 
 i=0
 while [ "$i" -lt "$timeout" ]; do
-  host=$(curl -sf "$base/quicktunnel" 2>/dev/null \
+  host=$(wget -qO- "$base/quicktunnel" 2>/dev/null \
     | sed -n 's/.*"hostname":"\([^"]*\)".*/\1/p')
   if [ -n "$host" ]; then
     printf '\n=== DEV TUNNEL: https://%s ===\n\n' "$host"
@@ -111,6 +115,10 @@ exit 1
 Taking the metrics base URL as `$1` is what makes the unit test possible: the test points it at a
 local stub instead of the real container. `TUNNEL_URL_TIMEOUT` keeps the test fast.
 
+BusyBox `wget` exits non-zero on an unreachable host or HTTP error, but it sits inside a pipeline
+whose exit status is `sed`'s, so `set -e` does not trip — failures fall through to an empty
+`$host` and the loop simply polls again. That is the intended behaviour, and the test covers it.
+
 `scripts/` does not exist yet in this repo; this creates it.
 
 ### 3. `tunnel-url` sidecar — `docker-compose.override.yaml`
@@ -119,7 +127,7 @@ One-shot service that runs the script above, prints the banner, and exits.
 
 ```yaml
 tunnel-url:
-  image: curlimages/curl:8.x.y
+  image: alpine:3.21
   restart: "no"
   networks:
     - chatbot-network
@@ -129,6 +137,11 @@ tunnel-url:
     - ./scripts/tunnel-url.sh:/tunnel-url.sh:ro
   entrypoint: ["sh", "/tunnel-url.sh"]
 ```
+
+`alpine` is a plain utility container — a shell and BusyBox `wget`, nothing else. It is pinned
+normally (unlike `cloudflared`, it talks to no remote service). Reusing an image the stack already
+pulls, such as `redis:7-alpine`, would save the pull but make a reader wonder why Redis is
+printing a tunnel URL.
 
 Mounting rather than inlining keeps one implementation for both entrypoints. This makes the URL
 appear automatically in `docker compose up` output, and recoverable after `docker compose up -d`
