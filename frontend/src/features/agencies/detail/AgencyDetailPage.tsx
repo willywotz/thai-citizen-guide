@@ -13,7 +13,6 @@ import {
 import { AgencyLogo } from "@/shared/components/AgencyLogo";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
-import { useAuth } from "@/features/auth/useAuth";
 import type { AgencyLifecycleStatus } from "@/shared/types/agency";
 
 import {
@@ -35,7 +34,6 @@ export default function AgencyDetailPage() {
   const [searchParams] = useSearchParams();
   const { data: agencies = [], isLoading } = useAgencies();
   const statusMutation = useUpdateAgencyStatus();
-  const { isReadOnly } = useAuth();
 
   const agency = agencies.find((a) => a.id === id);
 
@@ -70,7 +68,7 @@ export default function AgencyDetailPage() {
 
   const showHealthDot = agency.status === "active" || agency.status === "maintenance";
   const requestedTab = searchParams.get("tab");
-  const defaultTab = requestedTab === "edit" && !isReadOnly ? "edit" : "overview";
+  const defaultTab = requestedTab === "edit" ? "edit" : "overview";
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -132,7 +130,7 @@ export default function AgencyDetailPage() {
         <TabsList>
           <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
           <TabsTrigger value="health">Health</TabsTrigger>
-          {!isReadOnly && <TabsTrigger value="edit">แก้ไข</TabsTrigger>}
+          <TabsTrigger value="edit">แก้ไข</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
@@ -141,11 +139,9 @@ export default function AgencyDetailPage() {
         <TabsContent value="health">
           <HealthTab agencyId={agency.id} />
         </TabsContent>
-        {!isReadOnly && (
-          <TabsContent value="edit">
-            <EditTab agency={agency} />
-          </TabsContent>
-        )}
+        <TabsContent value="edit">
+          <EditTab agency={agency} />
+        </TabsContent>
         <TabsContent value="logs">
           <LogsTab agencyId={agency.id} />
         </TabsContent>

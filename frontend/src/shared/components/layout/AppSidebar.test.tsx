@@ -6,9 +6,8 @@ import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider } from "@/shared/components/ui/sidebar";
 import type { AuthUser } from "@/features/auth/useAuth";
 
-const auth: { user: AuthUser | null; isReadOnly: boolean; signOut: () => void } = {
+const auth: { user: AuthUser | null; signOut: () => void } = {
   user: null,
-  isReadOnly: false,
   signOut: () => {},
 };
 vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
@@ -29,28 +28,28 @@ describe("AppSidebar visibility", () => {
     auth.user = { id: "1", email: "u@x.com", displayName: "U", role: "user", avatarUrl: null };
   });
 
-  it("shows only chat + architecture for a basic user", () => {
+  it("shows read-only operational pages but not admin-only pages for a basic user", () => {
     auth.user = { ...auth.user!, role: "user" };
     renderSidebar();
     expect(screen.getByText("แชท")).toBeInTheDocument();
     expect(screen.getByText("Architecture")).toBeInTheDocument();
-    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(screen.queryByText("จัดการหน่วยงาน")).not.toBeInTheDocument();
   });
 
-  it("shows analytics pages but not management for a viewer", () => {
-    auth.user = { ...auth.user!, role: "viewer" };
+  it("shows every nav item for an admin", () => {
+    auth.user = { ...auth.user!, role: "admin" };
     renderSidebar();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("การใช้งาน API Key")).toBeInTheDocument(); // usage
-    expect(screen.queryByText("จัดการหน่วยงาน")).not.toBeInTheDocument(); // agencies mgmt
-    expect(screen.queryByText("จัดการผู้ใช้")).not.toBeInTheDocument(); // users
-  });
-
-  it("shows users + audit-log for an auditor but not settings", () => {
-    auth.user = { ...auth.user!, role: "auditor" };
-    renderSidebar();
+    expect(screen.getByText("จัดการหน่วยงาน")).toBeInTheDocument();
     expect(screen.getByText("จัดการผู้ใช้")).toBeInTheDocument();
     expect(screen.getByText("บันทึกการตรวจสอบ")).toBeInTheDocument();
-    expect(screen.queryByText("ตั้งค่าระบบ")).not.toBeInTheDocument();
+    expect(screen.getByText("ตั้งค่าระบบ")).toBeInTheDocument();
+  });
+
+  it("no longer shows the removed my-agencies nav item", () => {
+    auth.user = { ...auth.user!, role: "admin" };
+    renderSidebar();
+    expect(screen.queryByText("หน่วยงานของฉัน")).not.toBeInTheDocument();
   });
 });

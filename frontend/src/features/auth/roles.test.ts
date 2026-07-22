@@ -1,38 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { ROUTE_ROLES, READ_ONLY_ROLES, canAccess } from "./roles";
+import { ROUTE_ROLES, canAccess, type Role } from "./roles";
 
-describe("role map", () => {
-  it("lets every authenticated role reach chat + architecture", () => {
-    for (const r of ["user", "viewer", "auditor", "agency_owner", "admin"] as const) {
-      expect(canAccess(r, "/chat")).toBe(true);
-      expect(canAccess(r, "/architecture")).toBe(true);
+const ROLES: Role[] = ["user", "admin"];
+
+const READ_ONLY_ROUTES = ["/dashboard", "/executive", "/health", "/heatmap", "/feedback", "/usage"];
+
+/** Reachable by `user` but not read-only: they may delete their own conversations. */
+const OWN_DATA_ROUTES = ["/history"];
+
+const USER_ROUTES = [...READ_ONLY_ROUTES, ...OWN_DATA_ROUTES];
+
+describe("canAccess", () => {
+  it("lets every role reach chat and architecture", () => {
+    for (const role of ROLES) {
+      expect(canAccess(role, "/chat")).toBe(true);
+      expect(canAccess(role, "/architecture")).toBe(true);
     }
   });
 
-  it("scopes viewer to analytics pages, not management", () => {
-    expect(canAccess("viewer", "/dashboard")).toBe(true);
-    expect(canAccess("viewer", "/usage")).toBe(true);
-    expect(canAccess("viewer", "/agencies")).toBe(false);
-    expect(canAccess("viewer", "/users")).toBe(false);
+  it("lets every role reach the read-only operational pages", () => {
+    for (const path of READ_ONLY_ROUTES) {
+      expect(canAccess("user", path)).toBe(true);
+      expect(canAccess("admin", path)).toBe(true);
+    }
   });
 
-  it("lets auditor reach everything except settings + owner-only pages", () => {
-    expect(canAccess("auditor", "/users")).toBe(true);
-    expect(canAccess("auditor", "/audit-log")).toBe(true);
-    expect(canAccess("auditor", "/agencies")).toBe(true);
-    expect(canAccess("auditor", "/settings")).toBe(false);
-    expect(canAccess("auditor", "/my-agencies")).toBe(false);
-    expect(canAccess("auditor", "/agencies/new")).toBe(false);
+  it("lets every role reach their own conversation history", () => {
+    for (const path of OWN_DATA_ROUTES) {
+      expect(canAccess("user", path)).toBe(true);
+      expect(canAccess("admin", path)).toBe(true);
+    }
   });
 
-  it("marks viewer and auditor as read-only", () => {
-    expect(READ_ONLY_ROLES).toContain("viewer");
-    expect(READ_ONLY_ROLES).toContain("auditor");
-    expect(READ_ONLY_ROLES).not.toContain("agency_owner");
-    expect(READ_ONLY_ROLES).not.toContain("admin");
+  it("restricts every other known route to admin", () => {
+    for (const [path, allowed] of Object.entries(ROUTE_ROLES)) {
+      if (path === "/chat" || path === "/architecture" || USER_ROUTES.includes(path)) continue;
+      expect(allowed).toEqual(["admin"]);
+      expect(canAccess("user", path)).toBe(false);
+      expect(canAccess("admin", path)).toBe(true);
+    }
   });
 
-  it("allows unknown paths by default", () => {
-    expect(canAccess("user", "/some/unknown/path")).toBe(true);
+  it("allows unknown paths through — routing owns those", () => {
+    expect(canAccess("user", "/not-a-known-route")).toBe(true);
+  });
+
+  it("no longer routes to removed owner pages", () => {
+    expect(ROUTE_ROLES["/my-agencies"]).toBeUndefined();
   });
 });

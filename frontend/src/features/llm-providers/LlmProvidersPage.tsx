@@ -11,7 +11,6 @@ import {
   type LlmProvider,
   type LlmProviderInput,
 } from "@/features/llm-providers/llmProviderApi";
-import { useAuth } from "@/features/auth/useAuth";
 import { LlmProviderList } from "./LlmProviderList";
 import { CreateLlmProviderDialog } from "./CreateLlmProviderDialog";
 import { EditLlmProviderDialog } from "./EditLlmProviderDialog";
@@ -21,7 +20,6 @@ const QUERY_KEY = ["llm-providers"];
 
 export default function LlmProvidersPage() {
   const queryClient = useQueryClient();
-  const { isReadOnly } = useAuth();
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -70,12 +68,10 @@ export default function LlmProvidersPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">ผู้ให้บริการ LLM</h2>
-        {!isReadOnly && (
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            เพิ่มผู้ให้บริการ
-          </Button>
-        )}
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          เพิ่มผู้ให้บริการ
+        </Button>
       </div>
 
       {isLoading && (
@@ -87,7 +83,6 @@ export default function LlmProvidersPage() {
       {!isLoading && (
         <LlmProviderList
           providers={providers}
-          isReadOnly={isReadOnly}
           onEdit={setEditTarget}
           onDelete={setDeleteTarget}
         />

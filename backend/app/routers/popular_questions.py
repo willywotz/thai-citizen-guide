@@ -2,8 +2,7 @@
 
 ``GET /public/popular-questions`` is anonymous (no auth dependency at all —
 mirrors ``app/routers/public_status.py`` so it passes the global role
-chokepoint untouched). Everything under ``/popular-questions`` is admin CRUD;
-the list is also readable by ``auditor``.
+chokepoint untouched). Everything under ``/popular-questions`` is admin CRUD.
 """
 import logging
 import uuid
@@ -11,7 +10,7 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
-from app.auth.dependencies import require_admin, require_admin_or_auditor
+from app.auth.dependencies import require_admin
 from app.models.agency import Agency
 from app.models.popular_question import PopularQuestion, PopularQuestionSource
 from app.models.user import User
@@ -53,7 +52,7 @@ async def get_public_popular_questions() -> dict:
 @router.get(
     "/popular-questions",
     response_model=PopularQuestionListResponse,
-    dependencies=[Depends(require_admin_or_auditor)],
+    dependencies=[Depends(require_admin)],
     summary="List all popular questions (admin)",
 )
 async def list_popular_questions():

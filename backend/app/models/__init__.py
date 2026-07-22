@@ -8,6 +8,5 @@ from .llm_provider import *
 from .llm_route import *
 from .llm_usage import *
 from .popular_question import *
-from .relationship import *
 from .setting import *
 from .user import *

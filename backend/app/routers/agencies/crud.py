@@ -12,8 +12,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from tortoise.exceptions import DoesNotExist
 
-from app.auth.authz import authorize_or_403
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import require_admin
 from app.models.agency import Agency
 from app.models.user import User
 from app.routers.agencies._utils import _with_health
@@ -87,12 +86,11 @@ async def get_agency(agency_id: uuid.UUID):
 
 
 @router.put("/{agency_id}", response_model=AgencyResponse, summary="Replace agency")
-async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = Depends(get_current_user)):
+async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:edit", agency)
 
     data = body.model_dump()
     data["api_endpoints"] = [e.model_dump() for e in body.api_endpoints]
@@ -108,12 +106,11 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = 
 
 
 @router.patch("/{agency_id}", response_model=AgencyResponse, summary="Partial update agency")
-async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = Depends(get_current_user)):
+async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:edit", agency)
 
     update_data = body.model_dump(exclude_unset=True)
 
@@ -151,12 +148,11 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = D
 
 
 @router.delete("/{agency_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete agency")
-async def delete_agency(agency_id: uuid.UUID, user: User = Depends(get_current_user)):
+async def delete_agency(agency_id: uuid.UUID, user: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:delete", agency)
     await agency.delete()
     sweep_agency_logo_files(agency_id)
     await record_audit(user, "agency.delete", object_type="agency", object_id=agency_id)
