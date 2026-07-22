@@ -30,7 +30,10 @@ jobs:
           {
             echo "ENV=production"
             echo "EXTERNAL_HTTP_PORT=80"
+            echo "EXTERNAL_HTTPS_PORT=443"
             echo "EXTERNAL_POSTGRES_PORT=5432"
+            echo "CERT_DOMAIN=chatbotportal.opdc.ai.in.th"
+            echo "CERT_EMAIL=dogajack@gmail.com"
             echo "JWT_SECRET=$JWT_SECRET"
             echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
           } > .env
