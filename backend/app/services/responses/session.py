@@ -10,6 +10,8 @@ import json
 import logging
 from typing import Awaitable, Callable
 
+from pydantic import ValidationError
+
 from app.config import settings
 from app.models.user import User
 from app.schemas.responses import ResponsesRequest
@@ -33,8 +35,10 @@ class WsSession:
 
     async def handle_text(self, raw: str, send: Send) -> None:
         try:
+            # RecursionError guards against pathologically nested JSON, which
+            # the C decoder accepts past the point of blowing the C stack.
             payload = json.loads(raw)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RecursionError):
             await send(_error_frame(ResponsesApiError("Frame is not valid JSON.")))
             return
 
@@ -47,12 +51,22 @@ class WsSession:
 
         try:
             request = ResponsesRequest.model_validate(payload)
+        except ValidationError as e:
+            await send(_error_frame(ResponsesApiError(str(e))))
+            return
+
+        try:
             if not request.generate:
                 await self._warm(request)
                 return
             await self._generate(request, send)
         except ResponsesApiError as e:
             await send(_error_frame(e))
+        except Exception:
+            logger.exception("Unhandled error generating a response")
+            await send(_error_frame(ResponsesApiError(
+                "An unexpected error occurred.", type="server_error", status=500,
+            )))
 
     async def _warm(self, request: ResponsesRequest) -> None:
         """`generate: false` — resolve and warm the session, emit nothing."""

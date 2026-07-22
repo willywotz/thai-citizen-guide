@@ -153,6 +153,48 @@ async def test_unknown_frame_type_is_rejected(db):
     assert "response.create" in sink.frames[0]["error"]["message"]
 
 
+@pytest.mark.asyncio
+async def test_null_input_errors_without_closing(db):
+    sink = _Sink()
+    await WsSession(user=None).handle_text(_create(input=None), sink)
+    assert sink.types == ["error"]
+    assert sink.frames[0]["error"]["type"] == "invalid_request_error"
+
+
+@pytest.mark.asyncio
+async def test_wrong_type_model_errors_without_closing(db):
+    sink = _Sink()
+    await WsSession(user=None).handle_text(_create(model=123), sink)
+    assert sink.types == ["error"]
+    assert sink.frames[0]["error"]["type"] == "invalid_request_error"
+
+
+@pytest.mark.asyncio
+async def test_upstream_runtime_error_errors_without_closing(db):
+    sink = _Sink()
+
+    async def _boom(*_args, **_kwargs):
+        raise RuntimeError("upstream exploded")
+        yield  # pragma: no cover - makes this an async generator
+
+    from app.routers import responses as responses_router
+
+    with patch.object(responses_router, "run_response", new=_boom):
+        await WsSession(user=None).handle_text(_create(), sink)
+
+    assert sink.types == ["error"]
+    assert sink.frames[0]["error"]["type"] == "server_error"
+
+
+@pytest.mark.asyncio
+async def test_deeply_nested_json_errors_without_closing(db):
+    sink = _Sink()
+    nested = "[" * 20000 + "]" * 20000
+    await WsSession(user=None).handle_text(nested, sink)
+    assert sink.types == ["error"]
+    assert sink.frames[0]["error"]["type"] == "invalid_request_error"
+
+
 def test_ws_settings_are_registered():
     assert settings.RESPONSES_WS_MAX_CONNECTIONS == 100
     assert settings.RESPONSES_WS_MAX_DURATION_SECONDS == 3600
