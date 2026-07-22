@@ -27,15 +27,16 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
 
 | Service | Tech | Role |
 |---|---|---|
-| **nginx** | nginx | Reverse proxy, single external port `EXTERNAL_HTTP_PORT`. Routing in `default.conf`. |
+| **nginx** | nginx | Reverse proxy. HTTP on `EXTERNAL_HTTP_PORT`, TLS on `EXTERNAL_HTTPS_PORT`. Routing in `routes.conf`. |
 | **backend** | Python 3.12 · FastAPI · Tortoise ORM · FastMCP | REST API (`/api/v1`), MCP server (`/mcp`), scheduler, auth. Port 8080. |
 | **agent-proxy** | Go 1.26 · pgx · OTel | Caching reverse-proxy from backend → agency endpoints; logs connection attempts. Port 8080. |
 | **frontend** | React 18 · Vite 5 · TS · shadcn/ui | SPA admin + public portal. Port 8080. |
 | **postgres** | pgvector/pgvector:pg16 | Shared DB (backend + agent-proxy). Extensions: `pg_trgm`, `fuzzystrmatch`, `vector` (created by `postgres-init`). |
 | **redis** | redis:7-alpine | Distributed rate limiting (optional; empty `REDIS_URL` = in-process limiter). |
 | **jaeger** | jaegertracing/jaeger:2.18.0 | OTLP tracing sink (`jaeger:4317`), UI proxied at `/jaeger/`. |
+| **certbot** | certbot/certbot | Renews the Let's Encrypt cert every 12h over the HTTP-01 webroot. No-op until one is issued. |
 
-**nginx routing (`default.conf`, single source of truth):**
+**nginx routing (`routes.conf`, single source of truth):**
 - `/api`, `/sse`, `/messages`, `/mcp`, `/docs`, `/redoc`, `/openapi.json` → `backend:8080`
   (`/api/v1/responses` also serves a **WebSocket**: an exact-match location adds the
   `$connection_upgrade` map and a 3700s read timeout, since the app holds sockets for up to
@@ -43,6 +44,17 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
 - `/agent-proxy/` → `agent-proxy:8080`
 - `/jaeger/` → `jaeger:16686`
 - `/` (everything else) → `frontend:8080` (SPA)
+
+`routes.conf` is included by both the HTTP server (`default.conf`, :8080) and the TLS server
+(`tls.conf.template`, :8443) so the two can never drift.
+
+**TLS (`docs/tls.md`)** is opt-in via `CERT_DOMAIN` (prod: `chatbotportal.opdc.ai.in.th`) and
+self-enabling: `nginx-tls.sh` runs from the image's `/docker-entrypoint.d/` and writes the TLS
+server block plus an HTTPS redirect **only once a cert exists**, so nginx never fails to start on
+a missing certificate and local dev stays plain HTTP. It then watches hourly and reloads on
+issuance/renewal. `/.well-known/acme-challenge/` is served from the `acme-challenge` volume the
+certbot container writes to, and is the one path exempt from the redirect. First issuance is a
+one-off `certbot certonly` — see `docs/tls.md`.
 
 `docker-compose.override.yaml` adds dev watch/rebuild rules per service.
 
