@@ -54,7 +54,7 @@ token types) and `backend/app/mcp/server.py`.
 
 ## Base URL
 
-The stack runs behind nginx (see `default.conf`). Nginx listens on port 8080 internally;
+The stack runs behind nginx (see `nginx/default.conf`). Nginx listens on port 8080 internally;
 the externally published port is controlled by `EXTERNAL_HTTP_PORT` in the environment.
 
 | Context | Base URL |
@@ -294,7 +294,7 @@ The FastAPI application exposes interactive OpenAPI docs at:
 - **ReDoc**: `{BASE_URL}/redoc`
 - **OpenAPI JSON**: `{BASE_URL}/openapi.json`
 
-All three paths are proxied through nginx (see `default.conf` — the location regex
+All three paths are proxied through nginx (see `nginx/default.conf` — the location regex
 `^/(api|sse|messages|mcp|docs|redoc|openapi.json)` covers them).
 
 Source: `backend/app/main.py` (`docs_url="/docs"`, `redoc_url="/redoc"`).
