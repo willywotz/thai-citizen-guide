@@ -14,7 +14,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from tortoise.exceptions import DoesNotExist
 
-from app.auth.dependencies import require_admin, require_admin_or_auditor
+from app.auth.dependencies import require_admin
 from app.models import LlmProvider, LlmRoute
 from app.models.user import User
 from app.routers.settings import MASK
@@ -76,7 +76,7 @@ async def _route_response(route: LlmRoute) -> LLMRouteResponse:
 # Purposes
 # ---------------------------------------------------------------------------
 
-@router.get("/purposes", dependencies=[Depends(require_admin_or_auditor)], summary="List known LLM purposes")
+@router.get("/purposes", dependencies=[Depends(require_admin)], summary="List known LLM purposes")
 async def list_purposes():
     return {"data": list(KNOWN_PURPOSES)}
 
@@ -88,7 +88,7 @@ async def list_purposes():
 @router.get(
     "/providers",
     response_model=LLMProviderListResponse,
-    dependencies=[Depends(require_admin_or_auditor)],
+    dependencies=[Depends(require_admin)],
     summary="List LLM providers",
 )
 async def list_providers():
@@ -112,7 +112,7 @@ async def create_provider(body: LLMProviderCreate, user: User = Depends(require_
 @router.get(
     "/providers/{provider_id}",
     response_model=LLMProviderResponse,
-    dependencies=[Depends(require_admin_or_auditor)],
+    dependencies=[Depends(require_admin)],
     summary="Get LLM provider by ID",
 )
 async def get_provider(provider_id: uuid.UUID):
@@ -170,7 +170,7 @@ async def delete_provider(provider_id: uuid.UUID, user: User = Depends(require_a
 @router.get(
     "/routes",
     response_model=LLMRouteListResponse,
-    dependencies=[Depends(require_admin_or_auditor)],
+    dependencies=[Depends(require_admin)],
     summary="List LLM routes",
 )
 async def list_routes():
@@ -200,7 +200,7 @@ async def create_route(body: LLMRouteCreate, user: User = Depends(require_admin)
 @router.get(
     "/routes/{route_id}",
     response_model=LLMRouteResponse,
-    dependencies=[Depends(require_admin_or_auditor)],
+    dependencies=[Depends(require_admin)],
     summary="Get LLM route by ID",
 )
 async def get_route(route_id: uuid.UUID):

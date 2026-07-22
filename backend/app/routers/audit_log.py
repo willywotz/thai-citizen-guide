@@ -1,7 +1,7 @@
 """Admin-only view of the audit trail."""
 from fastapi import APIRouter, Depends, Query
 
-from app.auth.dependencies import require_admin_or_auditor
+from app.auth.dependencies import require_admin
 from app.models import AuditLog
 from app.models.user import User
 
@@ -48,7 +48,7 @@ async def get_audit_log(
     actor: str | None = Query(None, description="actor_email substring (case-insensitive)"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    _admin: User = Depends(require_admin_or_auditor),
+    _admin: User = Depends(require_admin),
 ) -> dict:
     return await list_audit_log(
         action=action,

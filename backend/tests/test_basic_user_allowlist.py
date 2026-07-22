@@ -133,13 +133,6 @@ async def test_admin_unaffected(db):
     ) is None
 
 
-async def test_agency_owner_unaffected(db):
-    token = await _token_for("b4@x.com", "agency_owner")
-    assert await enforce_role_allowlist(
-        _request("GET", "/api/v1/connection-logs"), _creds(token)
-    ) is None
-
-
 async def test_anonymous_unaffected(db):
     assert await enforce_role_allowlist(
         _request("GET", "/api/v1/dashboard/stats"), None

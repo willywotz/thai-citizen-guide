@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from tortoise.functions import Avg
 from tortoise.exceptions import DoesNotExist
 from app.models import Agency, ConnectionLog, User
-from app.auth.dependencies import get_current_user, require_admin_or_auditor
+from app.auth.dependencies import get_current_user, require_admin
 from app.models import Relationship
 from datetime import datetime, timedelta
 from app.config import settings
@@ -129,7 +129,7 @@ async def list_connection_logs(
     )
 
 @router.get("/items/{id}", summary="Get connection log detail", response_model=ConnectionLogItem)
-async def get_connection_log_detail(id: str, _: User = Depends(require_admin_or_auditor)) -> ConnectionLogItem:
+async def get_connection_log_detail(id: str, _: User = Depends(require_admin)) -> ConnectionLogItem:
     try:
         log = await ConnectionLog.get(id=id)
     except DoesNotExist:
