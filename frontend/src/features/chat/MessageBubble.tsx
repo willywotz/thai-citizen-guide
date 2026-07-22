@@ -25,12 +25,12 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
 
   return (
     <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
-      {isUser
+      {/* {isUser
         ? <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm bg-primary text-primary-foreground">👤</div>
-        : <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>}
-      <div className={cn("max-w-[75%] space-y-2", isUser && "text-right")}>
+        : <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>} */}
+      <div className={cn("max-w-[80%] space-y-2", isUser && "text-right")}>
         <div className={cn(
-          "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+          "rounded-2xl px-4 py-3 text-base leading-relaxed",
           isUser
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm"

@@ -52,7 +52,7 @@ export default function ChatPage() {
             ))}
             {isTyping && (
               <div className="flex items-start gap-3 mb-4">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>
+                {/* <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div> */}
                 <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
                   {isStreaming ? (
                     <StreamingProgress state={streamingState} />
