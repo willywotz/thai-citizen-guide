@@ -317,7 +317,9 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `shared/lib/summary.ts::stripSummaryPrefix` strips the duplicate summary prefix from
   the composed `answer` (upstream embeds summary → refs → `---` → sections in one string). The
   same pair renders stored summaries in the history detail dialog (`features/history/MessageItem`).
-  Message rating uses optimistic UI updates.
+  Message rating uses optimistic UI updates. The message list + typing indicator and the input bar
+  are shared components — `features/chat/ChatConversation` and `features/chat/ChatInput` — reused by
+  both the staff `ChatPage` and the public `PublicPortal` (chat mode) so the two stay in sync.
 - **Serve**: multi-stage Dockerfile → `vite build` → static `dist/` served by nginx
   (`frontend/nginx.conf`, SPA fallback). Container healthcheck hits **`/healthz`** (not `/health`,
   which is a client route).
