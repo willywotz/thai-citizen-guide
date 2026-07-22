@@ -56,7 +56,37 @@ issuance/renewal. `/.well-known/acme-challenge/` is served from the `acme-challe
 certbot container writes to, and is the one path exempt from the redirect. First issuance is a
 one-off `certbot certonly` — see `docs/tls.md`.
 
-`docker-compose.override.yaml` adds dev watch/rebuild rules per service.
+`docker-compose.override.yaml` adds dev watch/rebuild rules per service, plus the dev tunnel below.
+
+**Dev tunnel (`docker-compose.override.yaml`, dev only — never deployed).** `cloudflared` runs an
+always-on Cloudflare **Quick Tunnel** to `nginx:8080`, publishing the whole gateway on a random
+`https://<words>.trycloudflare.com` URL for sharing a running dev stack. Outbound-only, so no port
+is published and no Cloudflare account or DNS record is involved; TLS terminates at Cloudflare and
+nginx still serves plain HTTP. The hostname is **random per restart**, so it is read back at
+runtime from cloudflared's metrics server (`--metrics 0.0.0.0:2000`, container-internal) rather
+than configured: `scripts/tunnel-url.sh` polls `/quicktunnel` and prints the URL, and the one-shot
+`tunnel-url` sidecar runs it at startup. Re-print on demand with
+`docker compose run --rm --no-deps tunnel-url` (`--no-deps` — otherwise Compose restarts
+`cloudflared` and changes the URL you asked for).
+
+Both tunnel images track **`latest` on purpose**: services in `docker-compose.yaml` stay pinned
+because they ship, but dev-override services do not, and `cloudflared` in particular is a client of
+a moving remote service whose old clients Cloudflare deprecates server-side. Trade-off: `up` does
+not re-pull, so machines drift — `docker compose pull cloudflared` when it misbehaves.
+
+⚠️ **The tunnel URL is public and unauthenticated.** The sharpest consequence is billable, not
+informational: `/api/v1/chat` and `/api/v1/chat/stream` use `get_current_user_optional`
+(`app/routers/chat.py`), so **anonymous callers can drive the LLM on your `OPENROUTER_API_KEY`** —
+a leaked link means someone else's traffic on your balance. They are also **unthrottled**: the
+rate-limit and quota checks are gated behind `if user is not None`, so only the global daily cost
+limit applies, and that is opt-in. It also exposes the read-only surface
+(`/jaeger`, `/docs`, `/redoc`, `/openapi.json`). Random and unguessable is not access control; keep
+a spend cap on the OpenRouter key and rotate it if a link escapes. See `docs/quickstart.md`
+§ "Sharing a dev environment".
+
+`frontend/vite.config.ts` sets `server.allowedHosts: [".trycloudflare.com"]` — **required**, since
+Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request returns
+`Blocked request`. Leading dot = domain-suffix match, so it survives the hostname changing.
 
 ## Request flow (chat)
 
@@ -285,8 +315,8 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 - **Branches**: `main` = prod (protected, **PR-only**, deploys to prod), `dev` = dev env.
   Branch off `dev` → PR into `dev`; promote via PR `dev` → `main`. Never push `main` directly.
 - **`.github/workflows/test.yml`** (on PR / manual): parallel jobs — backend `pytest` (with redis
-  service), agent-proxy `go build && go test`, frontend `tsc --noEmit` + vitest coverage. **No E2E**
-  (removed from CI).
+  service), agent-proxy `go build && go test`, frontend `tsc --noEmit` + vitest coverage, and
+  `scripts` (`./scripts/tunnel-url_test.sh`). **No E2E** (removed from CI).
 - **`.github/workflows/deploy.yml`** (merged PR to `main` / manual): self-hosted runner, validates
   `JWT_SECRET`/`OPENROUTER_API_KEY`, writes prod `.env` (`ENV=production`), then
   `docker compose up -d --build --remove-orphans`. Deploy does **not** depend on the test job.
@@ -348,3 +378,18 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   parametric `/{agency_id}` to avoid UUID wildcard shadowing (`routers/agencies/__init__.py`).
 - Error responses use a unified envelope `{"error":{"code","message","retryable","upstream_status"}}`
   (`app/errors.py`); frontend unwraps it, with legacy `detail` fallback.
+- **Editing `frontend/vite.config.ts` does not affect a running stack.** The dev override's
+  `develop.watch` syncs only `frontend/src`, and `docker compose up` will not rebuild an existing
+  image — so config changes silently do nothing until `docker compose up -d --build frontend`.
+  This is what made the tunnel serve `Blocked request` despite `allowedHosts` being correct in
+  source; a unit test would not have caught it.
+- **Frontend tests cannot use the `node` environment, and cannot import `vite.config.ts`.**
+  `vitest.config.ts` applies `setupFiles: ["./src/test/setup.ts"]` to every file in that file's own
+  resolved environment, and `setup.ts` unconditionally touches `window` — so
+  `// @vitest-environment node` throws `ReferenceError: window is not defined`. Staying in jsdom
+  instead breaks differently: jsdom's realm does not share `Uint8Array` with Node's, so importing
+  `vite` crashes esbuild's cross-realm invariant, and jsdom's `URL` ignores a `file://` base, so
+  `new URL(..., import.meta.url)` + `readFileSync` fails too. Root cause is `jsdom@20` under Node
+  24. A regression test for `allowedHosts` was dropped for this reason (covered by the tunnel smoke
+  check instead); fixing `setup.ts` to tolerate a missing `window` is deferred to its own `chore/`
+  branch.
