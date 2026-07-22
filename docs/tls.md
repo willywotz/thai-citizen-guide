@@ -8,10 +8,10 @@ DNS access required. Production host: `chatbotportal.opdc.ai.in.th`.
 
 | Piece | Role |
 |---|---|
-| `default.conf` | HTTP server (`:8080`). Serves `/.well-known/acme-challenge/` from the webroot; everything else redirects to HTTPS once a cert exists. |
-| `tls.conf.template` | TLS server (`:8443`), rendered to `conf.d/tls.conf` with `CERT_DOMAIN` substituted. |
-| `routes.conf` | The proxy routing contract, included by both servers so they never drift. |
-| `nginx-tls.sh` | Runs from nginx's `/docker-entrypoint.d/`. Enables the TLS block only when the cert exists, then watches hourly and reloads on issuance/renewal. |
+| `nginx/default.conf` | HTTP server (`:8080`). Serves `/.well-known/acme-challenge/` from the webroot; everything else redirects to HTTPS once a cert exists. |
+| `nginx/tls.conf.template` | TLS server (`:8443`), rendered to `conf.d/tls.conf` with `CERT_DOMAIN` substituted. |
+| `nginx/routes.conf` | The proxy routing contract, included by both servers so they never drift. |
+| `nginx/tls.sh` | Runs from nginx's `/docker-entrypoint.d/`. Enables the TLS block only when the cert exists, then watches hourly and reloads on issuance/renewal. |
 | `certbot` service | `certbot renew` every 12h against the `letsencrypt` volume. |
 | volumes | `letsencrypt` (certs, `:ro` in nginx), `acme-challenge` (webroot, `:ro` in nginx). |
 

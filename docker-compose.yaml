@@ -130,10 +130,10 @@ services:
       # cert has been issued; see docs/tls.md.
       CERT_DOMAIN: ${CERT_DOMAIN:-}
     volumes:
-      - ./default.conf:/etc/nginx/conf.d/default.conf
-      - ./routes.conf:/etc/nginx/routes.conf
-      - ./tls.conf.template:/etc/nginx/tls.conf.template
-      - ./nginx-tls.sh:/docker-entrypoint.d/40-tls.sh
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/routes.conf:/etc/nginx/routes.conf
+      - ./nginx/tls.conf.template:/etc/nginx/tls.conf.template
+      - ./nginx/tls.sh:/docker-entrypoint.d/40-tls.sh
       - letsencrypt:/etc/letsencrypt:ro
       - acme-challenge:/var/www/certbot:ro
     depends_on:
