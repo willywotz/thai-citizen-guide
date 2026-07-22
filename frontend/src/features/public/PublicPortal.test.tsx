@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router-dom";
@@ -6,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/mocks/server";
 import PublicPortal from "./PublicPortal";
+
+const { resetMock } = vi.hoisted(() => ({ resetMock: vi.fn() }));
 
 vi.mock("@/features/chat/useChat", () => ({
   useChat: () => ({
@@ -19,7 +22,7 @@ vi.mock("@/features/chat/useChat", () => ({
     scrollRef: { current: null },
     handleSend: vi.fn(),
     handleRate: vi.fn(),
-    reset: vi.fn(),
+    reset: resetMock,
     cancelStream: vi.fn(),
     hasMessages: false,
   }),
@@ -67,5 +70,23 @@ describe("PublicPortal connected agencies", () => {
     await waitFor(() =>
       expect(screen.queryByText("หน่วยงานที่เชื่อมต่อ")).not.toBeInTheDocument(),
     );
+  });
+
+  it("shows the connected-agencies sidebar in chat mode", async () => {
+    const user = userEvent.setup();
+    renderPortal();
+    await user.type(
+      await screen.findByPlaceholderText(/พิมพ์คำถามของคุณ/),
+      "test",
+    );
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText("หน่วยงานที่เชื่อมต่อ")).toBeInTheDocument();
+    expect(await screen.findByText("อย.")).toBeInTheDocument();
+
+    // "แชทใหม่" starts a fresh chat via reset instead of navigating to /chat.
+    const newChat = screen.getByRole("button", { name: /แชทใหม่/ });
+    resetMock.mockClear();
+    await user.click(newChat);
+    expect(resetMock).toHaveBeenCalledTimes(1);
   });
 });

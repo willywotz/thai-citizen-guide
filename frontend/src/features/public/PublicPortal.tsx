@@ -1,8 +1,10 @@
 import { Send, Search, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
+import { SidebarProvider, SidebarTrigger } from '@/shared/components/ui/sidebar';
 import { ChatConversation } from '@/features/chat/ChatConversation';
 import { ChatInput } from '@/features/chat/ChatInput';
 import { LandingHero } from '@/features/public/LandingHero';
+import { PublicSidebar } from '@/features/public/PublicSidebar';
 import { SuggestedQuestions } from '@/features/public/SuggestedQuestions';
 import { AgencyCards } from '@/features/public/AgencyCards';
 import { InfoLinks } from '@/features/public/InfoLinks';
@@ -32,25 +34,25 @@ export default function PublicPortal() {
     reset();
   };
 
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2.5">
-          {chatMode && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg mr-1" onClick={handleBack}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
-        </div>
-        <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
-          เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
-        </a>
-      </header>
+  if (chatMode) {
+    return (
+      <SidebarProvider>
+        <PublicSidebar agencies={publicAgencies ?? []} onNewChat={reset} />
+        <div className="flex-1 flex flex-col min-w-0 min-h-svh bg-background">
+          {/* Header */}
+          <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+            <div className="flex items-center gap-2.5">
+              <SidebarTrigger />
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleBack}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
+            </div>
+            <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
+              เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
+            </a>
+          </header>
 
-      {chatMode ? (
-        <>
           <ChatConversation
             messages={messages} isTyping={isTyping} isStreaming={isStreaming}
             activeStepCount={activeStepCount} currentSteps={currentSteps}
@@ -58,9 +60,22 @@ export default function PublicPortal() {
           <ChatInput
             input={input} setInput={setInput} isTyping={isTyping}
             onSend={() => onSend()} onCancel={cancelStream} />
-        </>
-      ) : (
-        <>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+        <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
+        <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
+          เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
+        </a>
+      </header>
+
+      <>
           <main className="flex-1 flex flex-col items-center justify-center px-4 py-16">
             <LandingHero />
 
@@ -102,7 +117,6 @@ export default function PublicPortal() {
             </div>
           </footer>
         </>
-      )}
     </div>
   );
 }

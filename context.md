@@ -295,7 +295,10 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   admin-only). The portal/chat คำถามยอดนิยม block is fed by the anonymous
   `GET /public/popular-questions` (no more hardcoded `suggestedQuestions` in `mockData.ts`).
   The public portal's หน่วยงานที่เชื่อมต่อ block (`AgencyCards` + `usePublicAgencies`) is fed by
-  the anonymous `GET /public/agencies`.
+  the anonymous `GET /public/agencies`. In **chat mode** the portal switches to a `SidebarProvider`
+  layout (like the staff `AppLayout`) with `features/public/PublicSidebar` — a public, auth-free
+  mirror of `AppSidebar` showing a single **แชทใหม่** action (calls `useChat().reset`, no
+  navigation) plus the same หน่วยงานที่เชื่อมต่อ list.
 - **Agency detail** (`features/agencies/detail/`): tabs ภาพรวม · Health · **แก้ไข (Edit)** · Logs.
   The Edit tab (`EditTab`) — shown to admins, the only role that can reach the page — consolidates
   General/Connection/Routing editing, each a section with its own save. It replaced the former standalone Connection/Routing tabs. The setup wizard
