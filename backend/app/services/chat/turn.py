@@ -1,4 +1,5 @@
 """Single transactional writer for a chat turn (conversation + 2 messages)."""
+import uuid
 from dataclasses import dataclass
 
 from tortoise.exceptions import DoesNotExist
@@ -6,7 +7,7 @@ from tortoise.transactions import in_transaction
 
 from app.config import settings
 from app.models.conversation import Conversation, Message
-from app.utils import now
+from app.utils import generate_uuid, now
 
 
 @dataclass
@@ -32,6 +33,7 @@ async def save_turn(
     summary: str | None = None,
     summary_references: list | None = None,
     title: str | None = None,
+    assistant_message_id: uuid.UUID | None = None,
 ) -> SavedTurn:
     """Create/extend a conversation and write the user+assistant messages atomically.
 
@@ -41,6 +43,8 @@ async def save_turn(
     conversation is created (the first turn) — see the v5 `thread_name` rule.
     `summary`/`summary_references` are the v5 executive summary and its
     citations; both stay empty in v4 mode and on the v5 degrade path.
+    `assistant_message_id` pre-allocates the assistant row's primary key so a
+    streaming transport can name the response before the turn is persisted.
     """
     status = "success" if succeeded else "failed"
     async with in_transaction():
@@ -69,6 +73,7 @@ async def save_turn(
             conversation_id=conversation_id, role="user", content=query, category=category,
         )
         asst_msg = await Message.create(
+            id=assistant_message_id or generate_uuid(),
             parent_id=user_msg.id,
             conversation_id=conversation_id,
             role="assistant",

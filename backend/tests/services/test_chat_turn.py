@@ -10,7 +10,16 @@ import pytest
 from fastapi import BackgroundTasks
 
 from app.models.conversation import Conversation, Message
-from app.routers.chat import _copy_cached_answer, _save_stream_conversation
+from app.routers.chat import _copy_cached_answer
+from app.services.chat.stream import TurnPlan, _persist
+from app.utils import generate_uuid
+
+
+def _plan(conv_id: str, query: str = "q") -> TurnPlan:
+    return TurnPlan(
+        query=query, conversation_id=conv_id, user=None, stream_version="v5",
+        upstream_url="http://upstream/v5/chat", assistant_message_id=generate_uuid(),
+    )
 
 
 async def _make_conv() -> Conversation:
@@ -57,14 +66,13 @@ async def test_copy_cached_answer_creates_two_messages_and_links_parent():
 async def test_save_stream_conversation_success_status_current():
     """_save_stream_conversation creates a fresh conv (status=success, message_count=2) when conv does not exist."""
     cid = str(uuid.uuid4())
-    assistant_id = await _save_stream_conversation(
-        query="q",
-        conversation_id=cid,
+    assistant_id = await _persist(
+        _plan(cid),
         answer_data={"answer": "hello", "sections": []},
         session_id=None,
         total_ms=10,
         latency_ms=5,
-        user=None,
+        thread_name=None,
         background_tasks=BackgroundTasks(),
     )
 

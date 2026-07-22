@@ -10,7 +10,15 @@ import pytest
 from fastapi import BackgroundTasks
 
 from app.models.conversation import Message
-from app.routers.chat import _save_stream_conversation
+from app.services.chat.stream import TurnPlan, _persist
+from app.utils import generate_uuid
+
+
+def _plan(conv_id: str, query: str = "q") -> TurnPlan:
+    return TurnPlan(
+        query=query, conversation_id=conv_id, user=None, stream_version="v5",
+        upstream_url="http://upstream/v5/chat", assistant_message_id=generate_uuid(),
+    )
 
 V5_ANSWER = {
     "answer": "สรุปครับ ค่าธรรมเนียมอยู่ที่ 2% [1]\n\n---\n\n## ค่าธรรมเนียม\n\nค่าธรรมเนียมการโอนคือ 2%",
@@ -24,9 +32,9 @@ V5_ANSWER = {
 @pytest.mark.usefixtures("db")
 async def test_stream_persists_summary_and_references():
     cid = str(uuid.uuid4())
-    asst_id = await _save_stream_conversation(
-        query="q", conversation_id=cid, answer_data=V5_ANSWER,
-        session_id=None, total_ms=10, latency_ms=5, user=None,
+    asst_id = await _persist(
+        _plan(cid), answer_data=V5_ANSWER,
+        session_id=None, total_ms=10, latency_ms=5, thread_name=None,
         background_tasks=BackgroundTasks(),
     )
     msg = await Message.get(id=asst_id)
@@ -42,10 +50,9 @@ async def test_stream_persists_summary_and_references():
 async def test_stream_degrades_silently_without_summary():
     """v4 mode / upstream summary failure: empty fields, everything else unchanged."""
     cid = str(uuid.uuid4())
-    asst_id = await _save_stream_conversation(
-        query="q", conversation_id=cid,
-        answer_data={"answer": "คำตอบ", "sections": [], "errors": []},
-        session_id=None, total_ms=10, latency_ms=5, user=None,
+    asst_id = await _persist(
+        _plan(cid), answer_data={"answer": "คำตอบ", "sections": [], "errors": []},
+        session_id=None, total_ms=10, latency_ms=5, thread_name=None,
         background_tasks=BackgroundTasks(),
     )
     msg = await Message.get(id=asst_id)
@@ -58,10 +65,10 @@ async def test_stream_degrades_silently_without_summary():
 async def test_blank_summary_is_stored_as_none():
     """Spec §4.3: a failed summary arrives as "" — do not store an empty string."""
     cid = str(uuid.uuid4())
-    asst_id = await _save_stream_conversation(
-        query="q", conversation_id=cid,
+    asst_id = await _persist(
+        _plan(cid),
         answer_data={"answer": "คำตอบ", "summary": "   ", "references": [], "sections": [], "errors": []},
-        session_id=None, total_ms=10, latency_ms=5, user=None,
+        session_id=None, total_ms=10, latency_ms=5, thread_name=None,
         background_tasks=BackgroundTasks(),
     )
     msg = await Message.get(id=asst_id)
@@ -77,11 +84,11 @@ from app.models.conversation import Conversation
 @pytest.mark.usefixtures("db")
 async def test_thread_name_titles_a_new_conversation():
     cid = str(uuid.uuid4())
-    await _save_stream_conversation(
-        query="ค่าธรรมเนียมโอนที่ดินเท่าไหร่ ช่วยอธิบายละเอียดหน่อยครับ",
-        conversation_id=cid, answer_data=V5_ANSWER,
-        session_id=None, total_ms=10, latency_ms=5, user=None,
-        background_tasks=BackgroundTasks(), thread_name="ค่าธรรมเนียมโอนที่ดิน",
+    await _persist(
+        _plan(cid, query="ค่าธรรมเนียมโอนที่ดินเท่าไหร่ ช่วยอธิบายละเอียดหน่อยครับ"),
+        answer_data=V5_ANSWER,
+        session_id=None, total_ms=10, latency_ms=5,
+        thread_name="ค่าธรรมเนียมโอนที่ดิน", background_tasks=BackgroundTasks(),
     )
     conv = await Conversation.get(id=cid)
     assert conv.title == "ค่าธรรมเนียมโอนที่ดิน"
@@ -90,10 +97,10 @@ async def test_thread_name_titles_a_new_conversation():
 @pytest.mark.usefixtures("db")
 async def test_null_thread_name_keeps_query_derived_title():
     cid = str(uuid.uuid4())
-    await _save_stream_conversation(
-        query="ค่าธรรมเนียมโอนที่ดินเท่าไหร่", conversation_id=cid, answer_data=V5_ANSWER,
-        session_id=None, total_ms=10, latency_ms=5, user=None,
-        background_tasks=BackgroundTasks(), thread_name=None,
+    await _persist(
+        _plan(cid, query="ค่าธรรมเนียมโอนที่ดินเท่าไหร่"), answer_data=V5_ANSWER,
+        session_id=None, total_ms=10, latency_ms=5,
+        thread_name=None, background_tasks=BackgroundTasks(),
     )
     conv = await Conversation.get(id=cid)
     assert conv.title == "ค่าธรรมเนียมโอนที่ดินเท่าไหร่"
@@ -103,15 +110,15 @@ async def test_null_thread_name_keeps_query_derived_title():
 async def test_thread_name_does_not_retitle_an_existing_conversation():
     """Turn 2+ must never rename the thread mid-conversation (spec §4.5)."""
     cid = str(uuid.uuid4())
-    await _save_stream_conversation(
-        query="q1", conversation_id=cid, answer_data=V5_ANSWER,
-        session_id=None, total_ms=10, latency_ms=5, user=None,
-        background_tasks=BackgroundTasks(), thread_name="ชื่อเดิม",
+    await _persist(
+        _plan(cid, query="q1"), answer_data=V5_ANSWER,
+        session_id=None, total_ms=10, latency_ms=5,
+        thread_name="ชื่อเดิม", background_tasks=BackgroundTasks(),
     )
-    await _save_stream_conversation(
-        query="q2", conversation_id=cid, answer_data=V5_ANSWER,
-        session_id=None, total_ms=10, latency_ms=5, user=None,
-        background_tasks=BackgroundTasks(), thread_name="ชื่อใหม่",
+    await _persist(
+        _plan(cid, query="q2"), answer_data=V5_ANSWER,
+        session_id=None, total_ms=10, latency_ms=5,
+        thread_name="ชื่อใหม่", background_tasks=BackgroundTasks(),
     )
     conv = await Conversation.get(id=cid)
     assert conv.title == "ชื่อเดิม"
@@ -120,10 +127,10 @@ async def test_thread_name_does_not_retitle_an_existing_conversation():
 @pytest.mark.usefixtures("db")
 async def test_long_thread_name_is_truncated():
     cid = str(uuid.uuid4())
-    await _save_stream_conversation(
-        query="q", conversation_id=cid, answer_data=V5_ANSWER,
-        session_id=None, total_ms=10, latency_ms=5, user=None,
-        background_tasks=BackgroundTasks(), thread_name="ก" * 200,
+    await _persist(
+        _plan(cid), answer_data=V5_ANSWER,
+        session_id=None, total_ms=10, latency_ms=5,
+        thread_name="ก" * 200, background_tasks=BackgroundTasks(),
     )
     conv = await Conversation.get(id=cid)
     assert len(conv.title) == settings.TITLE_MAX_LENGTH
@@ -136,6 +143,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.routers import chat as chat_router
 from app.schemas.chat import ChatRequest
+from app.services.chat import stream as turn_stream
 
 
 @pytest.mark.usefixtures("db")
@@ -151,7 +159,7 @@ async def test_cached_replay_emits_summary_and_references():
     )
     conn_log = MagicMock(response_body=json.dumps(V5_ANSWER, ensure_ascii=False))
 
-    with patch.object(chat_router, "find_similar_question",
+    with patch.object(turn_stream, "find_similar_question",
                       new=AsyncMock(return_value=(user_msg, asst_msg, conn_log))):
         resp = await chat_router.chat_stream(ChatRequest(query="q"), MagicMock(), BackgroundTasks(), None)
         chunks = [c async for c in resp.body_iterator]
