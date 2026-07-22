@@ -29,9 +29,9 @@ export function ChatInput({ input, setInput, isTyping, onSend, onCancel }: ChatI
   };
 
   return (
-    <div className="border-t border-border bg-card p-3">
+    <div className="p-4">
       <div className="max-w-3xl mx-auto">
-        <div className="flex flex-col rounded-3xl border border-input bg-background shadow-sm transition-shadow focus-within:border-primary focus-within:shadow-md">
+        <div className="flex flex-col rounded-3xl border border-input bg-white shadow-sm transition-shadow focus-within:shadow-md">
           <textarea
             ref={textareaRef}
             rows={1}
