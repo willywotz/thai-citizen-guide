@@ -89,6 +89,16 @@ async def test_agreeing_pair_is_accepted(db):
     assert conversation_id == str(conv.id)
 
 
+@pytest.mark.asyncio
+async def test_agreeing_pair_with_different_case_is_accepted(db):
+    conv = await Conversation.create(status="success")
+    asst = await Message.create(conversation=conv, role="assistant", content="a")
+    conversation_id, _ = await resolve_conversation(
+        previous_response_id=response_id_for(asst.id), conversation=str(conv.id).upper()
+    )
+    assert conversation_id == str(conv.id)
+
+
 def test_response_id_is_prefixed():
     message_id = uuid.uuid4()
     assert response_id_for(message_id) == f"resp_{message_id}"

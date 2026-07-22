@@ -18,6 +18,14 @@ def response_id_for(assistant_message_id) -> str:
     return f"{RESPONSE_ID_PREFIX}{assistant_message_id}"
 
 
+def _same_conversation(resolved: str, conversation: str) -> bool:
+    """Compare as UUIDs so textual case doesn't cause a spurious conflict."""
+    try:
+        return uuid.UUID(resolved) == uuid.UUID(conversation)
+    except ValueError:
+        return False
+
+
 def _not_found(previous_response_id: str) -> ResponsesApiError:
     return ResponsesApiError(
         f"Previous response with id '{previous_response_id}' not found",
@@ -52,13 +60,14 @@ async def resolve_conversation(
             resolved = str(message.conversation_id)
 
     if conversation:
-        if resolved is not None and resolved != conversation:
+        if resolved is not None and not _same_conversation(resolved, conversation):
             raise ResponsesApiError(
                 "`conversation` does not match the conversation of "
                 "`previous_response_id`; supply only one.",
                 param="conversation",
             )
-        resolved = conversation
+        if resolved is None:
+            resolved = conversation
 
     if resolved is None:
         return str(generate_uuid()), False
