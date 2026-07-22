@@ -39,6 +39,25 @@ terminates at the Cloudflare edge; nginx keeps serving plain HTTP on 8080 exactl
 `nginx/`, `docker-compose.yaml`, and the certbot/Let's Encrypt path are untouched. Every change
 is additive and dev-only.
 
+### Image-tag policy
+
+Both new services track **`latest`**, which departs from the pinning convention in
+`docker-compose.yaml` (`jaegertracing/jaeger:2.18.0`, `certbot/certbot:v5.1.0`, `pgvector/pgvector:pg16`).
+The split is along a real line rather than an exception per service:
+
+| | Tag | Why |
+|---|---|---|
+| Services in `docker-compose.yaml` | pinned | Ship to production. Reproducible builds and controlled upgrades matter |
+| Services in `docker-compose.override.yaml` | `latest` | Dev-only, never deployed. A broken dev tunnel is noticed instantly and fixed by a re-pull |
+
+For `cloudflared` specifically this is the safer direction anyway: it is a client of a moving
+remote service and Cloudflare deprecates old clients server-side, so a stale pin eventually
+produces connection failures that read like a local bug.
+
+The cost is that `docker compose up` does not re-pull on its own, so a dev machine can sit on a
+months-old `latest` and drift from a teammate's. The fix when the tunnel misbehaves is
+`docker compose pull cloudflared`; this goes in the troubleshooting note in `docs/quickstart.md`.
+
 ### Why the gateway and not individual services
 
 Tunnelling `nginx:8080` means the shared URL exercises the same routing contract
@@ -64,11 +83,7 @@ cloudflared:
     - nginx
 ```
 
-The image tracks **`latest`**, deliberately breaking the repo's pinning convention
-(`jaegertracing/jaeger:2.18.0`, `certbot/certbot:v5.1.0`). That convention buys reproducibility of
-*our* stack; `cloudflared` is a client of a moving remote service, and Cloudflare deprecates old
-clients server-side. A stale pin eventually produces connection failures that read like a local
-bug. Staying current is worth more here than pinning.
+The image tracks `latest`, per the image-tag policy above.
 
 `--no-autoupdate` still applies: Cloudflare recommends disabling self-update in containers, where
 the filesystem is ephemeral and an in-place update just causes a surprise restart. Version churn
@@ -127,7 +142,7 @@ One-shot service that runs the script above, prints the banner, and exits.
 
 ```yaml
 tunnel-url:
-  image: alpine:3.21
+  image: alpine:latest
   restart: "no"
   networks:
     - chatbot-network
@@ -138,10 +153,10 @@ tunnel-url:
   entrypoint: ["sh", "/tunnel-url.sh"]
 ```
 
-`alpine` is a plain utility container — a shell and BusyBox `wget`, nothing else. It is pinned
-normally (unlike `cloudflared`, it talks to no remote service). Reusing an image the stack already
-pulls, such as `redis:7-alpine`, would save the pull but make a reader wonder why Redis is
-printing a tunnel URL.
+`alpine` is a plain utility container — a shell and BusyBox `wget`, nothing else. Reusing an image
+the stack already pulls, such as `redis:7-alpine`, would save the pull but make a reader wonder
+why Redis is printing a tunnel URL. The only surface this depends on is `sh` + `wget` + `sed`,
+which BusyBox has carried unchanged for years, so tracking `latest` costs nothing.
 
 Mounting rather than inlining keeps one implementation for both entrypoints. This makes the URL
 appear automatically in `docker compose up` output, and recoverable after `docker compose up -d`
