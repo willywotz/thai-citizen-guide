@@ -8,15 +8,17 @@ All three transports drive one `run_response()` generator, so their wire output
 cannot drift. Errors use OpenAI's envelope (services/responses/errors.py), not
 the portal's.
 """
+import asyncio
 import json
 import logging
+import time
 from typing import Any, AsyncIterator
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from opentelemetry import trace
 
-from app.auth.dependencies import get_current_user_optional
+from app.auth.dependencies import _resolve_token, get_current_user_optional
 from app.models.user import User
 from app.schemas.responses import ResponsesRequest
 from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
@@ -26,6 +28,7 @@ from app.config import settings
 from app.services.responses.continuity import resolve_conversation, response_id_for
 from app.services.responses.errors import ResponsesApiError
 from app.services.responses.request import extract_query, resolve_model
+from app.services.responses.session import WsSession
 from app.services.responses.translate import ResponseAccumulator
 
 router = APIRouter(prefix="/responses", tags=["Responses"])
@@ -152,3 +155,92 @@ async def create_response(
                 code="no_answer", status=502,
             )
         return final
+
+
+# ─── WebSocket mode ───────────────────────────────────────────────────────────
+
+
+class _ConnectionRegistry:
+    """Caps concurrent sockets.
+
+    An endpoint that allows anonymous callers and holds hour-long connections is
+    otherwise an unbounded resource sink.
+    """
+
+    def __init__(self) -> None:
+        self._open = 0
+
+    def acquire(self) -> bool:
+        if self._open >= settings.RESPONSES_WS_MAX_CONNECTIONS:
+            return False
+        self._open += 1
+        return True
+
+    def release(self) -> None:
+        self._open = max(0, self._open - 1)
+
+
+_connections = _ConnectionRegistry()
+
+
+async def _ws_user(websocket) -> User | None:
+    """Resolve the caller from the Authorization header; anonymous on anything else.
+
+    Browsers cannot set headers on a WebSocket — browser clients should use the
+    SSE transport. There is deliberately no query-parameter token fallback: it
+    would leak API keys into access logs.
+    """
+    header = websocket.headers.get("authorization", "")
+    if not header.lower().startswith("bearer "):
+        return None
+    try:
+        return await _resolve_token(header[7:])
+    except Exception:
+        return None
+
+
+@router.websocket("")
+async def responses_websocket(websocket: WebSocket) -> None:
+    if not _connections.acquire():
+        await websocket.close(code=1013)  # try again later
+        return
+    await websocket.accept()
+
+    session = WsSession(user=await _ws_user(websocket))
+    deadline = time.monotonic() + settings.RESPONSES_WS_MAX_DURATION_SECONDS
+
+    async def send(frame: dict) -> None:
+        await websocket.send_text(json.dumps(frame, ensure_ascii=False))
+
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                await send(_connection_limit_frame())
+                await websocket.close(code=1000)
+                return
+            try:
+                raw = await asyncio.wait_for(websocket.receive_text(), timeout=remaining)
+            except asyncio.TimeoutError:
+                await send(_connection_limit_frame())
+                await websocket.close(code=1000)
+                return
+            # Awaited before the next receive: one response in flight at a time,
+            # additional frames queue in the socket buffer. No multiplexing.
+            await session.handle_text(raw, send)
+    except WebSocketDisconnect:
+        return
+    finally:
+        _connections.release()
+
+
+def _connection_limit_frame() -> dict:
+    return {
+        "type": "error",
+        **ResponsesApiError(
+            "Responses websocket connection limit reached (60 minutes). "
+            "Create a new websocket connection to continue.",
+            type="invalid_request_error",
+            code="websocket_connection_limit_reached",
+        ).envelope(),
+    }
