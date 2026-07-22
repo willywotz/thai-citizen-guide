@@ -204,15 +204,14 @@ async def responses_websocket(websocket: WebSocket) -> None:
     if not _connections.acquire():
         await websocket.close(code=1013)  # try again later
         return
-    await websocket.accept()
-
-    session = WsSession(user=await _ws_user(websocket))
-    deadline = time.monotonic() + settings.RESPONSES_WS_MAX_DURATION_SECONDS
 
     async def send(frame: dict) -> None:
         await websocket.send_text(json.dumps(frame, ensure_ascii=False))
 
     try:
+        await websocket.accept()
+        session = WsSession(user=await _ws_user(websocket))
+        deadline = time.monotonic() + settings.RESPONSES_WS_MAX_DURATION_SECONDS
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
