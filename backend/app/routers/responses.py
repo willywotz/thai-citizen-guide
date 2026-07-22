@@ -28,7 +28,7 @@ from app.config import settings
 from app.services.responses.continuity import resolve_conversation, response_id_for
 from app.services.responses.errors import ResponsesApiError
 from app.services.responses.request import extract_query, resolve_model
-from app.services.responses.session import WsSession
+from app.services.responses.session import WsSession, _error_frame
 from app.services.responses.translate import ResponseAccumulator
 
 router = APIRouter(prefix="/responses", tags=["Responses"])
@@ -219,11 +219,22 @@ async def responses_websocket(websocket: WebSocket) -> None:
                 await websocket.close(code=1000)
                 return
             try:
-                raw = await asyncio.wait_for(websocket.receive_text(), timeout=remaining)
+                message = await asyncio.wait_for(websocket.receive(), timeout=remaining)
             except asyncio.TimeoutError:
                 await send(_connection_limit_frame())
                 await websocket.close(code=1000)
                 return
+            websocket._raise_on_disconnect(message)
+            raw = message.get("text")
+            if raw is None:
+                # A binary frame — e.g. Go/JS clients that always send bytes.
+                # Reject it as bad input rather than assuming/decoding UTF-8,
+                # so the wire contract stays "JSON text frames only".
+                await send(_error_frame(ResponsesApiError(
+                    "This endpoint accepts text frames only; binary frames are"
+                    " not supported.",
+                )))
+                continue
             # Awaited before the next receive: one response in flight at a time,
             # additional frames queue in the socket buffer. No multiplexing.
             await session.handle_text(raw, send)

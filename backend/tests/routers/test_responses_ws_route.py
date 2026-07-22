@@ -120,6 +120,24 @@ def test_malformed_frame_does_not_kill_the_connection():
     assert types[-1] == "response.completed"
 
 
+def test_binary_frame_errors_without_closing():
+    with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
+         patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))), \
+         TestClient(_client_app()) as client, \
+         client.websocket_connect("/api/v1/responses") as ws:
+        ws.send_bytes(b'{"type":"response.create","input":"x"}')
+        error = json.loads(ws.receive_text())
+        assert error["type"] == "error"
+
+        ws.send_text(json.dumps({
+            "type": "response.create", "model": "thai-citizen-guide", "input": "บัตรหาย",
+        }))
+        types = []
+        while types[-1:] != ["response.completed"]:
+            types.append(json.loads(ws.receive_text())["type"])
+    assert types[-1] == "response.completed"
+
+
 def test_connection_cap_refuses_the_next_connection(restore_cap):
     settings.RESPONSES_WS_MAX_CONNECTIONS = 1
     with TestClient(_client_app()) as client:
