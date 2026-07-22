@@ -19,7 +19,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   "/feedback": ALL,
   "/agencies": ADMIN,
   "/agencies/:id": ADMIN,
-  "/history": ADMIN,
+  "/history": ALL,
   "/connection-logs": ADMIN,
   "/api-keys": ADMIN,
   "/agencies/new": ADMIN,

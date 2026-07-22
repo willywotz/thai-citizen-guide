@@ -31,6 +31,17 @@ def test_own_conversations_allowed():
     assert _is_allowed_for_basic_user("DELETE", "/api/v1/conversations/abc-123")
 
 
+def test_own_conversation_messages_readable():
+    """The History page reads this sub-resource; the handler scopes it to the owner."""
+    assert _is_allowed_for_basic_user("GET", "/api/v1/conversations/abc-123/messages")
+
+
+def test_conversation_messages_is_read_only():
+    """Only GET is granted, so a future write verb on this path stays admin-only."""
+    assert not _is_allowed_for_basic_user("POST", "/api/v1/conversations/abc-123/messages")
+    assert not _is_allowed_for_basic_user("DELETE", "/api/v1/conversations/abc-123/messages")
+
+
 def test_auth_self_endpoints_allowed():
     assert _is_allowed_for_basic_user("GET", "/api/v1/auth/me")
     assert _is_allowed_for_basic_user("POST", "/api/v1/auth/login")

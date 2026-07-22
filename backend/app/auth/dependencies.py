@@ -38,8 +38,12 @@ _invalid_credentials = HTTPException(
 )
 
 _MESSAGE_RATING_PATH = re.compile(r"^/api/v1/messages/[^/]+/rating$")
-# Matches the collection and /{id} only — sub-resources like /{id}/messages are intentionally excluded; only HistoryPage uses them and it's gated at the frontend.
+# Matches the collection and /{id} only. The /{id}/messages sub-resource is granted
+# separately and GET-only (see below), so adding a write verb there would not inherit access.
 _CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/[^/]+)?$")
+# The History page reads this to expand a conversation. Safe to grant because the
+# handler applies the same own-or-admin ownership check as GET /conversations/{id}.
+_CONVERSATION_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/conversations/[^/]+/messages$")
 
 _PUBLIC_PREFIX = "/api/v1/public"
 # Agency logo images are already publicly exposed via GET /public/agencies;
@@ -104,6 +108,8 @@ def _is_allowed_for_basic_user(method: str, path: str) -> bool:
     if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
         return True
     if method == "GET" and path in _BASIC_USER_GET_EXACT:
+        return True
+    if method == "GET" and _CONVERSATION_MESSAGES_GET_PATTERN.match(path):
         return True
     return False
 

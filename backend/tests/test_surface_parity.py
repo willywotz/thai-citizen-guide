@@ -80,6 +80,8 @@ async def test_user_surface_is_exactly_this(db):
         ("POST", "/api/v1/conversations"),
         ("GET", f"/api/v1/conversations/{_SAMPLE_ID}"),
         ("DELETE", f"/api/v1/conversations/{_SAMPLE_ID}"),
+        # History page expands a conversation; ownership-scoped in the handler.
+        ("GET", f"/api/v1/conversations/{_SAMPLE_ID}/messages"),
         # Read-only ops dashboards: Dashboard, Executive, Agency Health, Usage
         # Heatmap, Usage Analytics, Feedback.
         ("GET", "/api/v1/dashboard/stats"),

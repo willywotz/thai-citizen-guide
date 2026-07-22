@@ -84,12 +84,13 @@ const App = () => (
                 <Route path="/heatmap" element={<HeatmapPage />} />
                 <Route path="/usage" element={<UsageAnalyticsPage />} />
                 <Route path="/feedback" element={<FeedbackPage />} />
+                {/* Own conversation history — the API scopes non-admins to their own rows. */}
+                <Route path="/history" element={<HistoryPage />} />
 
                 {/* admin only */}
                 <Route element={<ProtectedRoute allowedRoles={["admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/agencies" element={<AgenciesPage />} />
                   <Route path="/agencies/:id" element={<AgencyDetailPage />} />
-                  <Route path="/history" element={<HistoryPage />} />
                   <Route path="/connection-logs" element={<ConnectionLogsPage />} />
                   <Route path="/api-keys" element={<ApiKeysPage />} />
                   <Route path="/agencies/new" element={<AgencyWizardPage />} />

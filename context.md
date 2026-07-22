@@ -234,8 +234,14 @@ and the mandatory rules in `CLAUDE.md`.
   `auth/dependencies.py`, GET-only so the `POST` upload stays guarded). Uploaded logos are stored on
   the `agency-uploads` named volume (backend-only mount, `Settings.UPLOAD_DIR`) as content-hashed
   files and served by the backend with `immutable` caching — see ADR 0003.
-- **Roles**: `user` (chat, architecture list, and **read-only** Dashboard · Executive · Agency
-  Health · Usage Heatmap · Usage Analytics · Feedback) and `admin` (full), plus anonymous.
+- **Roles**: `user` (chat, architecture list, **own conversation history**, and **read-only**
+  Dashboard · Executive · Agency Health · Usage Heatmap · Usage Analytics · Feedback) and
+  `admin` (full), plus anonymous.
+  On `/history` a `user` sees and deletes **only their own** conversations: `list_conversations`
+  filters `user_id` for non-admins, and the three detail handlers apply an own-or-admin check.
+  `GET /conversations/{id}/messages` is allowlisted **GET-only** via
+  `_CONVERSATION_MESSAGES_GET_PATTERN`, deliberately separate from the all-verbs
+  `_CONVERSATION_PATH`, so a future write verb on that sub-resource does not inherit access.
   `user` is read-only on those six pages: the allowlist grants only their six backing GETs
   (`_BASIC_USER_GET_EXACT`), so writes like `POST /executive-summary/regenerate` stay admin-only
   and the UI hides the control (`canRegenerate={isAdmin}`) rather than letting it 403.

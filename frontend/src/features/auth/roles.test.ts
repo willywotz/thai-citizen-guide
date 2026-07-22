@@ -5,6 +5,11 @@ const ROLES: Role[] = ["user", "admin"];
 
 const READ_ONLY_ROUTES = ["/dashboard", "/executive", "/health", "/heatmap", "/feedback", "/usage"];
 
+/** Reachable by `user` but not read-only: they may delete their own conversations. */
+const OWN_DATA_ROUTES = ["/history"];
+
+const USER_ROUTES = [...READ_ONLY_ROUTES, ...OWN_DATA_ROUTES];
+
 describe("canAccess", () => {
   it("lets every role reach chat and architecture", () => {
     for (const role of ROLES) {
@@ -20,9 +25,16 @@ describe("canAccess", () => {
     }
   });
 
+  it("lets every role reach their own conversation history", () => {
+    for (const path of OWN_DATA_ROUTES) {
+      expect(canAccess("user", path)).toBe(true);
+      expect(canAccess("admin", path)).toBe(true);
+    }
+  });
+
   it("restricts every other known route to admin", () => {
     for (const [path, allowed] of Object.entries(ROUTE_ROLES)) {
-      if (path === "/chat" || path === "/architecture" || READ_ONLY_ROUTES.includes(path)) continue;
+      if (path === "/chat" || path === "/architecture" || USER_ROUTES.includes(path)) continue;
       expect(allowed).toEqual(["admin"]);
       expect(canAccess("user", path)).toBe(false);
       expect(canAccess("admin", path)).toBe(true);
