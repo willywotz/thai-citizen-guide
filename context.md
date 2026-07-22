@@ -323,6 +323,9 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   Message rating uses optimistic UI updates. The message list + typing indicator and the input bar
   are shared components — `features/chat/ChatConversation` and `features/chat/ChatInput` — reused by
   both the staff `ChatPage` and the public `PublicPortal` (chat mode) so the two stay in sync.
+  The staff sidebar's **แชทใหม่** item (`AppSidebar`) navigates to `/chat`; when already on `/chat`
+  it instead pushes `/chat?new=1`, and `ChatPage` resets the conversation on that `new` flag (then
+  clears it). The public portal's แชทใหม่ resets directly via `useChat().reset`.
 - **Serve**: multi-stage Dockerfile → `vite build` → static `dist/` served by nginx
   (`frontend/nginx.conf`, SPA fallback). Container healthcheck hits **`/healthz`** (not `/health`,
   which is a client route).

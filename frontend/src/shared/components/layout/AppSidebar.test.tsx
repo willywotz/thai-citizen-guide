@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppSidebar } from "./AppSidebar";
@@ -23,6 +24,11 @@ function renderSidebar() {
   );
 }
 
+function LocationDisplay() {
+  const loc = useLocation();
+  return <div data-testid="loc">{loc.pathname + loc.search}</div>;
+}
+
 describe("AppSidebar visibility", () => {
   beforeEach(() => {
     auth.user = { id: "1", email: "u@x.com", displayName: "U", role: "user", avatarUrl: null };
@@ -31,7 +37,7 @@ describe("AppSidebar visibility", () => {
   it("shows read-only operational pages but not admin-only pages for a basic user", () => {
     auth.user = { ...auth.user!, role: "user" };
     renderSidebar();
-    expect(screen.getByText("แชท")).toBeInTheDocument();
+    expect(screen.getByText("แชทใหม่")).toBeInTheDocument();
     expect(screen.getByText("Architecture")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.queryByText("จัดการหน่วยงาน")).not.toBeInTheDocument();
@@ -51,5 +57,20 @@ describe("AppSidebar visibility", () => {
     auth.user = { ...auth.user!, role: "admin" };
     renderSidebar();
     expect(screen.queryByText("หน่วยงานของฉัน")).not.toBeInTheDocument();
+  });
+
+  it("resets the chat via ?new when แชทใหม่ is clicked while already on /chat", async () => {
+    auth.user = { ...auth.user!, role: "admin" };
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/chat"]}>
+        <SidebarProvider>
+          <AppSidebar />
+        </SidebarProvider>
+        <LocationDisplay />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByText("แชทใหม่"));
+    expect(screen.getByTestId("loc")).toHaveTextContent("/chat?new=1");
   });
 });

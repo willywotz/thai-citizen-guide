@@ -10,7 +10,7 @@ import { SuggestedQuestions } from '@/features/public/SuggestedQuestions';
 export default function ChatPage() {
   const {
     messages, input, setInput, isTyping, activeStepCount, currentSteps,
-    streamingState, scrollRef, handleSend, handleRate, cancelStream, hasMessages,
+    streamingState, scrollRef, handleSend, handleRate, reset, cancelStream, hasMessages,
   } = useChat();
   const { data: popularQuestions } = usePublicPopularQuestions();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -26,6 +26,14 @@ export default function ChatPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Start a fresh conversation when แชทใหม่ is clicked while already on /chat.
+  useEffect(() => {
+    if (searchParams.get('new')) {
+      reset();
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, reset, setSearchParams]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">

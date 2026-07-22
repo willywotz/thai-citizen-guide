@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/mocks/server";
 import ChatPage from "./ChatPage";
 
+const { resetMock } = vi.hoisted(() => ({ resetMock: vi.fn() }));
+
 vi.mock("@/features/chat/useChat", () => ({
   useChat: () => ({
     messages: [],
@@ -19,16 +21,17 @@ vi.mock("@/features/chat/useChat", () => ({
     scrollRef: { current: null },
     handleSend: vi.fn(),
     handleRate: vi.fn(),
+    reset: resetMock,
     cancelStream: vi.fn(),
     hasMessages: false,
   }),
 }));
 
-function renderChatPage() {
+function renderChatPage(entries: string[] = ["/chat"]) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={entries}>
         <ChatPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -49,5 +52,20 @@ describe("ChatPage popular questions", () => {
     );
     renderChatPage();
     await waitFor(() => expect(screen.queryByText("คำถามยอดนิยม")).not.toBeInTheDocument());
+  });
+});
+
+describe("ChatPage new-chat reset", () => {
+  it("resets the conversation when navigated to with ?new", async () => {
+    resetMock.mockClear();
+    renderChatPage(["/chat?new=1"]);
+    await waitFor(() => expect(resetMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not reset on a plain /chat visit", async () => {
+    resetMock.mockClear();
+    renderChatPage(["/chat"]);
+    await waitFor(() => expect(screen.queryByText("คำถามยอดนิยม")).not.toBeInTheDocument());
+    expect(resetMock).not.toHaveBeenCalled();
   });
 });
