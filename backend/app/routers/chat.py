@@ -222,6 +222,8 @@ async def chat_stream(body: ChatRequest, request: Request, background_tasks: Bac
 
         async def sse():
             async for event in run_turn(plan, background_tasks=background_tasks):
+                if event.name == "error":
+                    span.set_status(StatusCode.ERROR, event.data.get("message"))
                 yield _sse_event(event.name, event.data)
 
         return StreamingResponse(

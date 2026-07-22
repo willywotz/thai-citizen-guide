@@ -10,12 +10,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import BackgroundTasks
+from opentelemetry.trace import StatusCode
 
 from app.models.conversation import Conversation, Message
 from app.routers import chat as chat_router
 from app.schemas.chat import ChatRequest
 from app.services.chat import stream as turn_stream
-from app.services.chat.stream import TurnPlan, _persist
+from app.services.chat.stream import ChatEvent, TurnPlan, _persist
 from app.utils import generate_uuid
 
 
@@ -62,3 +63,23 @@ async def test_cached_stream_emits_message_id_in_done(db):
     assert new_asst is not None
     assert "event: done" in text
     assert str(new_asst.id) in text
+
+
+@pytest.mark.asyncio
+async def test_error_event_marks_endpoint_span_as_error(db):
+    """The endpoint span must be marked ERROR on upstream failure (pre-refactor behavior)."""
+
+    async def fake_run_turn(plan, *, background_tasks=None):
+        yield ChatEvent("error", {"message": "OneChat v5 returned 502", "code": 502})
+        yield ChatEvent("done", {"session_id": plan.conversation_id, "total_ms": 0})
+
+    mock_span = MagicMock()
+    mock_span_cm = MagicMock()
+    mock_span_cm.__enter__.return_value = mock_span
+
+    with patch.object(chat_router, "run_turn", fake_run_turn), \
+         patch.object(chat_router.tracer, "start_as_current_span", return_value=mock_span_cm):
+        resp = await chat_router.chat_stream(ChatRequest(query="q"), MagicMock(), BackgroundTasks(), None)
+        [c async for c in resp.body_iterator]
+
+    mock_span.set_status.assert_any_call(StatusCode.ERROR, "OneChat v5 returned 502")

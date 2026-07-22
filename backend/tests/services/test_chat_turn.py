@@ -1,7 +1,7 @@
 """Characterization tests for chat save behavior BEFORE and AFTER the save_turn refactor.
 
 These pin current observable behavior for unchanged paths (_copy_cached_answer,
-_save_stream_conversation) and assert the NEW intended behavior for save_turn.
+_persist) and assert the NEW intended behavior for save_turn.
 SQLite-portable: no external HTTP, no Postgres-only SQL.
 """
 import uuid
