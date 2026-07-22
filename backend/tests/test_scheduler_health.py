@@ -35,6 +35,22 @@ async def test_scheduler_checks_a2a_agency(db):
 
 
 @pytest.mark.asyncio
+async def test_scheduler_checks_api_agency_via_test_connection(db):
+    """API agencies take the same reachability path as MCP/A2A — no chat POST."""
+    scheduler.sem = asyncio.Semaphore(5)
+    ag = await Agency.create(name="A", short_name="A", connection_type="API", status="active",
+                             endpoint_url="https://api.example/chat", expected_payload={"query": "__query__"})
+    fake = {"success": True, "latency": "42ms", "protocol": "REST API", "version": "-", "steps": []}
+    with patch("app.scheduler.test_connection", AsyncMock(return_value=fake)) as tc:
+        await scheduler.agency_chat_item(ag)
+    tc.assert_awaited_once_with("API", ag)
+    log = await ConnectionLog.filter(agency_id=ag.id).first()
+    assert log.connection_type == "API"
+    assert log.status == "success"
+    assert log.latency_ms == 42
+
+
+@pytest.mark.asyncio
 async def test_scheduler_skips_draft(db):
     scheduler.sem = asyncio.Semaphore(5)
     ag = await Agency.create(name="D", short_name="D", connection_type="MCP", status="draft", endpoint_url="https://x")
