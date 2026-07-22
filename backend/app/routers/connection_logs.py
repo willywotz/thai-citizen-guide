@@ -6,7 +6,6 @@ from tortoise.functions import Avg
 from tortoise.exceptions import DoesNotExist
 from app.models import Agency, ConnectionLog, User
 from app.auth.dependencies import get_current_user, require_admin
-from app.models import Relationship
 from datetime import datetime, timedelta
 from app.config import settings
 from app.utils import now
@@ -57,15 +56,9 @@ async def list_connection_logs(
     user: User = Depends(get_current_user),
 ) -> ListConnectionLogResponse:
 
-    if user.role == "agency_owner":
-        owned_ids = await Relationship.filter(
-            subject_type="user", subject_id=user.id, relation="owner", object_type="agency"
-        ).values_list("object_id", flat=True)
-        qs = ConnectionLog.filter(agency_id__in=list(owned_ids))
-    elif user.role in ("admin", "auditor"):
-        qs = ConnectionLog.all()
-    else:
+    if not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    qs = ConnectionLog.all()
 
     start = time.time()
 
@@ -154,17 +147,9 @@ class ConnectionLogInfoResponse(BaseModel):
 
 @router.get("/info", summary="Get connection log info", response_model=ConnectionLogInfoResponse)
 async def get_connection_log_info(user: User = Depends(get_current_user)) -> ConnectionLogInfoResponse:
-    # Scope by role, mirroring the list endpoint: an agency_owner sees stats only
-    # for agencies it owns; admin/auditor see all. Other roles are forbidden.
-    if user.role == "agency_owner":
-        owned_ids = await Relationship.filter(
-            subject_type="user", subject_id=user.id, relation="owner", object_type="agency"
-        ).values_list("object_id", flat=True)
-        qs = ConnectionLog.filter(agency_id__in=list(owned_ids))
-    elif user.role in ("admin", "auditor"):
-        qs = ConnectionLog.all()
-    else:
+    if not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    qs = ConnectionLog.all()
 
     total_connections = await qs.count()
     successful_connections = await qs.filter(status="success").count()

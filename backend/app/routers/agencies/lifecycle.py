@@ -7,8 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from tortoise.exceptions import DoesNotExist
 
-from app.auth.authz import authorize_or_403
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import require_admin
 from app.errors import ApiError
 from app.models.agency import Agency
 from app.models.connection_log import ConnectionLog
@@ -70,12 +69,11 @@ class TestConnectionResponse(BaseModel):
 
 
 @router.patch("/{agency_id}/status", response_model=AgencyResponse, summary="Transition agency lifecycle status")
-async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, user: User = Depends(get_current_user)):
+async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, user: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:change_status", agency)
     if not is_legal_transition(agency.status.value, body.status):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -93,12 +91,11 @@ async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, 
     return await _with_health(agency)
 
 
-@router.post("/{agency_id}/conformance", summary="Run the conformance battery (owner or admin)")
-async def run_agency_conformance(agency_id: str, user: User = Depends(get_current_user)):
+@router.post("/{agency_id}/conformance", summary="Run the conformance battery (admin)")
+async def run_agency_conformance(agency_id: str, _: User = Depends(require_admin)):
     agency = await Agency.get_or_none(id=agency_id)
     if agency is None:
         raise HTTPException(status_code=404, detail="Agency not found")
-    await authorize_or_403(user, "agency:edit", agency)
     from app.services.conformance import run_conformance
     return await run_conformance(agency)
 

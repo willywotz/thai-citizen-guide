@@ -14,8 +14,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from tortoise.exceptions import DoesNotExist
 
-from app.auth.authz import authorize_or_403
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import require_admin
 from app.config import settings
 from app.models.agency import Agency
 from app.models.user import User
@@ -62,13 +61,12 @@ def sweep_agency_logo_files(agency_id: uuid.UUID | str) -> None:
 async def upload_agency_logo(
     agency_id: uuid.UUID,
     file: UploadFile = File(...),
-    user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
 ):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:edit", agency)
 
     validator = _MAGIC_VALIDATORS.get(file.content_type)
     if validator is None:

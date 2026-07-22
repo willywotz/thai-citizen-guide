@@ -207,20 +207,24 @@ async def enforce_role_allowlist(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
 ) -> None:
-    """Chokepoint for the read-restricted ``user`` role.
+    """Deny-by-default chokepoint for every role except ``admin``.
 
-    Anonymous and ``admin`` callers pass straight through; their access is
-    governed by each endpoint's own auth. Wired as a global dependency in
-    ``app.main`` so it runs once per request.
+    Anonymous callers pass straight through; their access is governed by each
+    endpoint's own auth. Wired as a global dependency in ``app.main`` so it
+    runs once per request.
     """
     if credentials is None:
         return
     if _is_public_get(request.method, request.url.path):
         return
     role = await _resolve_role(credentials.credentials)
-    check = _ROLE_ALLOWLIST.get(role or "")
-    if check is None:  # admin, unknown/None → governed per-endpoint
+    # An unresolvable token (invalid/expired/inactive) passes through so the
+    # endpoint's own auth returns 401 rather than a misleading 403. `admin` is
+    # governed per-endpoint. Every other role — including rows left behind by a
+    # not-yet-run migration — is denied by default.
+    if role is None or role == "admin":
         return
+    check = _ROLE_ALLOWLIST.get(role, _is_allowed_for_basic_user)
     if not check(request.method, request.url.path):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

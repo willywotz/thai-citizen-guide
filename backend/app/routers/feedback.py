@@ -9,7 +9,7 @@ Endpoint
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
 from app.models.user import User
 from tortoise.functions import Count, Sum
 from tortoise.expressions import Case, When, RawSQL, F
@@ -20,8 +20,6 @@ from app.models.conversation import Conversation, Message
 from app.schemas.conversation import FeedbackStats
 from app.models.agency import Agency
 from app.utils import now
-
-from app.auth.authz import authorize_or_403
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
@@ -47,20 +45,18 @@ async def agency_low_rated(agency_id: str, limit: int = 50) -> list[dict]:
     ]
 
 
-@router.get("/agencies/{agency_id}/low-rated", summary="Down-rated answers for an agency (owner/admin)")
-async def get_agency_low_rated(agency_id: str, user: User = Depends(get_current_user)):
+@router.get("/agencies/{agency_id}/low-rated", summary="Down-rated answers for an agency (admin)")
+async def get_agency_low_rated(agency_id: str, _: User = Depends(require_admin)):
     agency = await Agency.get_or_none(id=agency_id)
     if agency is None:
         raise HTTPException(status_code=404, detail="Agency not found")
-    await authorize_or_403(user, "agency:read_logs", agency)
     return await agency_low_rated(agency_id)
 
 
 @router.get("/stats", response_model=FeedbackStats, summary="Get feedback and satisfaction metrics")
 async def feedback_stats(_user: User = Depends(get_current_user)) -> FeedbackStats:
-    # Authorization is enforced by the global role allowlist: viewer/auditor are
-    # entitled to read feedback stats (Dashboard/Feedback pages); admin/agency_owner
-    # pass the allowlist. A plain `user` is blocked upstream.
+    # Authorization is enforced by the global role allowlist: admin passes it;
+    # a plain `user` is blocked upstream.
 
     # All rated messages, newest first
     # rated_messages = await (
