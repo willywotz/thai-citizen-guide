@@ -66,6 +66,26 @@ def test_array_input_rejects_a_trailing_assistant_message():
     assert exc.value.param == "input"
 
 
+def test_array_input_rejects_null_content():
+    value = [{"role": "user", "content": None}]
+    with pytest.raises(ResponsesApiError) as exc:
+        extract_query(value)
+    assert exc.value.param == "input"
+
+
+def test_array_input_rejects_non_iterable_content():
+    value = [{"role": "user", "content": 5}]
+    with pytest.raises(ResponsesApiError) as exc:
+        extract_query(value)
+    assert exc.value.param == "input"
+
+
+def test_array_input_rejects_a_non_dict_item():
+    with pytest.raises(ResponsesApiError) as exc:
+        extract_query([None])
+    assert exc.value.param == "input"
+
+
 def test_empty_input_is_rejected():
     for value in ("", "   ", []):
         with pytest.raises(ResponsesApiError):

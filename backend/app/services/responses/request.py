@@ -45,7 +45,7 @@ def extract_query(value: str | list[dict[str, Any]]) -> str:
         raise ResponsesApiError("`input` must not be empty.", param="input")
 
     last = value[-1]
-    if last.get("role") != "user":
+    if not isinstance(last, dict) or last.get("role") != "user":
         raise ResponsesApiError(
             "The last item of `input` must be a message with role 'user'.", param="input",
         )
@@ -53,6 +53,8 @@ def extract_query(value: str | list[dict[str, Any]]) -> str:
     content = last.get("content", "")
     if isinstance(content, str):
         text = content.strip()
+    elif not isinstance(content, list):
+        text = ""
     else:
         text = " ".join(
             part.get("text", "").strip()
