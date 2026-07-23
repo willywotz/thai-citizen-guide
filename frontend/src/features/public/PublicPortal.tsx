@@ -34,23 +34,29 @@ export default function PublicPortal() {
     reset();
   };
 
+  const loginButton = (
+    <Button asChild variant="outline" size="sm" className="rounded-full bg-white">
+      <a href="/chat">
+        เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
+      </a>
+    </Button>
+  );
+
   if (chatMode) {
     return (
       <SidebarProvider>
         <PublicSidebar agencies={publicAgencies ?? []} onNewChat={reset} />
         <div className="flex-1 flex flex-col min-w-0 min-h-svh bg-background">
           {/* Header */}
-          <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+          {/* <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10"> */}
+          <header className="px-6 py-3 flex items-center justify-between sticky top-0 z-10">
             <div className="flex items-center gap-2.5">
               <SidebarTrigger />
               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleBack}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
             </div>
-            <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
-              เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
-            </a>
+            {loginButton}
           </header>
 
           <ChatConversation
@@ -68,11 +74,9 @@ export default function PublicPortal() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10">
-        <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
-        <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
-          เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
-        </a>
+      {/* <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-end sticky top-0 z-10"> */}
+      <header className="px-6 py-3 flex items-center justify-end sticky top-0 z-10">
+        {loginButton}
       </header>
 
       <>
