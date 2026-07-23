@@ -306,6 +306,35 @@ frame (no `event:`/`data:` framing, no `[DONE]` sentinel — the sequence simply
 Responses event that carries them, and injecting non-standard SSE event types is exactly what
 breaks strict SDK parsers. Clients wanting the pipeline view use `/api/v1/chat/stream`.
 
+### 5.1 Event scope — 9 of 53 upstream events
+
+The upstream OpenAI streaming reference (`spec/openai-responses-api/4-streaming-events.md`)
+declares **53 event types**. The portal emits the **9** listed in the sequence above (the 8-event
+happy path plus `response.failed` on a mid-stream failure) and deliberately emits none of the
+other 44. This is a scope decision, not an oversight: the omitted events all announce features
+OneChat does not surface through this endpoint (tool calls, reasoning, audio, image generation,
+MCP, code interpreter, refusals, and the background/queued lifecycle). A client must not wait for
+any of them — a portal stream is the 9-event set and nothing else.
+
+| Upstream event(s) | Status | Note |
+|---|---|---|
+| `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta`, `response.output_text.done`, `response.content_part.done`, `response.output_item.done`, `response.completed` | ✅ Emitted | The 8-event happy path (§ 5) |
+| `response.failed` | ✅ Emitted | Mid-stream upstream failure (§ 7) |
+| `response.in_progress`, `response.queued`, `response.incomplete` | ❌ Out of scope | The portal only transitions `created → completed` (or `created → failed`); no background/queued mode (§ 8) and no truncated/incomplete status |
+| `error` | ❌ Out of scope | The SSE-level error event is never emitted — pre-stream failures return the HTTP error envelope (§ 7) and mid-stream failures use `response.failed`. WS `error` frames are a separate, non-OpenAI shape (§ 8) |
+| `response.refusal.delta`, `response.refusal.done` | ❌ Out of scope | No refusal channel; answers are plain `output_text` |
+| `response.output_text.annotation.added` | ❌ Out of scope | `annotations` is always `[]` (§ 4); none are streamed |
+| `response.function_call_arguments.delta` / `.done`, `response.custom_tool_call_input.delta` / `.done` | ❌ Out of scope | No function or custom tool calling |
+| `response.file_search_call.*`, `response.web_search_call.*` | ❌ Out of scope | No hosted file-search or web-search tools |
+| `response.mcp_call_arguments.*`, `response.mcp_call.*`, `response.mcp_list_tools.*` | ❌ Out of scope | No MCP tool surface |
+| `response.code_interpreter_call.*`, `response.code_interpreter_call_code.*` | ❌ Out of scope | No code interpreter |
+| `response.image_generation_call.*` | ❌ Out of scope | No image generation |
+| `response.reasoning_summary_part.*`, `response.reasoning_summary_text.*`, `response.reasoning_text.*` | ❌ Out of scope | No reasoning surface exposed |
+| `response.audio.*`, `response.audio.transcript.*` | ❌ Out of scope | Text-only; no audio modality |
+
+Source: the `"type": "response.*"` literals in `ResponseAccumulator` in
+`app/services/responses/translate.py` are the only nine event types the module emits.
+
 **Two error timings, not one:**
 
 - **Before the stream starts** — request-validation failures (unknown `model`, unknown

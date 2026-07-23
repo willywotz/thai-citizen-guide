@@ -126,7 +126,11 @@ upstream's other six response endpoints (retrieve/delete/cancel/compact/input_it
 **and the entire OpenAI Conversations + items API** (`spec/openai-responses-api/2-conversations.md`,
 plus all four `3-conversations-items.md` endpoints — create/list/retrieve/delete items, none
 routed) are out of scope — see the "Endpoint scope" tables in
-`spec/openai-responses.md`. The native `/api/v1/conversations` router is the portal's own SPA
+`spec/openai-responses.md`. Streaming is likewise a subset: the upstream declares 53 event
+types (`spec/openai-responses-api/4-streaming-events.md`) but the module emits only **9** (the
+8-event happy path plus `response.failed`); the other 44 — tools, reasoning, audio, image gen,
+MCP, code interpreter, refusals, background/queued lifecycle — are out of scope (§ 5.1 "Event
+scope"). The native `/api/v1/conversations` router is the portal's own SPA
 history API, a different contract — not a partial OpenAI Conversations implementation.
 
 In-process agency dispatch (API/MCP/A2A) also exists in `services/chat/dispatch.py`
