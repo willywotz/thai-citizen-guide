@@ -4,7 +4,7 @@ Admin user-management routes. Every endpoint requires an authenticated admin.
 Endpoints
 ---------
   GET    /users                 List/search users (filters: search, role, status)
-  POST   /users                 Create a user (password OR email invite)
+  POST   /users                 Create a user with an initial password
   GET    /users/{id}            Get a single user
   PATCH  /users/{id}            Update display_name and/or role
   POST   /users/{id}/deactivate Soft-delete: set is_active=False
@@ -57,9 +57,9 @@ async def list_users(
 
 @router.post("", response_model=UserCreateResponse, status_code=status.HTTP_201_CREATED, summary="Create a user")
 async def create_user(body: UserCreate, admin: User = Depends(require_admin)) -> dict:
-    new_user, extra = await user_service.create_user(body)
+    new_user = await user_service.create_user(body)
     await record_audit(admin, "user.create", object_type="user", object_id=new_user.id, detail={"email": new_user.email, "role": new_user.role})
-    return {"user": UserResponse.from_user(new_user).model_dump(), **extra}
+    return {"user": UserResponse.from_user(new_user).model_dump()}
 
 
 @router.get("/{user_id}", response_model=UserResponse, summary="Get user by ID")

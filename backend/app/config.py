@@ -51,9 +51,6 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     MIN_PASSWORD_LENGTH: int = 6
-    RESET_TOKEN_EXPIRE_HOURS: int = 1
-    RESET_TOKEN_BYTES: int = 32
-    EXPOSE_PASSWORD_RESET_TOKEN: bool = True  # reset/set-password token is returned in the API response
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""

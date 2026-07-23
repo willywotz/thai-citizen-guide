@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/shared/lib/apiClient";
 import { useAuth, type AuthUser } from "@/features/auth/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -66,12 +66,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">รหัสผ่าน</Label>
-                <Link to="/forgot-password" className="text-xs text-primary hover:underline">
-                  ลืมรหัสผ่าน?
-                </Link>
-              </div>
+              <Label htmlFor="password">รหัสผ่าน</Label>
               <Input
                 id="password"
                 type="password"

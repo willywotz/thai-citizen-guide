@@ -7,16 +7,11 @@ active admin) and the dual create/invite flow can be unit-tested directly.
 
 from __future__ import annotations
 
-import secrets
 import uuid
 
 from fastapi import HTTPException, status
 
-from app.auth.security import (
-    generate_reset_token,
-    hash_password,
-    reset_token_expiry,
-)
+from app.auth.security import hash_password
 from app.config import settings
 from app.models.user import User
 from app.schemas.user import UserCreate
@@ -43,22 +38,12 @@ async def ensure_not_last_admin(target: User) -> None:
         )
 
 
-async def create_user(data: UserCreate) -> tuple[User, dict]:
+async def create_user(data: UserCreate) -> User:
     """
-    Create a user via one of two mutually-exclusive modes:
-      * password — admin sets an initial password; user can log in immediately.
-      * send_invite — generate a reset token and email it; account starts with
-        an unusable random password.
-    Returns the created user plus any extra response fields (invite metadata).
+    Create a user with an admin-set initial password; the user can log in
+    immediately.
     """
-    has_password = bool(data.password)
-    if has_password == data.send_invite:  # both set or neither set
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="ต้องระบุรหัสผ่าน หรือเลือกส่งคำเชิญทางอีเมล อย่างใดอย่างหนึ่ง",
-        )
-
-    if has_password and len(data.password) < settings.MIN_PASSWORD_LENGTH:
+    if len(data.password) < settings.MIN_PASSWORD_LENGTH:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
@@ -67,22 +52,9 @@ async def create_user(data: UserCreate) -> tuple[User, dict]:
     if await User.filter(email=data.email).exists():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="อีเมลนี้ถูกใช้งานแล้ว")
 
-    hashed = hash_password(data.password if has_password else secrets.token_urlsafe(32))
-    user = await User.create(
+    return await User.create(
         email=data.email,
         display_name=data.display_name,
-        hashed_password=hashed,
+        hashed_password=hash_password(data.password),
         role=data.role,
     )
-
-    extra: dict = {}
-    if data.send_invite:
-        token = generate_reset_token()
-        user.reset_token = token
-        user.reset_token_expires = reset_token_expiry()
-        await user.save(update_fields=["reset_token", "reset_token_expires"])
-        extra["email_sent"] = False
-        if settings.EXPOSE_PASSWORD_RESET_TOKEN:
-            extra["reset_token"] = token
-
-    return user, extra
