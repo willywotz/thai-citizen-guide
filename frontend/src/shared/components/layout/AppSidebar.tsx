@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BarChart3, ScrollText, Cpu, Sparkles } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, Briefcase, Flame, Settings, Users, MessageSquareWarning, Sparkles } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/shared/components/NavLink";
 import {
@@ -26,16 +26,11 @@ const navItems = [
   { title: "Usage Heatmap", url: "/heatmap", icon: Flame },
   { title: "จัดการหน่วยงาน", url: "/agencies", icon: Building2 },
   { title: "ประวัติการสนทนา", url: "/history", icon: History },
-  { title: "ประวัติการเชื่อมต่อ", url: "/connection-logs", icon: Activity },
-  { title: "Architecture", url: "/architecture", icon: Network },
-  { title: "API Keys", url: "/api-keys", icon: KeyRound },
   { title: "ความคิดเห็นและความพึงพอใจ", url: "/feedback", icon: MessageSquareWarning },
-  { title: "จัดการผู้ใช้", url: "/users", icon: Users },
-  { title: "บันทึกการตรวจสอบ", url: "/audit-log", icon: ScrollText },
-  { title: "การใช้งาน API Key", url: "/usage", icon: BarChart3 },
-  { title: "ตั้งค่าระบบ", url: "/settings", icon: Settings },
-  { title: "LLM Settings", url: "/llm-settings", icon: Cpu },
   { title: "คำถามยอดนิยม", url: "/popular-questions", icon: Sparkles },
+  { title: "ตั้งค่าระบบ", url: "/settings", icon: Settings },
+  { title: "จัดการผู้ใช้", url: "/users", icon: Users },
+  { title: "Architecture", url: "/architecture", icon: Network },
 ];
 
 export function AppSidebar() {
