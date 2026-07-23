@@ -1,6 +1,7 @@
-export type Role = "user" | "admin";
+export type Role = "user" | "staff" | "admin";
 
-const ALL: Role[] = ["user", "admin"];
+const ALL: Role[] = ["user", "staff", "admin"];
+const STAFF: Role[] = ["staff", "admin"];
 const ADMIN: Role[] = ["admin"];
 
 /**
@@ -11,27 +12,27 @@ const ADMIN: Role[] = ["admin"];
 export const ROUTE_ROLES: Record<string, Role[]> = {
   "/chat": ALL,
   "/architecture": ALL,
-  "/dashboard": ALL,
-  "/executive": ALL,
-  "/health": ALL,
-  "/heatmap": ALL,
-  "/usage": ALL,
-  "/feedback": ALL,
+  "/history": ALL,
+  "/dashboard": STAFF,
+  "/executive": STAFF,
+  "/health": STAFF,
+  "/heatmap": STAFF,
+  "/usage": STAFF,
+  "/feedback": STAFF,
   "/agencies": ADMIN,
   "/agencies/:id": ADMIN,
-  "/history": ALL,
-  "/connection-logs": ADMIN,
-  "/api-keys": ADMIN,
   "/agencies/new": ADMIN,
   "/agencies/:id/setup": ADMIN,
+  "/connection-logs": ADMIN,
+  "/api-keys": ADMIN,
   "/users": ADMIN,
   "/audit-log": ADMIN,
-  "/settings": ALL,
+  "/settings": STAFF,
   "/settings/system": ADMIN,
   "/settings/llm": ADMIN,
   "/settings/api-keys": ADMIN,
   "/settings/users": ADMIN,
-  "/settings/usage": ALL,
+  "/settings/usage": STAFF,
   "/settings/connections": ADMIN,
   "/settings/audit": ADMIN,
   "/llm-settings": ADMIN,
