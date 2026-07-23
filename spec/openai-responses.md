@@ -38,6 +38,32 @@ compaction, token accounting) that OneChat does not expose to the portal.
 Clients requiring any omitted endpoint must not treat the portal as a drop-in for the full
 OpenAI Responses API.
 
+#### Conversations API — entirely out of scope
+
+The upstream reference also defines a **Conversations** family (`spec/openai-responses-api/2-conversations.md`)
+and its **items** subresource (`spec/openai-responses-api/3-conversations-items.md`). The portal
+implements **none** of these as OpenAI-compatible endpoints:
+
+| Upstream endpoint | Status |
+|---|---|
+| `POST /conversations` | ❌ Out of scope |
+| `GET /conversations/{id}` | ❌ Out of scope |
+| `POST /conversations/{id}` (update) | ❌ Out of scope |
+| `DELETE /conversations/{id}` | ❌ Out of scope |
+| `POST /conversations/{id}/items` | ❌ Out of scope |
+| `GET /conversations/{id}/items` | ❌ Out of scope |
+| `GET /conversations/{id}/items/{item_id}` | ❌ Out of scope |
+| `DELETE /conversations/{id}/items/{item_id}` | ❌ Out of scope |
+
+Conversations are managed entirely by OneChat server-side; the portal exposes no OpenAI
+conversation/item store. A caller's only handle on a conversation through this surface is the
+opaque `conversation` id (and the `resp_<id>` continuity chain) on `POST /responses` — see § 3.
+
+⚠️ **Do not confuse this with the native `/api/v1/conversations` router**
+(`app/routers/conversations.py`). That is the portal's own SPA history API — a different contract
+(save-with-messages, list-with-search, get, delete) that is **not** OpenAI-shaped and is not a
+partial implementation of the OpenAI Conversations API above.
+
 ---
 
 ## 1. Models
