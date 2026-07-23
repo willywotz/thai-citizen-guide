@@ -30,6 +30,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   "/settings/system": ADMIN,
   "/settings/llm": ADMIN,
   "/settings/api-keys": ADMIN,
+  "/settings/users": ADMIN,
   "/settings/usage": ALL,
   "/settings/connections": ADMIN,
   "/settings/audit": ADMIN,

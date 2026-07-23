@@ -93,7 +93,6 @@ const App = () => (
                   <Route path="/agencies/:id" element={<AgencyDetailPage />} />
                   <Route path="/agencies/new" element={<AgencyWizardPage />} />
                   <Route path="/agencies/:id/setup" element={<AgencyWizardPage />} />
-                  <Route path="/users" element={<UsersPage />} />
                 </Route>
 
                 {/* Merged Settings area — nested tabs. /settings is authenticated-only
@@ -104,6 +103,7 @@ const App = () => (
                   <Route path="system" element={<ProtectedRoute requireAdmin><SettingsPage /></ProtectedRoute>} />
                   <Route path="llm" element={<ProtectedRoute requireAdmin><LlmSettingsPage /></ProtectedRoute>} />
                   <Route path="api-keys" element={<ProtectedRoute requireAdmin><ApiKeysPage /></ProtectedRoute>} />
+                  <Route path="users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
                   <Route path="usage" element={<UsageAnalyticsPage />} />
                   <Route path="connections" element={<ProtectedRoute requireAdmin><ConnectionLogsPage /></ProtectedRoute>} />
                   <Route path="audit" element={<ProtectedRoute requireAdmin><AuditLogPage /></ProtectedRoute>} />
@@ -111,6 +111,7 @@ const App = () => (
 
                 {/* Redirect old top-level routes to their new tab */}
                 <Route path="/api-keys" element={<Navigate to="/settings/api-keys" replace />} />
+                <Route path="/users" element={<Navigate to="/settings/users" replace />} />
                 <Route path="/usage" element={<Navigate to="/settings/usage" replace />} />
                 <Route path="/connection-logs" element={<Navigate to="/settings/connections" replace />} />
                 <Route path="/audit-log" element={<Navigate to="/settings/audit" replace />} />

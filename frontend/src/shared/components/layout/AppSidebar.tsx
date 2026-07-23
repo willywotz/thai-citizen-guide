@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, Briefcase, Flame, Settings, Users, MessageSquareWarning, Sparkles } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, Briefcase, Flame, Settings, MessageSquareWarning, Sparkles } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/shared/components/NavLink";
 import {
@@ -29,7 +29,6 @@ const navItems = [
   { title: "ความคิดเห็นและความพึงพอใจ", url: "/feedback", icon: MessageSquareWarning },
   { title: "คำถามยอดนิยม", url: "/popular-questions", icon: Sparkles },
   { title: "ตั้งค่าระบบ", url: "/settings", icon: Settings },
-  { title: "จัดการผู้ใช้", url: "/users", icon: Users },
   { title: "Architecture", url: "/architecture", icon: Network },
 ];
 

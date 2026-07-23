@@ -294,17 +294,17 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
   `/data-policy`, `/contact`, `/status`, `/login`, `/forgot-password`, `/reset-password`.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
-  `/architecture` any role; `/popular-questions` admin-only). **Six admin pages are merged into a
+  `/architecture` any role; `/popular-questions` admin-only). **Seven admin pages are merged into a
   tabbed Settings area** `features/settings/SettingsLayout` at `/settings`: System settings, LLM,
-  API Keys, Usage, Connection logs, Audit log — one nested route per tab (`/settings/system`,
-  `/settings/llm`, `/settings/api-keys`, `/settings/usage`, `/settings/connections`,
-  `/settings/audit`). `SettingsLayout` renders a role-filtered `TabsList` (via the shared
+  API Keys, User management, Usage, Connection logs, Audit log — one nested route per tab
+  (`/settings/system`, `/settings/llm`, `/settings/api-keys`, `/settings/users`, `/settings/usage`,
+  `/settings/connections`, `/settings/audit`). `SettingsLayout` renders a role-filtered `TabsList` (via the shared
   `canAccess`) + `<Outlet/>`; the active tab derives from the URL. `/settings` itself is
   authenticated-only (it holds the all-roles **Usage** tab), while each admin tab is individually
   wrapped in `<ProtectedRoute requireAdmin>` so a non-admin deep-linking to e.g. `/settings/audit`
   is blocked, not merely hidden; the index redirects by role (admin→system, else→usage). The old
-  top-level paths (`/api-keys`, `/usage`, `/connection-logs`, `/audit-log`, `/llm-settings`,
-  `/llm-providers`, `/llm-routes`) `<Navigate replace>` into their new tab. `roles.ts`
+  top-level paths (`/api-keys`, `/users`, `/usage`, `/connection-logs`, `/audit-log`,
+  `/llm-settings`, `/llm-providers`, `/llm-routes`) `<Navigate replace>` into their new tab. `roles.ts`
   (`ROUTE_ROLES`, single source of truth) sets `/settings`=all-roles + per-child access, and the
   sidebar collapses the six former entries into a single **ตั้งค่าระบบ** link. **LLM admin is one
   merged page** `features/llm/LlmSettingsPage` (now the `/settings/llm` tab)
