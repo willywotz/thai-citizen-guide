@@ -44,10 +44,6 @@ export function ApiKeyList({ keys, revokePending, onEdit, onRevoke, onDelete }: 
                     ? new Date(k.expires_at).toLocaleString("th-TH")
                     : "ไม่มีวันหมดอายุ"}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  จำกัดอัตรา{" "}
-                  {k.rate_limit_rpm != null ? `${k.rate_limit_rpm} ครั้ง/นาที` : "—"}
-                </p>
                 {k.last_used_at && (
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     ใช้ล่าสุด {new Date(k.last_used_at).toLocaleString("th-TH")}

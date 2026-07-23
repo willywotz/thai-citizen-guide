@@ -16,11 +16,9 @@ interface Props {
   open: boolean;
   name: string;
   expiresInDays: string;
-  rateLimit: string;
   mutation: UseMutationResult<CreatedAPIKey, Error, void>;
   onNameChange: (v: string) => void;
   onExpiresInDaysChange: (v: string) => void;
-  onRateLimitChange: (v: string) => void;
   onClose: () => void;
 }
 
@@ -28,11 +26,9 @@ export function CreateApiKeyDialog({
   open,
   name,
   expiresInDays,
-  rateLimit,
   mutation,
   onNameChange,
   onExpiresInDaysChange,
-  onRateLimitChange,
   onClose,
 }: Props) {
   return (
@@ -61,17 +57,6 @@ export function CreateApiKeyDialog({
               placeholder="เว้นว่างไว้หากไม่มีวันหมดอายุ"
               value={expiresInDays}
               onChange={(e) => onExpiresInDaysChange(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="create-rate-limit">จำกัดอัตรา (ครั้ง/นาที)</Label>
-            <Input
-              id="create-rate-limit"
-              type="number"
-              min={1}
-              placeholder="เว้นว่างไว้หากไม่จำกัด"
-              value={rateLimit}
-              onChange={(e) => onRateLimitChange(e.target.value)}
             />
           </div>
         </div>

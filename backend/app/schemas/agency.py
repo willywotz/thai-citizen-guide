@@ -56,7 +56,6 @@ class AgencyBase(BaseModel):
     auth_header: str | None = None
     base_path: str | None = None
     api_key_name: str | None = None
-    rate_limit_rpm: int | None = None
     request_format: str | None = None
 
     # Schema / spec
@@ -93,7 +92,6 @@ class AgencyUpdate(BaseModel):
     auth_header: str | None = None
     base_path: str | None = None
     api_key_name: str | None = None
-    rate_limit_rpm: int | None = None
     request_format: str | None = None
     api_endpoints: list[ApiEndpoint] | None = None
     response_schema: list[ResponseField] | None = None

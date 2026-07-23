@@ -298,48 +298,6 @@ Source: `backend/app/errors.py` — `_STATUS_CODES` dict and `_envelope`.
 
 ---
 
-## Rate limits and quotas
-
-### Per-user rate limit (429)
-
-Authenticated users are limited to **30 requests per minute** (sliding window,
-configurable via `USER_RATE_LIMIT_RPM`, default `30`).
-
-When the limit is exceeded the server returns:
-
-```
-HTTP 429
-Retry-After: <seconds>
-{"error": {"code": "rate_limited", "message": "Rate limit exceeded", "retryable": true}}
-```
-
-Honor the `Retry-After` header and back off for at least that many seconds before
-retrying.
-
-Source: `backend/app/config.py` (`USER_RATE_LIMIT_RPM: int = 30`);
-`backend/app/routers/chat.py` (`enforce_user_rate_limit`).
-
-### Per-user monthly token quota (429)
-
-If `USER_MONTHLY_TOKEN_QUOTA` is configured (non-zero), the user's cumulative prompt +
-completion tokens for the current calendar month are checked before each request. When
-the quota is exceeded the server returns HTTP 429 with the error message
-`"monthly token quota exceeded (<used>/<limit>)"`.
-
-Default: **0 (unlimited)**.
-
-### Global daily cost limit (429)
-
-If `GLOBAL_DAILY_COST_LIMIT_USD` is configured (non-zero), the total USD cost across all
-requests for the current day is checked. When the budget is exceeded the server returns
-HTTP 429 with the error message `"global daily budget exceeded ($<spent>/$<limit>)"`.
-
-Default: **0 (unlimited)**.
-
-Source: `backend/app/services/quota.py`; `backend/app/config.py`.
-
----
-
 ## Interactive API docs
 
 The FastAPI application exposes interactive OpenAPI docs at:

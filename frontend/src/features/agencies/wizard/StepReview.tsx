@@ -41,7 +41,6 @@ export function StepReview({ form }: Props) {
         <Row label="Router hint" value={form.routerHint} />
         <Row label="Priority" value={form.priority} />
         <Row label="Timeout (s)" value={form.dispatchTimeoutS} />
-        <Row label="Rate limit (rpm)" value={form.rateLimitRpm} />
       </div>
       <p className="text-xs text-muted-foreground">
         "เปิดใช้งาน" จะตั้งสถานะเป็น Active และเข้าร่วมการ routing ทันที — หรือบันทึกเป็น Draft เพื่อกลับมาแก้ไขภายหลัง

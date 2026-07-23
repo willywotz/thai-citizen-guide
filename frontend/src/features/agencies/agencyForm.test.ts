@@ -34,7 +34,6 @@ const API_AGENCY: Agency = {
   authMethod: "oauth2",
   authHeader: "Authorization",
   basePath: "/api/v1",
-  rateLimitRpm: 120,
   requestFormat: "json",
   apiEndpoints: [{ method: "GET", path: "/citizens", description: "List citizens" }],
   responseSchema: [{ field: "id", type: "string", description: "Citizen ID" }],
@@ -109,7 +108,6 @@ describe("agencyToFormState", () => {
     expect(s.authMethod).toBe("oauth2");
     expect(s.authHeader).toBe("Authorization");
     expect(s.basePath).toBe("/api/v1");
-    expect(s.rateLimitRpm).toBe("120");
     expect(s.requestFormat).toBe("json");
     expect(s.apiEndpoints).toEqual([{ method: "GET", path: "/citizens", description: "List citizens" }]);
     expect(s.responseSchema).toEqual([{ field: "id", type: "string", description: "Citizen ID" }]);
@@ -134,12 +132,11 @@ describe("agencyToFormState", () => {
   });
 
   it("defaults optional API fields when undefined", () => {
-    const bare: Agency = { ...API_AGENCY, authMethod: undefined, authHeader: undefined, basePath: undefined, rateLimitRpm: undefined };
+    const bare: Agency = { ...API_AGENCY, authMethod: undefined, authHeader: undefined, basePath: undefined };
     const s = agencyToFormState(bare);
     expect(s.authMethod).toBe("api_key");
     expect(s.authHeader).toBe("");
     expect(s.basePath).toBe("");
-    expect(s.rateLimitRpm).toBe("");
   });
 
   it("maps MCP agency correctly", () => {
@@ -148,11 +145,6 @@ describe("agencyToFormState", () => {
     expect(s.status).toBe("disabled");
     expect(s.dataScope).toEqual([]);
     expect(s.apiEndpoints).toEqual([]);
-  });
-
-  it("maps rateLimitRpm=0 to '0' (falsy number edge case)", () => {
-    const agency: Agency = { ...API_AGENCY, rateLimitRpm: 0 };
-    expect(agencyToFormState(agency).rateLimitRpm).toBe("0");
   });
 });
 
@@ -211,7 +203,6 @@ describe("buildSavePayload", () => {
     authMethod: "api_key",
     authHeader: "X-API-Key",
     basePath: "/v1",
-    rateLimitRpm: "60",
     requestFormat: "json",
     apiEndpoints: [
       { method: "GET", path: "/users", description: "Get users" },
@@ -245,7 +236,6 @@ describe("buildSavePayload", () => {
     expect(payload.authMethod).toBe("api_key");
     expect(payload.authHeader).toBe("X-API-Key");
     expect(payload.basePath).toBe("/v1");
-    expect(payload.rateLimitRpm).toBe(60);
     expect(payload.requestFormat).toBe("json");
     expect(payload.expectedPayload).toEqual({ query: "test" });
     expect(payload.apiSpecRaw).toBe("openapi: 3.0.0");
@@ -266,25 +256,12 @@ describe("buildSavePayload", () => {
     expect(payload.apiHeaders).toEqual([{ name: "X-Source", value: "portal" }]);
   });
 
-  it("converts rateLimitRpm string to number", () => {
-    const payload = buildSavePayload(baseState, null);
-    expect(payload.rateLimitRpm).toBe(60);
-  });
-
-  it("sets rateLimitRpm to null when empty", () => {
-    const state = { ...baseState, rateLimitRpm: "" };
-    const payload = buildSavePayload(state, null);
-    expect(payload.rateLimitRpm).toBeNull();
-  });
-
   it("excludes API-specific fields for MCP connectionType", () => {
     const mcpState = { ...baseState, connectionType: "MCP" as const };
     const payload = buildSavePayload(mcpState, null);
     expect(payload.authMethod).toBeUndefined();
     expect(payload.authHeader).toBeUndefined();
     expect(payload.apiEndpoints).toBeUndefined();
-    // rateLimitRpm is a routing field (base), so it persists for non-API types too.
-    expect(payload.rateLimitRpm).toBe(60);
   });
 
   it("excludes API-specific fields for A2A connectionType", () => {
@@ -303,39 +280,6 @@ describe("buildSavePayload", () => {
   it("passes null parsedPayload through for API type", () => {
     const payload = buildSavePayload(baseState, null);
     expect(payload.expectedPayload).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// buildSavePayload — rateLimitRpm edge cases (S2)
-// ---------------------------------------------------------------------------
-
-describe("buildSavePayload — rateLimitRpm parsing", () => {
-  const base = {
-    ...DEFAULT_FORM_STATE,
-    name: "X",
-    shortName: "X",
-    connectionType: "API" as const,
-  };
-
-  it("non-numeric string 'abc' → null", () => {
-    const payload = buildSavePayload({ ...base, rateLimitRpm: "abc" }, null);
-    expect(payload.rateLimitRpm).toBeNull();
-  });
-
-  it("octal-looking '0100' parsed as decimal → 100", () => {
-    const payload = buildSavePayload({ ...base, rateLimitRpm: "0100" }, null);
-    expect(payload.rateLimitRpm).toBe(100);
-  });
-
-  it("'60' → 60", () => {
-    const payload = buildSavePayload({ ...base, rateLimitRpm: "60" }, null);
-    expect(payload.rateLimitRpm).toBe(60);
-  });
-
-  it("empty string '' → null", () => {
-    const payload = buildSavePayload({ ...base, rateLimitRpm: "" }, null);
-    expect(payload.rateLimitRpm).toBeNull();
   });
 });
 

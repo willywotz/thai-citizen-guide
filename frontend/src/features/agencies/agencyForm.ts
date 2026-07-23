@@ -23,7 +23,6 @@ export interface AgencyFormState {
   authMethod: string;
   authHeader: string;
   basePath: string;
-  rateLimitRpm: string;
   requestFormat: string;
   apiEndpoints: ApiEndpoint[];
   responseSchema: ResponseField[];
@@ -56,7 +55,6 @@ export const DEFAULT_FORM_STATE: AgencyFormState = {
   authMethod: "api_key",
   authHeader: "",
   basePath: "",
-  rateLimitRpm: "",
   requestFormat: "json",
   apiEndpoints: [],
   responseSchema: [],
@@ -88,7 +86,6 @@ export function agencyToFormState(agency: Agency): AgencyFormState {
     authMethod: agency.authMethod ?? "api_key",
     authHeader: agency.authHeader ?? "",
     basePath: agency.basePath ?? "",
-    rateLimitRpm: agency.rateLimitRpm != null ? String(agency.rateLimitRpm) : "",
     requestFormat: agency.requestFormat ?? "json",
     apiEndpoints: agency.apiEndpoints ?? [],
     responseSchema: agency.responseSchema ?? [],
@@ -161,7 +158,6 @@ export function validateAgencyForm(
     apiHeaders: s.apiHeaders,
     priority: s.priority,
     dispatchTimeoutS: s.dispatchTimeoutS,
-    rateLimitRpm: s.rateLimitRpm,
     mcpToolName: s.mcpToolName,
   });
 }
@@ -203,7 +199,6 @@ export function buildSavePayload(
     routerHint: state.routerHint,
     dispatchTimeoutS: parseIntOrNull(state.dispatchTimeoutS),
     mcpToolName: state.connectionType === "MCP" ? state.mcpToolName || null : null,
-    rateLimitRpm: parseIntOrNull(state.rateLimitRpm),
   };
 
   if (state.connectionType === "API") {

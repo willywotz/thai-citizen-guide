@@ -55,7 +55,6 @@ class Agency(Model):
     auth_header = fields.CharField(max_length=100, null=True)
     base_path = fields.CharField(max_length=255, null=True)
     api_key_name = fields.CharField(max_length=100, null=True)
-    rate_limit_rpm = fields.IntField(null=True)
     request_format = fields.CharField(max_length=50, null=True)
 
     # Schema / spec

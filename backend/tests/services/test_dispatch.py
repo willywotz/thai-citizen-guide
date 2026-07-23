@@ -582,34 +582,6 @@ async def test_dispatch_a2a_posts_and_returns_ok():
     assert call.kwargs["headers"]["Content-Type"] == "application/json"
 
 
-@pytest.mark.asyncio
-async def test_dispatch_one_rate_limited(monkeypatch):
-    import app.services.chat.dispatch as d
-    from app.services.rate_limit import InProcessLimiter
-
-    monkeypatch.setattr(d, "agency_limiter", InProcessLimiter())
-
-    route = {
-        "connection_type": "API",
-        "agency_name": "X",
-        "agency_id": "rl-test",
-        "rate_limit_rpm": 1,
-        "endpoint_url": "http://x",
-        "sub_question": "q",
-        "expected_payload": {},
-        "api_headers": [],
-    }
-
-    mock_ok = {"agency": "X", "response": {}, "status": "ok"}
-    with patch("app.services.chat.dispatch.dispatch_api", new=AsyncMock(return_value=mock_ok)):
-        first = await d.dispatch_one(route, "conv-1")
-        second = await d.dispatch_one(route, "conv-2")
-
-    assert first["status"] == "ok"
-    assert second["status"] == "rate_limited"
-    assert second["response"] == "rate limit exceeded"
-
-
 def test_extract_mcp_text_falsy_data_returned_via_coerce():
     from app.services.chat.dispatch import extract_mcp_text
 

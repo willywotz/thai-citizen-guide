@@ -36,7 +36,6 @@ const makeKey = (overrides: Partial<APIKey> = {}): APIKey => ({
   created_at: "2024-01-01T00:00:00Z",
   expires_at: null,
   revoked_at: null,
-  rate_limit_rpm: null,
   status: "active",
   ...overrides,
 });
