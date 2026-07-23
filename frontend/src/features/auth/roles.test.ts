@@ -38,7 +38,8 @@ describe("canAccess", () => {
         path === "/chat" ||
         path === "/architecture" ||
         USER_ROUTES.includes(path) ||
-        path.startsWith("/settings")
+        path === "/settings" ||
+        path === "/settings/usage"
       )
         continue;
       expect(allowed).toEqual(["admin"]);
