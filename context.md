@@ -277,7 +277,7 @@ agency's `endpoint_url` + `api_headers` (cached in-memory, TTL `AGENCY_CACHE_TTL
 React 18 + Vite 5 + TypeScript, **shadcn/ui** (Radix + Tailwind), **TanStack Query**, **axios**,
 **react-router-dom v6**, react-hook-form + zod. **Feature-based** layout under `src/features/*`
 (one dir per page: chat, dashboard, executive, health, heatmap, agencies, history, architecture,
-connection-logs, api-keys, settings, llm-providers, llm-routes, popular-questions, users, audit,
+connection-logs, api-keys, settings, llm (merged LLM Settings page), llm-providers, llm-routes, popular-questions, users, audit,
 usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package manager = **pnpm** (Dockerfile uses
 `pnpm --frozen-lockfile`; stray `bun.lock`/`package-lock.json` are not authoritative).
 
@@ -288,8 +288,12 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
   `/data-policy`, `/contact`, `/status`, `/login`, `/forgot-password`, `/reset-password`.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
-  `/architecture` any role; `/settings`, `/llm-providers`, `/llm-routes`, `/popular-questions`
-  admin-only). The portal/chat คำถามยอดนิยม block is fed by the anonymous
+  `/architecture` any role; `/settings`, `/llm-settings`, `/popular-questions`
+  admin-only). **LLM admin is one merged page** `features/llm/LlmSettingsPage` at `/llm-settings`
+  (Providers left / Routes right, two-column on `md`+): `ProvidersPanel` (full CRUD) +
+  `RoutesPanel` (edit-only — no create/delete; edits provider, model, timeout, enabled). The old
+  `/llm-providers` and `/llm-routes` paths now `<Navigate replace>` to `/llm-settings`; `roles.ts`
+  gates `/llm-settings` to admin. The portal/chat คำถามยอดนิยม block is fed by the anonymous
   `GET /public/popular-questions` (no more hardcoded `suggestedQuestions` in `mockData.ts`).
   The public portal's หน่วยงานที่เชื่อมต่อ block (`AgencyCards` + `usePublicAgencies`) is fed by
   the anonymous `GET /public/agencies`. In **chat mode** the portal switches to a `SidebarProvider`
