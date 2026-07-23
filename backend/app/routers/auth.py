@@ -9,6 +9,7 @@ Endpoints
   POST  /auth/login             Sign in → returns access_token
   GET   /auth/me                Return the currently authenticated user
   PATCH /auth/me                Update display_name / avatar_url
+  POST  /auth/change-password   Change your own password
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
 from app.auth.security import create_access_token, verify_password
+from app.services.user import hash_new_password
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -35,6 +37,11 @@ class LoginRequest(BaseModel):
 class UpdateProfileRequest(BaseModel):
     display_name: str | None = None
     avatar_url: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 def _user_dict(user: User) -> dict:
@@ -93,3 +100,20 @@ async def update_me(
         user.avatar_url = body.avatar_url
     await user.save()
     return {"user": _user_dict(user)}
+
+
+# ---------------------------------------------------------------------------
+# Change own password
+# ---------------------------------------------------------------------------
+
+@router.post("/change-password", summary="Change your own password")
+async def change_password(
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+) -> dict:
+    if not verify_password(body.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="รหัสผ่านปัจจุบันไม่ถูกต้อง")
+
+    user.hashed_password = hash_new_password(body.new_password)
+    await user.save(update_fields=["hashed_password"])
+    return {"message": "เปลี่ยนรหัสผ่านสำเร็จ"}
