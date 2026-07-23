@@ -11,6 +11,7 @@ import {
 } from '@/shared/components/ui/select';
 import { toast } from 'sonner';
 import type { ManagedUser, UserRole } from './userApi';
+import { ROLE_LABEL, ROLE_ORDER } from './roleLabels';
 import { useCreateUser, useUpdateUser } from './useUsers';
 import { validateCreateMode } from './userForm';
 
@@ -94,8 +95,9 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
             <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">ผู้ใช้</SelectItem>
-                <SelectItem value="admin">ผู้ดูแลระบบ</SelectItem>
+                {ROLE_ORDER.map((r) => (
+                  <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

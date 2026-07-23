@@ -3,9 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
 import UsersPage from "./UsersPage";
-import { listUsers } from "./userApi";
+import { listUsers, type ManagedUser } from "./userApi";
 
-const staffUser = {
+const staffUser: ManagedUser = {
   id: "1",
   email: "staff@test.com",
   displayName: "Staff",
