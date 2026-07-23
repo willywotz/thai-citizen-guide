@@ -53,6 +53,21 @@ async def get_agency_low_rated(agency_id: str, _: User = Depends(require_admin))
     return await agency_low_rated(agency_id)
 
 
+def _scalar_stats(message_state: list[dict]) -> tuple[int, int, int, int]:
+    """Coalesce the ungrouped rating aggregate into (total, up, down, rate%).
+
+    An aggregate with no GROUP BY yields one row even over zero rated messages,
+    where AVG(...) and the SUM(...)s come back as SQL NULL. Any None becomes 0.
+    """
+    row = message_state[0] if message_state else {}
+    return (
+        row.get("total_rating") or 0,
+        row.get("rating_up") or 0,
+        row.get("rating_down") or 0,
+        int(row.get("rate") or 0),
+    )
+
+
 @router.get("/stats", response_model=FeedbackStats, summary="Get feedback and satisfaction metrics")
 async def feedback_stats(_user: User = Depends(get_current_user)) -> FeedbackStats:
     # Authorization is enforced by the global role allowlist: admin passes it;
@@ -263,11 +278,12 @@ async def feedback_stats(_user: User = Depends(get_current_user)) -> FeedbackSta
                 "created_at": entry["created_at"],
             })
 
+        total_ratings, up_count, down_count, satisfaction_rate = _scalar_stats(message_state)
         return FeedbackStats(
-            total_ratings=message_state[0]["total_rating"] if message_state else 0,
-            up_count=message_state[0]["rating_up"] if message_state else 0,
-            down_count=message_state[0]["rating_down"] if message_state else 0,
-            satisfaction_rate=(message_state[0]["rate"] // 1) if message_state else 0,
+            total_ratings=total_ratings,
+            up_count=up_count,
+            down_count=down_count,
+            satisfaction_rate=satisfaction_rate,
             daily_trend=daily_trend,
             low_rated_questions=low_rated_questions,
             agency_breakdown=agency_breakdown,

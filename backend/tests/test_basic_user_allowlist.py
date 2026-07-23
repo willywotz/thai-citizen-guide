@@ -59,13 +59,14 @@ def test_restricted_pages_blocked():
     )
 
 
-def test_ops_dashboard_reads_allowed():
-    assert _is_allowed_for_basic_user("GET", "/api/v1/dashboard/stats")
-    assert _is_allowed_for_basic_user("GET", "/api/v1/executive-summary")
-    assert _is_allowed_for_basic_user("GET", "/api/v1/agency-health")
-    assert _is_allowed_for_basic_user("GET", "/api/v1/usage-heatmap")
-    assert _is_allowed_for_basic_user("GET", "/api/v1/insight/usage")
-    assert _is_allowed_for_basic_user("GET", "/api/v1/feedback/stats")
+def test_ops_dashboard_reads_denied_for_basic_user():
+    """The six read-only dashboards are now staff-only, not basic-user."""
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/dashboard/stats")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/executive-summary")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/agency-health")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/usage-heatmap")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/insight/usage")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/feedback/stats")
 
 
 def test_executive_summary_regenerate_still_admin_only():
@@ -156,11 +157,14 @@ async def test_basic_user_allowed_on_chat(db):
     ) is None
 
 
-async def test_basic_user_allowed_on_dashboard_stats(db):
+async def test_basic_user_denied_on_dashboard_stats(db):
+    """Dashboards moved to the staff allowlist; a plain user no longer reaches them."""
     token = await _token_for("b4@x.com", "user")
-    assert await enforce_role_allowlist(
-        _request("GET", "/api/v1/dashboard/stats"), _creds(token)
-    ) is None
+    with pytest.raises(HTTPException) as e:
+        await enforce_role_allowlist(
+            _request("GET", "/api/v1/dashboard/stats"), _creds(token)
+        )
+    assert e.value.status_code == 403
 
 
 async def test_basic_user_blocked_on_regenerate(db):

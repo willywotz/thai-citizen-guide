@@ -47,4 +47,23 @@ describe("ProtectedRoute allowedRoles", () => {
     renderAt("/secret", <ProtectedRoute><div>secret content</div></ProtectedRoute>);
     expect(screen.getByText("secret content")).toBeInTheDocument();
   });
+
+  it("lets staff through a staff+admin route", () => {
+    auth.user = { ...auth.user!, role: "staff" };
+    renderAt(
+      "/secret",
+      <ProtectedRoute allowedRoles={["staff", "admin"]}><div>secret content</div></ProtectedRoute>,
+    );
+    expect(screen.getByText("secret content")).toBeInTheDocument();
+  });
+
+  it("redirects a plain user off a staff+admin route", () => {
+    auth.user = { ...auth.user!, role: "user" };
+    renderAt(
+      "/secret",
+      <ProtectedRoute allowedRoles={["staff", "admin"]}><div>secret content</div></ProtectedRoute>,
+    );
+    expect(screen.getByText("chat page")).toBeInTheDocument();
+    expect(screen.queryByText("secret content")).not.toBeInTheDocument();
+  });
 });

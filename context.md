@@ -205,7 +205,7 @@ via `listPurposes()`. Route resolution is cached (~30s) and invalidated on any p
 | Model | Table | Purpose / key fields |
 |---|---|---|
 | `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. `logo` holds an emoji **or** an uploaded-image URL (`/api/v1/agencies/{id}/logo?v=<hash>`). |
-| `User` | `users` | Account. `role` = `user|admin`, bcrypt `hashed_password`, reset-token fields. |
+| `User` | `users` | Account. `role` = `user|staff|admin`, bcrypt `hashed_password`, reset-token fields. |
 | `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
 | `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
@@ -236,26 +236,33 @@ and the mandatory rules in `CLAUDE.md`.
   `auth/dependencies.py`, GET-only so the `POST` upload stays guarded). Uploaded logos are stored on
   the `agency-uploads` named volume (backend-only mount, `Settings.UPLOAD_DIR`) as content-hashed
   files and served by the backend with `immutable` caching — see ADR 0003.
-- **Roles**: `user` (chat, architecture list, **own conversation history**, and **read-only**
-  Dashboard · Executive · Agency Health · Usage Heatmap · Usage Analytics · Feedback) and
-  `admin` (full), plus anonymous.
-  On `/history` a `user` sees and deletes **only their own** conversations: `list_conversations`
+- **Roles**: `user` (chat, architecture list, **own conversation history**), `staff` (everything
+  `user` has **plus read-only** Dashboard · Executive · Agency Health · Usage Heatmap ·
+  Usage Analytics · Feedback), and `admin` (full), plus anonymous. `user` ⊂ `staff` ⊂ `admin`;
+  the only delta between `user` and `staff` is the six read-only dashboard GETs (`_STAFF_GET_EXACT`).
+  New accounts default to least-privilege `user`; public self-registration for `user` is a planned
+  follow-up (`docs/superpowers/specs/2026-07-23-rbac-staff-role-design.md`). The frontend login
+  (`เข้าสู่ระบบ`) now serves both citizens and staff.
+  On `/history` a non-admin sees and deletes **only their own** conversations: `list_conversations`
   filters `user_id` for non-admins, and the three detail handlers apply an own-or-admin check.
   `GET /conversations/{id}/messages` is allowlisted **GET-only** via
   `_CONVERSATION_MESSAGES_GET_PATTERN`, deliberately separate from the all-verbs
   `_CONVERSATION_PATH`, so a future write verb on that sub-resource does not inherit access.
-  `user` is read-only on those six pages: the allowlist grants only their six backing GETs
-  (`_BASIC_USER_GET_EXACT`), so writes like `POST /executive-summary/regenerate` stay admin-only
-  and the UI hides the control (`canRegenerate={isAdmin}`) rather than letting it 403.
+  `staff` is read-only on those six pages: the staff allowlist grants only their six backing GETs
+  (`_STAFF_GET_EXACT`), so writes like `POST /executive-summary/regenerate` stay admin-only
+  and the UI hides the control (`canRegenerate={isAdmin}`) rather than letting it 403. A plain
+  `user` cannot reach those six pages at all.
   **There is no public self-registration** — `POST /auth/register` and the `/signup` page were
   removed, because self-serve signup plus these grants would have let anyone reach the
   operational dashboards. Admins create accounts via `POST /api/v1/users`. Enforced by a
   **global chokepoint** `enforce_role_allowlist` (`dependencies.py`) that is **deny-by-default**:
   anonymous and unresolvable tokens pass through (so the endpoint's own auth returns 401 rather
-  than a misleading 403), `admin` passes through to per-endpoint `require_admin`, and **every
-  other role — including rows left behind by a not-yet-run migration — falls back to the
-  basic-user allowlist**. That fallback matters: an earlier design failed *open* for unknown
-  roles, which would have let a residual `auditor` mint an API key during a deploy window.
+  than a misleading 403), `admin` passes through to per-endpoint `require_admin`, and
+  `_ROLE_ALLOWLIST` maps `user` → `_is_allowed_for_basic_user` and `staff` → `_is_allowed_for_staff`
+  (= basic-user **+** `_STAFF_GET_EXACT`). **Every other role — including rows left behind by a
+  not-yet-run migration — falls back to the least-privilege basic-user allowlist.** That fallback
+  matters: an earlier design failed *open* for unknown roles, which would have let a residual
+  `auditor` mint an API key during a deploy window.
   The `viewer`/`auditor`/`agency_owner` roles and the ReBAC/ABAC engine (`authz.py`,
   `relationships` table) were removed 2026-07 — see
   `docs/superpowers/specs/2026-07-23-rbac-simplification-design.md`.

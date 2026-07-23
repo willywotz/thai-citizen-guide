@@ -37,7 +37,7 @@ export default function PublicPortal() {
   const loginButton = (
     <Button asChild variant="outline" size="sm" className="rounded-full bg-white">
       <a href="/chat">
-        เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
+        เข้าสู่ระบบ <ArrowRight className="w-3 h-3" />
       </a>
     </Button>
   );

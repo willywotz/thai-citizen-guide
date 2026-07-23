@@ -21,8 +21,10 @@ export const SETTINGS_TABS: SettingsTab[] = [
 ];
 
 export function SettingsIndexRedirect() {
-  const { isAdmin } = useAuth();
-  return <Navigate to={isAdmin ? "/settings/system" : "/settings/usage"} replace />;
+  const { user } = useAuth();
+  if (user?.role === "admin") return <Navigate to="/settings/system" replace />;
+  if (user?.role === "staff") return <Navigate to="/settings/usage" replace />;
+  return <Navigate to="/chat" replace />;
 }
 
 export default function SettingsLayout() {
