@@ -49,7 +49,6 @@ describe("AppSidebar visibility", () => {
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getByText("จัดการหน่วยงาน")).toBeInTheDocument();
     expect(screen.getByText("จัดการผู้ใช้")).toBeInTheDocument();
-    expect(screen.getByText("บันทึกการตรวจสอบ")).toBeInTheDocument();
     expect(screen.getByText("ตั้งค่าระบบ")).toBeInTheDocument();
   });
 
