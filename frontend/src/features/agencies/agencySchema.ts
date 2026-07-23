@@ -38,7 +38,6 @@ export const agencySchema = z.object({
   // Optional numeric fields — accept string or number, coerce.
   priority: positiveIntOptional,
   dispatchTimeoutS: positiveIntOptional,
-  rateLimitRpm: positiveIntOptional,
   // MCP-specific
   mcpToolName: z.string().optional(),
 });

@@ -22,8 +22,6 @@ from app.auth.dependencies import _resolve_token, get_current_user_optional
 from app.models.user import User
 from app.schemas.responses import ResponsesRequest
 from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
-from app.services.quota import QuotaExceeded, check_global_budget, check_user_quota
-from app.services.rate_limit import user_limiter
 from app.config import settings
 from app.services.responses.continuity import resolve_conversation, response_id_for
 from app.services.responses.errors import ResponsesApiError
@@ -34,25 +32,6 @@ from app.services.responses.translate import ResponseAccumulator
 router = APIRouter(prefix="/responses", tags=["Responses"])
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
-
-
-async def _enforce_limits(user: User | None) -> None:
-    """Rate limit and quota, in OpenAI's error vocabulary."""
-    if user is not None:
-        result = await user_limiter.check(f"user:{user.id}", limit=settings.USER_RATE_LIMIT_RPM)
-        if not result.allowed:
-            raise ResponsesApiError(
-                "Rate limit exceeded", type="rate_limit_error",
-                code="rate_limit_exceeded", status=429,
-            )
-    try:
-        await check_global_budget()
-        if user is not None:
-            await check_user_quota(user.id)
-    except QuotaExceeded as e:
-        raise ResponsesApiError(
-            str(e), type="rate_limit_error", code="quota_exceeded", status=429,
-        )
 
 
 async def run_response(
@@ -67,7 +46,6 @@ async def run_response(
     Shared by every transport. `cache` is a WebSocket connection's local
     response-id → conversation-id map; None on HTTP.
     """
-    await _enforce_limits(user)
     model, stream_version = resolve_model(request.model)
     query = extract_query(request.input)
     conversation_id, is_continuation = await resolve_conversation(
@@ -123,8 +101,8 @@ async def create_response(
         if body.stream:
             events = run_response(body, user=user, background_tasks=background_tasks)
             # Prime the generator now, while we're still inside this handler and
-            # any ResponsesApiError from the prelude (rate limit, quota,
-            # resolve_model, resolve_conversation, prepare_turn) is caught by the
+            # any ResponsesApiError from the prelude (resolve_model,
+            # resolve_conversation, prepare_turn) is caught by the
             # normal exception handler. StreamingResponse commits HTTP 200 and
             # headers before its body iterator's first __anext__(), so priming
             # after construction would raise once the response has already

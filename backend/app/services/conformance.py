@@ -14,7 +14,6 @@ async def _ask(agency: Agency, question: str) -> dict:
         "connection_type": agency.connection_type, "endpoint_url": agency.endpoint_url,
         "sub_question": question, "expected_payload": agency.expected_payload,
         "api_headers": agency.api_headers, "dispatch_timeout_s": agency.dispatch_timeout_s,
-        "rate_limit_rpm": None,
     }
     start = now()
     result = await dispatch_one(route, conversation_id="")

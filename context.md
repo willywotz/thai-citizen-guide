@@ -32,7 +32,7 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
 | **agent-proxy** | Go 1.26 · pgx · OTel | Caching reverse-proxy from backend → agency endpoints; logs connection attempts. Port 8080. |
 | **frontend** | React 18 · Vite 5 · TS · shadcn/ui | SPA admin + public portal. Port 8080. |
 | **postgres** | pgvector/pgvector:pg16 | Shared DB (backend + agent-proxy). Extensions: `pg_trgm`, `fuzzystrmatch`, `vector` (created by `postgres-init`). |
-| **redis** | redis:7-alpine | Distributed rate limiting (optional; empty `REDIS_URL` = in-process limiter). |
+| **redis** | redis:7-alpine | Shared LLM-provider throttle budget across workers (optional; empty `REDIS_URL` = in-process limiter). |
 | **jaeger** | jaegertracing/jaeger:2.18.0 | OTLP tracing sink (`jaeger:4317`), UI proxied at `/jaeger/`. |
 | **certbot** | certbot/certbot | Renews the Let's Encrypt cert every 12h over the HTTP-01 webroot. No-op until one is issued. |
 
@@ -77,9 +77,9 @@ not re-pull, so machines drift — `docker compose pull cloudflared` when it mis
 ⚠️ **The tunnel URL is public and unauthenticated.** The sharpest consequence is billable, not
 informational: `/api/v1/chat` and `/api/v1/chat/stream` use `get_current_user_optional`
 (`app/routers/chat.py`), so **anonymous callers can drive the LLM on your `OPENROUTER_API_KEY`** —
-a leaked link means someone else's traffic on your balance. They are also **unthrottled**: the
-rate-limit and quota checks are gated behind `if user is not None`, so only the global daily cost
-limit applies, and that is opt-in. It also exposes the read-only surface
+a leaked link means someone else's traffic on your balance. They are also **unthrottled**: there is
+no per-user rate limit or spend quota, so a leaked link's traffic is bounded only by whatever spend
+cap you set on the OpenRouter key. It also exposes the read-only surface
 (`/jaeger`, `/docs`, `/redoc`, `/openapi.json`). Random and unguessable is not access control; keep
 a spend cap on the OpenRouter key and rotate it if a link escapes. See `docs/quickstart.md`
 § "Sharing a dev environment".
@@ -93,17 +93,14 @@ Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request re
 `POST /api/v1/chat` (sync) and `POST /api/v1/chat/stream` (SSE) live in
 `backend/app/routers/chat.py`.
 
-1. **Rate limit + quota** (`services/rate_limit.py`, `services/quota.py`): per-user RPM
-   (`USER_RATE_LIMIT_RPM`, default 30), per-user monthly token quota, global daily USD budget.
-   Anonymous callers skip these; over-limit → HTTP 429 + `Retry-After`.
-2. **Similarity cache** (new conversations only): `services/similarity.py`
+1. **Similarity cache** (new conversations only): `services/similarity.py`
    `find_similar_question()` uses **`pg_trgm`** trigram similarity (`SIMILARITY_THRESHOLD` 0.95,
    `SIMILARITY_WINDOW_SECONDS` 3 days) over prior successful turns. Hit → copy cached answer
    (no new ConnectionLog, so copies never re-cache). Vector embeddings were removed in favor of
    `pg_trgm` (migration `19_..._drop_embedding_add_pg_trgm`); the `vector` extension is installed
    but not currently used for chat similarity. Note: `Conversation.status="failed"` is a one-way
    ratchet, so failed turns never poison the cache.
-3. **Dispatch to OneChat**: sync `/chat` → `chat_external()` POSTs `ONECHAT_V3_URL`;
+2. **Dispatch to OneChat**: sync `/chat` → `chat_external()` POSTs `ONECHAT_V3_URL`;
    `/chat/stream` proxies the streaming upstream chosen by `CHAT_STREAM_VERSION`
    (`v5` default → `ONECHAT_V5_URL`; `v4` → `ONECHAT_V4_URL`, the no-redeploy rollback —
    resolved per request by `routers/chat.py::_stream_upstream()`, unknown values fall back to v5),
@@ -112,11 +109,11 @@ Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request re
    and `thread_name`; when upstream summary generation fails it degrades silently to output
    identical to v4. Payload includes `mcp_endpoint_url` so OneChat can call back into agency MCP
    tools. Existing conversations first do `ensure_session_warmed()` (`services/session.py`).
-4. **Persist**: `services/chat/turn.py::save_turn()` writes Conversation + user/assistant
+3. **Persist**: `services/chat/turn.py::save_turn()` writes Conversation + user/assistant
    Messages + a `ConnectionLog` (action=`query`). On a v5 turn the assistant Message also stores
    `summary`/`summary_references`, and a non-null `thread_name` titles the conversation — but only
    on the turn that creates it, so the thread is never renamed mid-conversation.
-5. **Classify** (background task): `services/chat/llm.py::classify_message_category()` tags the
+4. **Classify** (background task): `services/chat/llm.py::classify_message_category()` tags the
    turn with a Thai category via the classification LLM.
 
 `POST /api/v1/responses` is an **OpenAI Responses API compatible** surface over the same
@@ -152,7 +149,7 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
   `chat/` (dispatch, llm, turn, **`stream`** — the transport-free turn pipeline shared by
   `/chat/stream` and `/responses`), `responses/` (request mapping, continuity, event
   translation, WebSocket session), `analytics/` (brief, dashboard, health), `similarity`,
-  `quota`, `rate_limit`, `circuit_breaker`, `session`, `evaluation`, `mcp_discovery`,
+  `rate_limit` (LLM-provider throttle only), `session`, `evaluation`, `mcp_discovery`,
   `usage_context`, `log_sanitize`, `audit`, `cache_flush`, `user`.
 - `auth/` — `security.py` (bcrypt, JWT, API-key hashing), `dependencies.py` (auth + RBAC
   chokepoint), `authz.py` (ReBAC relationship checks).
@@ -204,7 +201,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 |---|---|---|
 | `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. `logo` holds an emoji **or** an uploaded-image URL (`/api/v1/agencies/{id}/logo?v=<hash>`). |
 | `User` | `users` | Account. `role` = `user|admin`, bcrypt `hashed_password`, reset-token fields. |
-| `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, per-key `rate_limit_rpm`, `last_used_at`. Keys are prefixed **`tcg_`**. |
+| `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
 | `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
 | `ConnectionLog` | `connection_logs` | Every agency call/probe. `action` (test/query), `connection_type`, `status`, `latency_ms`, sanitized `request_body`/`response_body`, `message_id`/`assistant_message_id` (links to Message; enables cache). |
@@ -261,7 +258,7 @@ and the mandatory rules in `CLAUDE.md`.
   authenticated role exactly like `/chat` — it is a programmatic surface, not a privileged one.
   The **WebSocket on that same path is not covered by the HTTP chokepoint** (a WS route is a
   different ASGI protocol): it resolves auth itself in `routers/responses.py::_ws_user`, from
-  the `Authorization` header only. A bad or rate-limited token there degrades to anonymous
+  the `Authorization` header only. A bad or invalid token there degrades to anonymous
   rather than 401 — deliberate, and there is no query-param token fallback (it would leak keys
   into access logs).
 - **MCP mount is intentionally outside** the role chokepoint (mounted sub-app bypasses FastAPI
@@ -376,8 +373,7 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 
 ## Documentation & specs map
 
-- `docs/quickstart.md` — API consumer flow (get `tcg_` key, auth, `/chat`, `/chat/stream`, errors,
-  rate limits).
+- `docs/quickstart.md` — API consumer flow (get `tcg_` key, auth, `/chat`, `/chat/stream`, errors).
 - `docs/agency-integration.md` — agency endpoint contract, health probes, conformance.
 - `docs/aerich-migrations.md` — migration discipline (never fake `MODELS_STATE`).
 - `spec/roadmap.md` — product vision & phased roadmap (security → cost tracking → reliability →

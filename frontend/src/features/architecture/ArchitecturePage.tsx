@@ -25,7 +25,7 @@ const workflowNodes: NodeData[] = [
     label: "API Gateway",
     icon: "🌐",
     description: "จุดรับคำถามและจัดการ routing",
-    details: ["Authentication & Authorization", "Rate Limiting", "Request Validation", "Load Balancing"],
+    details: ["Authentication & Authorization", "Request Validation", "Load Balancing"],
   },
   {
     id: "orchestrator",

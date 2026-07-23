@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # {UPLOAD_DIR}/agency-logos/.
     UPLOAD_DIR: str = "/app/uploads"
 
-    # ── Redis (distributed rate limiting) ────────────────────────────────────
+    # ── Redis (shared LLM-provider throttle budget across workers) ───────────
     REDIS_URL: str = ""           # empty = in-process limiter (single worker)
     REDIS_SOCKET_TIMEOUT_MS: int = 100
 
@@ -80,7 +80,6 @@ class Settings(BaseSettings):
     MCP_CLIENT_VERSION: str = "1.0"
 
     # ── Chat ─────────────────────────────────────────────────────────────────
-    USER_RATE_LIMIT_RPM: int = 30
     A2A_DISPATCH_TIMEOUT: int = 30
     V4_STREAM_TIMEOUT: float = 300.0
     EXTERNAL_CHAT_TIMEOUT: float = 180.0
@@ -91,7 +90,6 @@ class Settings(BaseSettings):
     RESPONSES_WS_MAX_DURATION_SECONDS: int = 3600
 
     # ── Agency health / scheduler ────────────────────────────────────────────
-    BREAKER_FAILURE_THRESHOLD: int = 5
     AGENCY_CHAT_TIMEOUT: int = 180
     AGENCY_CHAT_CONCURRENCY: int = 5
     HEALTH_CHECK_INTERVAL_MINUTES: int = 15
@@ -116,10 +114,6 @@ class Settings(BaseSettings):
     FEEDBACK_TREND_DAYS: int = 14
     BUSINESS_HOURS_START: int = 8
     BUSINESS_HOURS_END: int = 18
-
-    # ── Quota ────────────────────────────────────────────────────────────────
-    USER_MONTHLY_TOKEN_QUOTA: int = 0      # 0 = unlimited
-    GLOBAL_DAILY_COST_LIMIT_USD: float = 0.0  # 0 = unlimited
 
     # ── Embedding / similarity ──────────────────────────────────────────────
     SIMILARITY_THRESHOLD: float = 0.95
@@ -169,8 +163,8 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
     "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
     "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "ONECHAT_V5_URL", "CHAT_STREAM_VERSION", "MCP_ENDPOINT_URL"],
     "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
-    "Chat": ["USER_RATE_LIMIT_RPM", "A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS", "RESPONSES_WS_MAX_CONNECTIONS", "RESPONSES_WS_MAX_DURATION_SECONDS"],
-    "Agency health": ["BREAKER_FAILURE_THRESHOLD", "AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
+    "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS", "RESPONSES_WS_MAX_CONNECTIONS", "RESPONSES_WS_MAX_DURATION_SECONDS"],
+    "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
 }
 
 SECRET_FIELD_NAMES: set[str] = {

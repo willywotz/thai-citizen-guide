@@ -59,10 +59,6 @@ Deno.serve(async (req) => {
                     type: 'string',
                     description: 'Base path prefix for all endpoints, e.g. /api/v1',
                   },
-                  rate_limit_rpm: {
-                    type: 'integer',
-                    description: 'Rate limit in requests per minute if specified, null otherwise',
-                  },
                   request_format: {
                     type: 'string',
                     enum: ['json', 'xml'],

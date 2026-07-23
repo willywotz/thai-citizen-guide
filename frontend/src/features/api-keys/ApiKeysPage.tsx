@@ -30,21 +30,17 @@ export default function ApiKeysPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createExpiresInDays, setCreateExpiresInDays] = useState("");
-  const [createRateLimit, setCreateRateLimit] = useState("");
   const [newKey, setNewKey] = useState<CreatedAPIKey | null>(null);
   const resetCreateForm = useCallback(() => {
     setCreateName("");
     setCreateExpiresInDays("");
-    setCreateRateLimit("");
   }, []);
   const createMutation = useMutation({
     mutationFn: () => {
       const expiresInDays = createExpiresInDays.trim();
-      const rateLimit = createRateLimit.trim();
       return createAPIKey({
         name: createName.trim(),
         ...(expiresInDays ? { expires_in_days: Number(expiresInDays) } : {}),
-        ...(rateLimit ? { rate_limit_rpm: Number(rateLimit) } : {}),
       });
     },
     onSuccess: (created) => {
@@ -135,11 +131,9 @@ export default function ApiKeysPage() {
         open={createOpen}
         name={createName}
         expiresInDays={createExpiresInDays}
-        rateLimit={createRateLimit}
         mutation={createMutation}
         onNameChange={setCreateName}
         onExpiresInDaysChange={setCreateExpiresInDays}
-        onRateLimitChange={setCreateRateLimit}
         onClose={() => { setCreateOpen(false); resetCreateForm(); }}
       />
 

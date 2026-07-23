@@ -18,7 +18,6 @@ const baseRow: AgencyRow = {
   auth_method: "api_key",
   auth_header: "",
   base_path: "",
-  rate_limit_rpm: null,
   request_format: "json",
   api_endpoints: [],
   response_schema: [],

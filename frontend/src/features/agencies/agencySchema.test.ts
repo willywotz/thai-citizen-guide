@@ -29,7 +29,6 @@ describe("agencySchema — valid payload", () => {
       ...VALID_PAYLOAD,
       priority: 2,
       dispatchTimeoutS: 30,
-      rateLimitRpm: 60,
     });
     expect(result.success).toBe(true);
   });
@@ -141,29 +140,10 @@ describe("agencySchema — apiHeaders validation", () => {
 });
 
 describe("agencySchema — numeric field coercion", () => {
-  it("coerces string '60' to number 60 for rateLimitRpm", () => {
-    const result = agencySchema.safeParse({ ...VALID_PAYLOAD, rateLimitRpm: "60" });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.rateLimitRpm).toBe(60);
-    }
-  });
-
-  it("rejects non-positive rateLimitRpm (0)", () => {
-    const result = agencySchema.safeParse({ ...VALID_PAYLOAD, rateLimitRpm: "0" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects non-integer rateLimitRpm (1.5)", () => {
-    const result = agencySchema.safeParse({ ...VALID_PAYLOAD, rateLimitRpm: "1.5" });
-    expect(result.success).toBe(false);
-  });
-
   it("accepts omitted optional numerics (undefined → omitted)", () => {
     const result = agencySchema.safeParse({ ...VALID_PAYLOAD });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.rateLimitRpm).toBeUndefined();
       expect(result.data.priority).toBeUndefined();
       expect(result.data.dispatchTimeoutS).toBeUndefined();
     }
@@ -172,7 +152,6 @@ describe("agencySchema — numeric field coercion", () => {
   it("accepts empty string for optional numerics (treated as omitted)", () => {
     const result = agencySchema.safeParse({
       ...VALID_PAYLOAD,
-      rateLimitRpm: "",
       priority: "",
       dispatchTimeoutS: "",
     });

@@ -21,5 +21,3 @@ def test_permissive_defaults():
     s = Settings()
     assert s.CORS_ORIGINS == ["*"]                 # bypass all
     assert s.WEEKLY_BRIEF_TIMEOUT >= 3600.0         # effectively no limit
-    assert s.USER_MONTHLY_TOKEN_QUOTA == 0          # 0 = unlimited
-    assert s.GLOBAL_DAILY_COST_LIMIT_USD == 0.0     # 0 = unlimited

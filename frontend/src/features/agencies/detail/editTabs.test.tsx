@@ -200,7 +200,6 @@ describe("RoutingTab", () => {
     expect(screen.getByPlaceholderText(/อธิบายว่าหน่วยงานนี้ตอบคำถาม/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText("เช่น 1")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("ค่าเริ่มต้นระบบ")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("ไม่จำกัด")).toBeInTheDocument();
   });
 });
 

@@ -39,8 +39,6 @@ from app.services.chat.stream import (
 from app.services.chat.turn import save_turn
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
-from app.services.quota import QuotaExceeded, check_global_budget, check_user_quota
-from app.services.rate_limit import user_limiter
 from app.services.session import ensure_session_warmed
 from app.utils import generate_uuid
 
@@ -49,29 +47,10 @@ tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
 
-async def enforce_user_rate_limit(user) -> None:
-    key = f"user:{user.id}"
-    result = await user_limiter.check(key, limit=settings.USER_RATE_LIMIT_RPM)
-    if not result.allowed:
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded",
-            headers={"Retry-After": str(result.retry_after)},
-        )
-
-
 # ─── External endpoint (OneChat v3) ────────────────────────────────────────────
 
 @router.post("/external", include_in_schema=False, deprecated=True)  # alias; use POST /chat
 async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-    if user is not None:
-        await enforce_user_rate_limit(user)
-    try:
-        await check_global_budget()
-        if user is not None:
-            await check_user_quota(user.id)
-    except QuotaExceeded as e:
-        raise HTTPException(status_code=429, detail=str(e))
     with tracer.start_as_current_span("chat_external_endpoint") as span:
         query = body.query.strip()
         conversation_id = body.conversation_id or str(generate_uuid())
@@ -188,15 +167,6 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
 @router.post("/stream", summary="Send a query and receive SSE streaming response")
 async def chat_stream(body: ChatRequest, request: Request, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)):
     """Format the shared turn pipeline as SSE. All logic lives in services/chat/stream.py."""
-    if user is not None:
-        await enforce_user_rate_limit(user)
-    try:
-        await check_global_budget()
-        if user is not None:
-            await check_user_quota(user.id)
-    except QuotaExceeded as e:
-        raise HTTPException(status_code=429, detail=str(e))
-
     query = body.query.strip()
     conversation_id = body.conversation_id or str(generate_uuid())
 

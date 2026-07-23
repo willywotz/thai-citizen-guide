@@ -92,7 +92,6 @@ export interface Agency {
   authMethod?: string;
   authHeader?: string;
   basePath?: string;
-  rateLimitRpm?: number | null;
   requestFormat?: string;
   apiEndpoints?: ApiEndpoint[];
   responseSchema?: ResponseField[];
@@ -127,7 +126,6 @@ export interface AgencyRow {
   auth_method: string;
   auth_header: string;
   base_path: string;
-  rate_limit_rpm: number | null;
   request_format: string;
   api_endpoints: ApiEndpoint[];
   response_schema: ResponseField[];
@@ -167,7 +165,6 @@ export function mapRowToAgency(row: AgencyRow): Agency {
     authMethod: row.auth_method,
     authHeader: row.auth_header,
     basePath: row.base_path,
-    rateLimitRpm: row.rate_limit_rpm,
     requestFormat: row.request_format,
     apiEndpoints: row.api_endpoints,
     responseSchema: row.response_schema,

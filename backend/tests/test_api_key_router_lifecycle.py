@@ -4,23 +4,22 @@ from app.routers.api_key import (
 )
 
 
-async def test_create_with_expiry_and_rpm(db):
+async def test_create_with_expiry(db):
     user = await User.create(email="c@x.com", hashed_password="h")
     resp = await create_api_key(
-        CreateAPIKeyRequest(name="n", expires_in_days=30, rate_limit_rpm=60), user=user
+        CreateAPIKeyRequest(name="n", expires_in_days=30), user=user
     )
     assert resp.key.startswith("tcg_")
-    assert resp.rate_limit_rpm == 60
     assert resp.expires_at is not None
     assert resp.status == "active"
     key = await UserAPIKey.get(id=resp.id)
-    assert key.rate_limit_rpm == 60 and key.expires_at is not None
+    assert key.expires_at is not None
 
 
 async def test_create_without_options_never_expires(db):
     user = await User.create(email="c2@x.com", hashed_password="h")
     resp = await create_api_key(CreateAPIKeyRequest(name="n"), user=user)
-    assert resp.expires_at is None and resp.rate_limit_rpm is None
+    assert resp.expires_at is None
     assert resp.status == "active"
 
 

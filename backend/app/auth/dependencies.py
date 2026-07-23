@@ -24,7 +24,6 @@ from jose import JWTError
 
 from app.auth.security import API_KEY_PREFIX, decode_access_token, hash_api_key
 from app.models.user import User, UserAPIKey
-from app.services.rate_limit import api_key_limiter
 from app.services.usage_context import current_api_key_id, current_user_id
 from app.utils import now
 
@@ -156,16 +155,6 @@ async def _resolve_token(token: str) -> User | None:
         user = await User.filter(id=api_key.user_id, is_active=True).first()
         if user is None:
             return None
-        rpm = api_key.rate_limit_rpm or 0
-        if rpm:
-            key = f"apikey:{api_key.id}"
-            result = await api_key_limiter.check(key, limit=rpm)
-            if not result.allowed:
-                raise HTTPException(
-                    status_code=429,
-                    detail="API key rate limit exceeded",
-                    headers={"Retry-After": str(result.retry_after)},
-                )
         api_key.last_used_at = now()
         await api_key.save(update_fields=["last_used_at"])
         current_user_id.set(user.id)
@@ -203,7 +192,8 @@ async def get_current_user_optional(
     token = credentials.credentials
     user = await _resolve_token(token)
     # A deliberate API-key auth that fails must NOT silently degrade to anonymous
-    # — that would let a typo'd key bypass rate limits / quotas. A JWT, by
+    # — a typo'd or revoked key should surface an error, not run as an anonymous
+    # caller under a different identity. A JWT, by
     # contrast, is a session token a browser auto-attaches; an expired one
     # degrades to anonymous so optional-auth endpoints (e.g. chat) still work.
     if user is None and token.startswith(API_KEY_PREFIX):
