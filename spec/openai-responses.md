@@ -17,6 +17,27 @@ Three transports, one pipeline (`app/routers/responses.py`):
 All three drive the same generator (`run_response()` in `app/routers/responses.py`), so their
 event output cannot drift from one another.
 
+### Endpoint scope
+
+The upstream OpenAI Responses reference (`spec/openai-responses-api/1-responses.md`) declares
+seven endpoints. The portal implements **only response creation** — the single endpoint OneChat
+can serve — and deliberately omits the rest. This is a scope decision, not an oversight: the
+omitted endpoints assume a general-purpose model store (arbitrary retrieval, cancellation,
+compaction, token accounting) that OneChat does not expose to the portal.
+
+| Upstream endpoint | Status | Note |
+|---|---|---|
+| `POST /responses` | ✅ Implemented | HTTP, SSE, and WebSocket transports (above) |
+| `GET /responses/{id}` | ❌ Out of scope | Responses are not re-served after completion; `resp_<id>` is resolved only for continuity (§ 3). A future retrieve is the cheapest addition. |
+| `DELETE /responses/{id}` | ❌ Out of scope | Turns are persisted for analytics/audit and are not client-deletable through this surface. |
+| `POST /responses/{id}/cancel` | ❌ Out of scope | A turn is one synchronous OneChat call; there is no `background` mode to cancel. |
+| `POST /responses/compact` | ❌ Out of scope | OneChat owns context/history server-side; the portal does not manage compaction. |
+| `GET /responses/{id}/input_items` | ❌ Out of scope | No input-item store is exposed; only the newest user message is forwarded (§ 2.1). |
+| `POST /responses/input_tokens` | ❌ Out of scope | OneChat does not report token counts to the portal (see `usage` deviation below). |
+
+Clients requiring any omitted endpoint must not treat the portal as a drop-in for the full
+OpenAI Responses API.
+
 ---
 
 ## 1. Models

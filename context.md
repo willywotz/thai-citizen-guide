@@ -121,7 +121,9 @@ pipeline (`routers/responses.py`), in three transports: HTTP non-streaming, HTTP
 WebSocket on the same path. It shares one turn implementation with `/chat/stream` via
 `services/chat/stream.py` (`prepare_turn` / `run_turn`), and translates to OpenAI's wire
 format in `services/responses/`. `store` is accepted but ignored, `usage` is always zero, and
-pipeline progress events are not surfaced. See `spec/openai-responses.md`.
+pipeline progress events are not surfaced. Only response **creation** is implemented; the
+upstream's other six endpoints (retrieve/delete/cancel/compact/input_items/input_tokens) are
+out of scope — see the "Endpoint scope" table in `spec/openai-responses.md`.
 
 In-process agency dispatch (API/MCP/A2A) also exists in `services/chat/dispatch.py`
 (retry/backoff, per-agency timeouts) — used for the direct-orchestration path.
