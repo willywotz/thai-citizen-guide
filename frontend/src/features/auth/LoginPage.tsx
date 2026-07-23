@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/shared/lib/apiClient";
 import { useAuth, type AuthUser } from "@/features/auth/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -8,7 +8,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { PasswordInput } from "@/shared/components/ui/password-input";
 import { toast } from "sonner";
-import { LogIn } from "lucide-react";
+import { ArrowLeft, LogIn } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -81,6 +81,13 @@ export default function LoginPage() {
               {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
             </Button>
           </form>
+          <Link
+            to="/"
+            className="mt-4 flex items-center justify-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            กลับสู่หน้าหลัก
+          </Link>
         </CardContent>
       </Card>
     </div>

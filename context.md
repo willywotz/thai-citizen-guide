@@ -314,7 +314,8 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `POST /auth/change-password` (requires the current password) — reached from the key-icon
   button in the sidebar user section (`ChangePasswordDialog`). All masked fields (passwords and
   secret API keys) use the shared `shared/components/ui/password-input` `PasswordInput`, which
-  adds an eye-icon show/hide toggle.
+  adds an eye-icon show/hide toggle. `LoginPage` has a "กลับสู่หน้าหลัก" (back to home) link to `/`
+  below the form.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
   `/architecture` any role; `/popular-questions` admin-only). **Seven admin pages are merged into a
   tabbed Settings area** `features/settings/SettingsLayout` at `/settings`: System settings, LLM,
