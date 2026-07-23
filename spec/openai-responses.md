@@ -431,6 +431,29 @@ allowed, matching `POST /chat`); there is no query-parameter token fallback, sin
 leak keys into access logs. Browsers cannot set headers on a WebSocket, so browser clients
 should use the SSE transport instead.
 
+### 8.1 Event scope — 1 client event, 9 of 53 server events
+
+The upstream OpenAI WebSocket reference (`spec/openai-responses-api/5-websocket-events.md`)
+declares **1 client event** (`response.create`) and **53 server events**. That server set is
+identical to the streaming reference's 53 events (`4-streaming-events.md`), so the § 5.1 split
+applies here unchanged.
+
+| Direction | Upstream declares | Portal | Status |
+|---|---|---|---|
+| Client → server | `response.create` (1) | Accepts only `response.create`; any other `type` → an `error` frame | ✅ 1 of 1 |
+| Server → client | 53 events | The same **9** as § 5.1 (the 8-event happy path plus `response.failed`), one JSON object per text frame | ✅ 9 of 53; the other 44 out of scope, same reasons as § 5.1 |
+
+One nuance beyond § 5.1: the upstream **`error` server event** is out of scope. The portal does
+send `{"type": "error", ...}` frames (below), but that is the portal's own envelope shape, **not**
+the OpenAI `error` event — a strict client must not parse it as the upstream `error` type. As over
+SSE, a client must not wait for any of the other 44 server events; a portal socket carries the
+9-event set and the portal `error` frame, nothing else.
+
+Source: `WsSession.handle_text` in `app/services/responses/session.py` (accepts `response.create`
+only; wraps errors via `_error_frame`); `ResponseAccumulator` in
+`app/services/responses/translate.py` (the same nine `response.*` literals emitted over every
+transport).
+
 **Inbound frames** — JSON text frames. Only `{"type": "response.create", ...}` is accepted; the
 rest of the body is the same `ResponsesRequest` fields as the HTTP body (§ 2):
 
