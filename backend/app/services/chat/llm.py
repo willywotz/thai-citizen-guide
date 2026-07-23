@@ -18,9 +18,9 @@ async def classify_message_category(message_id: str, query: str, answer: str) ->
 
 คำตอบ: {answer}
 """
-    from app.services.llm import LlmError, chat
+    from app.services.llm import LlmError, Purpose, chat
     try:
-        res = await chat(purpose="classification", messages=[{"role": "user", "content": content}])
+        res = await chat(purpose=Purpose.CLASSIFICATION, messages=[{"role": "user", "content": content}])
         await Message.filter(id=message_id).update(category=res.content)
     except (LlmError, Exception) as e:
         logger.error("Error classifying message category: %s", e)

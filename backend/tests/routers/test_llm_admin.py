@@ -152,6 +152,29 @@ async def test_list_purposes_returns_known_purposes():
 
 
 @pytest.mark.usefixtures("db")
+async def test_create_route_invalid_purpose_422():
+    provider = await LlmProvider.create(name="p8", base_url="https://p8.example")
+    async with await _client() as c:
+        r = await c.post(_ROUTES, json={
+            "purpose": "nope", "provider_id": str(provider.id), "model": "gpt-x",
+        })
+    app.dependency_overrides.clear()
+    assert r.status_code == 422
+
+
+@pytest.mark.usefixtures("db")
+async def test_create_route_valid_purpose_succeeds():
+    provider = await LlmProvider.create(name="p9", base_url="https://p9.example")
+    async with await _client() as c:
+        r = await c.post(_ROUTES, json={
+            "purpose": "popular_questions", "provider_id": str(provider.id), "model": "gpt-x",
+        })
+    app.dependency_overrides.clear()
+    assert r.status_code == 201
+    assert r.json()["purpose"] == "popular_questions"
+
+
+@pytest.mark.usefixtures("db")
 async def test_mutation_invalidates_route_cache(monkeypatch):
     mock_invalidate = MagicMock()
     monkeypatch.setattr("app.routers.llm.invalidate", mock_invalidate)

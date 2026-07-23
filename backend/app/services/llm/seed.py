@@ -1,5 +1,6 @@
 from app.config import settings
 from app.models import LlmProvider, LlmRoute
+from app.services.llm.purpose import Purpose
 
 
 async def seed_llm_defaults() -> None:
@@ -27,12 +28,12 @@ async def seed_llm_defaults() -> None:
         },
     )
     routes = [
-        ("classification", openrouter, settings.CLASSIFICATION_MODEL, None),
-        ("brief", openrouter, settings.CLASSIFICATION_MODEL, float(settings.WEEKLY_BRIEF_TIMEOUT)),
-        ("judge", openrouter, settings.CLASSIFICATION_MODEL, None),
-        ("parse_spec", thaillm, settings.PARSE_SPEC_LLM_MODEL, None),
+        (Purpose.CLASSIFICATION, openrouter, settings.CLASSIFICATION_MODEL, None),
+        (Purpose.BRIEF, openrouter, settings.CLASSIFICATION_MODEL, float(settings.WEEKLY_BRIEF_TIMEOUT)),
+        (Purpose.JUDGE, openrouter, settings.CLASSIFICATION_MODEL, None),
+        (Purpose.PARSE_SPEC, thaillm, settings.PARSE_SPEC_LLM_MODEL, None),
         # Falls back to the classification model/provider until configured otherwise.
-        ("popular_questions", openrouter, settings.CLASSIFICATION_MODEL, None),
+        (Purpose.POPULAR_QUESTIONS, openrouter, settings.CLASSIFICATION_MODEL, None),
     ]
     for purpose, provider, model, timeout_override in routes:
         await LlmRoute.get_or_create(

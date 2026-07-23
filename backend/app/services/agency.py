@@ -153,8 +153,8 @@ async def parse_spec(spec_text: str) -> dict[str, Any]:
         "tool_choice": {"type": "function", "function": {"name": "extract_api_spec"}},
     }
 
-    from app.services.llm import chat
-    res = await chat(purpose="parse_spec", messages=payload["messages"],
+    from app.services.llm import Purpose, chat
+    res = await chat(purpose=Purpose.PARSE_SPEC, messages=payload["messages"],
                      tools=payload["tools"], tool_choice=payload["tool_choice"])
     tool_call = (res.tool_calls or [{}])[0]
     args_raw = tool_call.get("function", {}).get("arguments")

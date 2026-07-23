@@ -5,9 +5,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.services.llm.purpose import Purpose
+
 
 class LLMRouteBase(BaseModel):
-    purpose: str
+    purpose: Purpose
     provider_id: uuid.UUID
     model: str
     timeout_override: float | None = None
@@ -21,7 +23,7 @@ class LLMRouteCreate(LLMRouteBase):
 
 class LLMRouteUpdate(BaseModel):
     """Request body for partial update of an LLM route (all fields optional)."""
-    purpose: str | None = None
+    purpose: Purpose | None = None
     provider_id: uuid.UUID | None = None
     model: str | None = None
     timeout_override: float | None = None

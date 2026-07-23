@@ -38,7 +38,7 @@ async def _judge(question: str, topics: list, answer: str) -> tuple[float, str]:
     if not answer.strip():
         return 0.0, "no answer from agency"
     prompt = _JUDGE_PROMPT.format(question=question, topics=", ".join(topics), answer=answer[:4000])
-    from app.services.llm import chat
-    res = await chat(purpose="judge", messages=[{"role": "user", "content": prompt}])
+    from app.services.llm import Purpose, chat
+    res = await chat(purpose=Purpose.JUDGE, messages=[{"role": "user", "content": prompt}])
     data = json.loads(res.content)
     return float(data["score"]), str(data.get("reason", ""))

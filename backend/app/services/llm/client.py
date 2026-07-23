@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.services.llm.purpose import KNOWN_PURPOSES, Purpose
 from app.services.rate_limit import build_limiter
 
 logger = logging.getLogger(__name__)
 
-KNOWN_PURPOSES = ("classification", "brief", "judge", "parse_spec", "popular_questions")
 _CACHE_TTL_S = 30.0
 
 
@@ -116,7 +116,7 @@ async def _acquire(name: str, rps: int | None, rpm: int | None, max_queue_size: 
         _queue_waiters[name] -= 1
 
 
-async def chat(*, purpose: str, messages: list[dict], tools: list | None = None,
+async def chat(*, purpose: Purpose, messages: list[dict], tools: list | None = None,
                tool_choice=None, user_id=None, agency_id=None, conversation_id=None) -> LlmResult:
     r = await _resolve(purpose)
     await _acquire(r.provider_name, r.rate_limit_rps, r.rate_limit_rpm, r.max_queue_size)
