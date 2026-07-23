@@ -34,7 +34,13 @@ describe("canAccess", () => {
 
   it("restricts every other known route to admin", () => {
     for (const [path, allowed] of Object.entries(ROUTE_ROLES)) {
-      if (path === "/chat" || path === "/architecture" || USER_ROUTES.includes(path)) continue;
+      if (
+        path === "/chat" ||
+        path === "/architecture" ||
+        USER_ROUTES.includes(path) ||
+        path.startsWith("/settings")
+      )
+        continue;
       expect(allowed).toEqual(["admin"]);
       expect(canAccess("user", path)).toBe(false);
       expect(canAccess("admin", path)).toBe(true);
@@ -52,5 +58,29 @@ describe("canAccess", () => {
   it("restricts the merged llm-settings page to admin", () => {
     expect(canAccess("user", "/llm-settings")).toBe(false);
     expect(canAccess("admin", "/llm-settings")).toBe(true);
+  });
+});
+
+describe("settings route roles", () => {
+  it("lets every role reach the settings area (holds the all-roles Usage tab)", () => {
+    expect(canAccess("user", "/settings")).toBe(true);
+    expect(canAccess("admin", "/settings")).toBe(true);
+  });
+
+  it("lets every role reach the Usage tab", () => {
+    expect(canAccess("user", "/settings/usage")).toBe(true);
+  });
+
+  it("restricts the admin-only tabs to admins", () => {
+    for (const path of [
+      "/settings/system",
+      "/settings/llm",
+      "/settings/api-keys",
+      "/settings/connections",
+      "/settings/audit",
+    ]) {
+      expect(canAccess("user", path)).toBe(false);
+      expect(canAccess("admin", path)).toBe(true);
+    }
   });
 });
