@@ -48,4 +48,9 @@ describe("canAccess", () => {
   it("no longer routes to removed owner pages", () => {
     expect(ROUTE_ROLES["/my-agencies"]).toBeUndefined();
   });
+
+  it("restricts the merged llm-settings page to admin", () => {
+    expect(canAccess("user", "/llm-settings")).toBe(false);
+    expect(canAccess("admin", "/llm-settings")).toBe(true);
+  });
 });
