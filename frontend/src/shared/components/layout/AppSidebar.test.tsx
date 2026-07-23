@@ -50,6 +50,11 @@ describe("AppSidebar visibility", () => {
     expect(screen.getByText("จัดการหน่วยงาน")).toBeInTheDocument();
     expect(screen.getByText("จัดการผู้ใช้")).toBeInTheDocument();
     expect(screen.getByText("ตั้งค่าระบบ")).toBeInTheDocument();
+    expect(screen.queryByText("LLM Settings")).not.toBeInTheDocument();
+    expect(screen.queryByText("API Keys")).not.toBeInTheDocument();
+    expect(screen.queryByText("การใช้งาน API Key")).not.toBeInTheDocument();
+    expect(screen.queryByText("ประวัติการเชื่อมต่อ")).not.toBeInTheDocument();
+    expect(screen.queryByText("บันทึกการตรวจสอบ")).not.toBeInTheDocument();
   });
 
   it("no longer shows the removed my-agencies nav item", () => {
