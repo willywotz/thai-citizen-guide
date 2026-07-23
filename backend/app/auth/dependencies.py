@@ -51,10 +51,11 @@ _PUBLIC_PREFIX = "/api/v1/public"
 # authenticated user's attached JWT doesn't 403 the fetch.
 _AGENCY_LOGO_GET_PATTERN = re.compile(r"^/api/v1/agencies/[^/]+/logo$")
 
-# Read-only ops dashboards a plain `user` may view: Dashboard, Executive,
+# Read-only ops dashboards a `staff` role may view: Dashboard, Executive,
 # Agency Health, Usage Heatmap, Usage Analytics, Feedback. The write side of
-# each page (e.g. POST /executive-summary/regenerate) stays admin-only.
-_BASIC_USER_GET_EXACT = frozenset({
+# each page (e.g. POST /executive-summary/regenerate) stays admin-only, and a
+# plain `user` cannot reach these at all.
+_STAFF_GET_EXACT = frozenset({
     "/api/v1/dashboard/stats",
     "/api/v1/executive-summary",
     "/api/v1/agency-health",
@@ -101,16 +102,21 @@ def _is_shared_write(method: str, path: str) -> bool:
 
 
 def _is_allowed_for_basic_user(method: str, path: str) -> bool:
-    """A plain ``user`` role: chat + architecture list + read-only ops pages + shared writes."""
+    """A plain ``user`` role: chat + architecture list + own history + shared writes."""
     if _is_shared_write(method, path):
         return True
     if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
         return True
-    if method == "GET" and path in _BASIC_USER_GET_EXACT:
-        return True
     if method == "GET" and _CONVERSATION_MESSAGES_GET_PATTERN.match(path):
         return True
     return False
+
+
+def _is_allowed_for_staff(method: str, path: str) -> bool:
+    """Role ``staff``: everything a basic user can do, plus read-only ops dashboards."""
+    if _is_allowed_for_basic_user(method, path):
+        return True
+    return method == "GET" and path in _STAFF_GET_EXACT
 
 
 # NOTE: token-branching mirrors _resolve_token; kept separate to stay side-effect-free.
@@ -210,7 +216,10 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-_ROLE_ALLOWLIST = {"user": _is_allowed_for_basic_user}
+_ROLE_ALLOWLIST = {
+    "user": _is_allowed_for_basic_user,
+    "staff": _is_allowed_for_staff,
+}
 
 
 async def enforce_role_allowlist(

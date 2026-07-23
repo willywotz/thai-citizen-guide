@@ -55,3 +55,12 @@ async def test_residual_viewer_allowed_on_chat(db):
     assert await enforce_role_allowlist(
         _request("POST", "/api/v1/chat"), _creds(token)
     ) is None
+
+
+async def test_residual_viewer_denied_on_dashboard(db):
+    token = await _token_for_viewer()
+    with pytest.raises(HTTPException) as e:
+        await enforce_role_allowlist(
+            _request("GET", "/api/v1/dashboard/stats"), _creds(token)
+        )
+    assert e.value.status_code == 403
