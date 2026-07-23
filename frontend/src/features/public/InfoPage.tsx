@@ -16,7 +16,7 @@ export default function InfoPage() {
           <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
         </Link>
         <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
-          เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
+          เข้าสู่ระบบ <ArrowRight className="w-3 h-3" />
         </a>
       </header>
 
