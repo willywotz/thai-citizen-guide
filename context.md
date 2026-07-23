@@ -124,7 +124,8 @@ format in `services/responses/`. `store` is accepted but ignored, `usage` is alw
 pipeline progress events are not surfaced. Only response **creation** is implemented; the
 upstream's other six response endpoints (retrieve/delete/cancel/compact/input_items/input_tokens)
 **and the entire OpenAI Conversations + items API** (`spec/openai-responses-api/2-conversations.md`,
-`3-conversations-items.md`) are out of scope — see the "Endpoint scope" tables in
+plus all four `3-conversations-items.md` endpoints — create/list/retrieve/delete items, none
+routed) are out of scope — see the "Endpoint scope" tables in
 `spec/openai-responses.md`. The native `/api/v1/conversations` router is the portal's own SPA
 history API, a different contract — not a partial OpenAI Conversations implementation.
 

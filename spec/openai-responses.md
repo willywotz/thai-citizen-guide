@@ -42,7 +42,9 @@ OpenAI Responses API.
 
 The upstream reference also defines a **Conversations** family (`spec/openai-responses-api/2-conversations.md`)
 and its **items** subresource (`spec/openai-responses-api/3-conversations-items.md`). The portal
-implements **none** of these as OpenAI-compatible endpoints:
+implements **none** of these as OpenAI-compatible endpoints.
+
+Conversations resource (`2-conversations.md`):
 
 | Upstream endpoint | Status |
 |---|---|
@@ -50,14 +52,21 @@ implements **none** of these as OpenAI-compatible endpoints:
 | `GET /conversations/{id}` | ❌ Out of scope |
 | `POST /conversations/{id}` (update) | ❌ Out of scope |
 | `DELETE /conversations/{id}` | ❌ Out of scope |
-| `POST /conversations/{id}/items` | ❌ Out of scope |
-| `GET /conversations/{id}/items` | ❌ Out of scope |
-| `GET /conversations/{id}/items/{item_id}` | ❌ Out of scope |
-| `DELETE /conversations/{id}/items/{item_id}` | ❌ Out of scope |
 
-Conversations are managed entirely by OneChat server-side; the portal exposes no OpenAI
-conversation/item store. A caller's only handle on a conversation through this surface is the
-opaque `conversation` id (and the `resp_<id>` continuity chain) on `POST /responses` — see § 3.
+Items subresource (`3-conversations-items.md`) — all four endpoints it declares:
+
+| Upstream endpoint | Status |
+|---|---|
+| `POST /conversations/{id}/items` (create items) | ❌ Out of scope |
+| `GET /conversations/{id}/items` (list items) | ❌ Out of scope |
+| `GET /conversations/{id}/items/{item_id}` (retrieve an item) | ❌ Out of scope |
+| `DELETE /conversations/{id}/items/{item_id}` (delete an item) | ❌ Out of scope |
+
+There is no OpenAI item store, item pagination, or `conversation.item.*` type behind this
+surface — none of the four is served by any router. Conversations are managed entirely by
+OneChat server-side; the portal exposes no OpenAI conversation/item store. A caller's only
+handle on a conversation through this surface is the opaque `conversation` id (and the
+`resp_<id>` continuity chain) on `POST /responses` — see § 3.
 
 ⚠️ **Do not confuse this with the native `/api/v1/conversations` router**
 (`app/routers/conversations.py`). That is the portal's own SPA history API — a different contract
