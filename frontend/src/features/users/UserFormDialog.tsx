@@ -5,6 +5,7 @@ import {
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
+import { PasswordInput } from '@/shared/components/ui/password-input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/shared/components/ui/select';
@@ -104,7 +105,7 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
 
           <div className="space-y-2">
             <Label htmlFor="password">{isEdit ? 'รหัสผ่านใหม่ (เว้นว่างไว้หากไม่เปลี่ยน)' : 'รหัสผ่านเริ่มต้น'}</Label>
-            <Input id="password" type="password" value={password}
+            <PasswordInput id="password" value={password}
               autoComplete="new-password"
               onChange={(e) => setPassword(e.target.value)} />
           </div>

@@ -3,8 +3,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
+import { PasswordInput } from '@/shared/components/ui/password-input';
 import { toast } from 'sonner';
 import { api } from '@/shared/lib/apiClient';
 import { validateChangePassword } from './changePassword';
@@ -56,17 +56,17 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="currentPassword">รหัสผ่านปัจจุบัน</Label>
-            <Input id="currentPassword" type="password" autoComplete="current-password"
+            <PasswordInput id="currentPassword" autoComplete="current-password"
               value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="newPassword">รหัสผ่านใหม่</Label>
-            <Input id="newPassword" type="password" autoComplete="new-password"
+            <PasswordInput id="newPassword" autoComplete="new-password"
               value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">ยืนยันรหัสผ่านใหม่</Label>
-            <Input id="confirmPassword" type="password" autoComplete="new-password"
+            <PasswordInput id="confirmPassword" autoComplete="new-password"
               value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
           </div>
         </div>
