@@ -13,7 +13,6 @@ import {
   type LlmRouteInput,
 } from "@/features/llm-routes/llmRouteApi";
 import { listProviders } from "@/features/llm-providers/llmProviderApi";
-import { useAuth } from "@/features/auth/useAuth";
 import { LlmRoutesList } from "./LlmRoutesList";
 import { CreateLlmRouteDialog } from "./CreateLlmRouteDialog";
 import { EditLlmRouteDialog } from "./EditLlmRouteDialog";
@@ -23,7 +22,6 @@ const QUERY_KEY = ["llm-routes"];
 
 export default function LlmRoutesPage() {
   const queryClient = useQueryClient();
-  const { isReadOnly } = useAuth();
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -84,12 +82,10 @@ export default function LlmRoutesPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">เส้นทาง LLM</h2>
-        {!isReadOnly && (
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            เพิ่มเส้นทาง
-          </Button>
-        )}
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          เพิ่มเส้นทาง
+        </Button>
       </div>
 
       {isLoading && (
@@ -101,7 +97,6 @@ export default function LlmRoutesPage() {
       {!isLoading && (
         <LlmRoutesList
           routes={routes}
-          isReadOnly={isReadOnly}
           onEdit={setEditTarget}
           onDelete={setDeleteTarget}
         />

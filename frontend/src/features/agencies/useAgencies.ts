@@ -12,13 +12,6 @@ import type {
 } from '@/shared/types/agency';
 import { mapBucketRow, mapRowToAgency } from '@/shared/types/agency';
 import type { TestResult } from '@/features/agencies/ConnectionTestResult';
-import {
-  getAgencyLowRated,
-  getMyAgencies,
-  runConformance,
-  type ConformanceReport,
-  type LowRatedAnswer,
-} from '@/features/agencies/agencyApi';
 
 // ---------------------------------------------------------------------------
 // Fetch helpers
@@ -50,31 +43,6 @@ export function useAgencies() {
   });
 }
 
-export function useMyAgencies() {
-  return useQuery({
-    queryKey: ['agencies', 'mine'],
-    queryFn: getMyAgencies,
-    staleTime: STALE_TIME.normal,
-  });
-}
-
-/** Lazily fetches down-rated answers for an agency; pass enabled to gate. */
-export function useAgencyLowRated(agencyId: string, enabled: boolean) {
-  return useQuery<LowRatedAnswer[]>({
-    queryKey: ['agency-low-rated', agencyId],
-    queryFn: () => getAgencyLowRated(agencyId),
-    enabled,
-    staleTime: STALE_TIME.normal,
-  });
-}
-
-export function useRunConformance() {
-  const qc = useQueryClient();
-  return useMutation<ConformanceReport, Error, string>({
-    mutationFn: (id: string) => runConformance(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
-  });
-}
 
 export function useCreateAgency() {
   const qc = useQueryClient();

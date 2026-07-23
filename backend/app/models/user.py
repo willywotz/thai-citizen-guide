@@ -14,7 +14,7 @@ class User(Model):
     email = fields.CharField(max_length=255, unique=True)
     display_name = fields.CharField(max_length=255, null=True)
     hashed_password = fields.CharField(max_length=500)
-    role = fields.CharField(max_length=20, default="user")     # user | viewer | auditor | agency_owner | admin
+    role = fields.CharField(max_length=20, default="user")     # user | admin
     avatar_url = fields.CharField(max_length=500, null=True)
     is_active = fields.BooleanField(default=True)
 

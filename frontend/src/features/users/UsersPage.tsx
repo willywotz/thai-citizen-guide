@@ -9,7 +9,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/shared/components/ui/select';
 import { UserPlus } from 'lucide-react';
-import { useAuth } from '@/features/auth/useAuth';
 import { useUsers } from './useUsers';
 import type { ManagedUser, UserRole } from './userApi';
 import { ROLE_LABEL, ROLE_ORDER } from './roleLabels';
@@ -17,7 +16,6 @@ import { UserFormDialog } from './UserFormDialog';
 import { DeactivateUserDialog } from './DeactivateUserDialog';
 
 export default function UsersPage() {
-  const { isReadOnly } = useAuth();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
   const { data: users = [], isLoading, isError } = useUsers({
@@ -36,7 +34,7 @@ export default function UsersPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">จัดการผู้ใช้</h1>
-        {!isReadOnly && <Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>}
+        <Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -94,14 +92,10 @@ export default function UsersPage() {
               </TableCell>
               <TableCell>{new Date(u.createdAt).toLocaleDateString('th-TH')}</TableCell>
               <TableCell className="text-right space-x-2">
-                {!isReadOnly && (
-                  <>
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>แก้ไข</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setToggling(u)}>
-                      {u.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
-                    </Button>
-                  </>
-                )}
+                <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>แก้ไข</Button>
+                <Button variant="ghost" size="sm" onClick={() => setToggling(u)}>
+                  {u.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                </Button>
               </TableCell>
             </TableRow>
           ))}

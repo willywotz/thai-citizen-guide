@@ -56,7 +56,37 @@ issuance/renewal. `/.well-known/acme-challenge/` is served from the `acme-challe
 certbot container writes to, and is the one path exempt from the redirect. First issuance is a
 one-off `certbot certonly` — see `docs/tls.md`.
 
-`docker-compose.override.yaml` adds dev watch/rebuild rules per service.
+`docker-compose.override.yaml` adds dev watch/rebuild rules per service, plus the dev tunnel below.
+
+**Dev tunnel (`docker-compose.override.yaml`, dev only — never deployed).** `cloudflared` runs an
+always-on Cloudflare **Quick Tunnel** to `nginx:8080`, publishing the whole gateway on a random
+`https://<words>.trycloudflare.com` URL for sharing a running dev stack. Outbound-only, so no port
+is published and no Cloudflare account or DNS record is involved; TLS terminates at Cloudflare and
+nginx still serves plain HTTP. The hostname is **random per restart**, so it is read back at
+runtime from cloudflared's metrics server (`--metrics 0.0.0.0:2000`, container-internal) rather
+than configured: `scripts/tunnel-url.sh` polls `/quicktunnel` and prints the URL, and the one-shot
+`tunnel-url` sidecar runs it at startup. Re-print on demand with
+`docker compose run --rm --no-deps tunnel-url` (`--no-deps` — otherwise Compose restarts
+`cloudflared` and changes the URL you asked for).
+
+Both tunnel images track **`latest` on purpose**: services in `docker-compose.yaml` stay pinned
+because they ship, but dev-override services do not, and `cloudflared` in particular is a client of
+a moving remote service whose old clients Cloudflare deprecates server-side. Trade-off: `up` does
+not re-pull, so machines drift — `docker compose pull cloudflared` when it misbehaves.
+
+⚠️ **The tunnel URL is public and unauthenticated.** The sharpest consequence is billable, not
+informational: `/api/v1/chat` and `/api/v1/chat/stream` use `get_current_user_optional`
+(`app/routers/chat.py`), so **anonymous callers can drive the LLM on your `OPENROUTER_API_KEY`** —
+a leaked link means someone else's traffic on your balance. They are also **unthrottled**: the
+rate-limit and quota checks are gated behind `if user is not None`, so only the global daily cost
+limit applies, and that is opt-in. It also exposes the read-only surface
+(`/jaeger`, `/docs`, `/redoc`, `/openapi.json`). Random and unguessable is not access control; keep
+a spend cap on the OpenRouter key and rotate it if a link escapes. See `docs/quickstart.md`
+§ "Sharing a dev environment".
+
+`frontend/vite.config.ts` sets `server.allowedHosts: [".trycloudflare.com"]` — **required**, since
+Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request returns
+`Blocked request`. Leading dot = domain-suffix match, so it survives the hostname changing.
 
 ## Request flow (chat)
 
@@ -173,7 +203,7 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | Model | Table | Purpose / key fields |
 |---|---|---|
 | `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. `logo` holds an emoji **or** an uploaded-image URL (`/api/v1/agencies/{id}/logo?v=<hash>`). |
-| `User` | `users` | Account. `role` = `user|viewer|auditor|agency_owner|admin`, bcrypt `hashed_password`, reset-token fields. |
+| `User` | `users` | Account. `role` = `user|admin`, bcrypt `hashed_password`, reset-token fields. |
 | `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, per-key `rate_limit_rpm`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
 | `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
@@ -184,11 +214,10 @@ a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_s
 | `LlmRoute` | `llm_routes` | Maps a `purpose` (classification/synthesis/router/…) → provider + `model` (+ timeout). |
 | `LlmUsage` | `llm_usage` | Token/cost tracking per call, dimensioned by user/agency/conversation/api_key. |
 | `AuditLog` | `audit_logs` | Admin actions; denormalized `actor_email` survives user deletion. |
-| `Relationship` | `relationships` | ReBAC tuples: subject → `relation` (owner/viewer) → object (agency/conversation). |
 | `Setting` | `settings` | Runtime config overrides (key/value/type/group/is_secret), loaded at startup over env defaults. |
 | `PopularQuestion` | `popular_questions` | คำถามยอดนิยม shown on portal/chat. `text`, unique normalized `text_key` (dedupe + hidden-tombstone), nullable `agency` FK (SET_NULL), `source` (seed/auto/manual), `pinned`, `hidden`, `sort_order`, `score`. Published = not-hidden, pinned→sort_order→score→recency, capped `POPULAR_QUESTIONS_DISPLAY_COUNT` (8). |
 
-Migrations: **aerich** (`backend/migrations/`, 23 applied). **Never hand-carry `MODELS_STATE`** —
+Migrations: **aerich** (`backend/migrations/`, 24 applied). **Never hand-carry `MODELS_STATE`** —
 always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
 and the mandatory rules in `CLAUDE.md`.
 
@@ -199,17 +228,35 @@ and the mandatory rules in `CLAUDE.md`.
   allow anonymous, but a **bad `tcg_` key is rejected (401)** rather than silently degrading.
   Any **`GET` under `/api/v1/public/`** (e.g. `public_status`, `popular_questions`) is exempt from
   the role chokepoint for **every** role — the shared frontend `apiClient` attaches the JWT on all
-  requests, so an authenticated `user`/`viewer` hitting a public GET must not 403. Keep routers under
+  requests, so an authenticated `user` hitting a public GET must not 403. Keep routers under
   that prefix strictly read-only. The chokepoint also exempts one non-`/public/` path: **`GET
   /api/v1/agencies/{id}/logo`** (public agency-logo image; `_AGENCY_LOGO_GET_PATTERN` in
   `auth/dependencies.py`, GET-only so the `POST` upload stays guarded). Uploaded logos are stored on
   the `agency-uploads` named volume (backend-only mount, `Settings.UPLOAD_DIR`) as content-hashed
   files and served by the backend with `immutable` caching — see ADR 0003.
-- **Roles**: `user` (chat + architecture list), `viewer` (read-only operational/analytics pages),
-  `auditor` (read-only everything except Settings), `agency_owner` (self-service own agencies),
-  `admin` (full). Enforced by a **global chokepoint** `enforce_role_allowlist` (allowlists per role
-  in `dependencies.py`); `admin`/`agency_owner`/anonymous pass through to per-endpoint guards
-  (`require_admin`, `require_admin_or_auditor`, ReBAC in `authz.py`).
+- **Roles**: `user` (chat, architecture list, **own conversation history**, and **read-only**
+  Dashboard · Executive · Agency Health · Usage Heatmap · Usage Analytics · Feedback) and
+  `admin` (full), plus anonymous.
+  On `/history` a `user` sees and deletes **only their own** conversations: `list_conversations`
+  filters `user_id` for non-admins, and the three detail handlers apply an own-or-admin check.
+  `GET /conversations/{id}/messages` is allowlisted **GET-only** via
+  `_CONVERSATION_MESSAGES_GET_PATTERN`, deliberately separate from the all-verbs
+  `_CONVERSATION_PATH`, so a future write verb on that sub-resource does not inherit access.
+  `user` is read-only on those six pages: the allowlist grants only their six backing GETs
+  (`_BASIC_USER_GET_EXACT`), so writes like `POST /executive-summary/regenerate` stay admin-only
+  and the UI hides the control (`canRegenerate={isAdmin}`) rather than letting it 403.
+  **There is no public self-registration** — `POST /auth/register` and the `/signup` page were
+  removed, because self-serve signup plus these grants would have let anyone reach the
+  operational dashboards. Admins create accounts via `POST /api/v1/users`. Enforced by a
+  **global chokepoint** `enforce_role_allowlist` (`dependencies.py`) that is **deny-by-default**:
+  anonymous and unresolvable tokens pass through (so the endpoint's own auth returns 401 rather
+  than a misleading 403), `admin` passes through to per-endpoint `require_admin`, and **every
+  other role — including rows left behind by a not-yet-run migration — falls back to the
+  basic-user allowlist**. That fallback matters: an earlier design failed *open* for unknown
+  roles, which would have let a residual `auditor` mint an API key during a deploy window.
+  The `viewer`/`auditor`/`agency_owner` roles and the ReBAC/ABAC engine (`authz.py`,
+  `relationships` table) were removed 2026-07 — see
+  `docs/superpowers/specs/2026-07-23-rbac-simplification-design.md`.
 - **`POST /api/v1/responses` is a shared write** (`_is_shared_write`), allowed for every
   authenticated role exactly like `/chat` — it is a programmatic surface, not a privileged one.
   The **WebSocket on that same path is not covered by the HTTP chokepoint** (a WS route is a
@@ -242,17 +289,20 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `localStorage['auth_token']`; response interceptor unwraps the `{error:{message}}` envelope
   (with legacy `detail` fallback).
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
-  `/data-policy`, `/contact`, `/status`, `/login`, `/signup`, `/forgot-password`, `/reset-password`.
+  `/data-policy`, `/contact`, `/status`, `/login`, `/forgot-password`, `/reset-password`.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
   `/architecture` any role; `/settings`, `/llm-providers`, `/llm-routes`, `/popular-questions`
   admin-only). The portal/chat คำถามยอดนิยม block is fed by the anonymous
   `GET /public/popular-questions` (no more hardcoded `suggestedQuestions` in `mockData.ts`).
   The public portal's หน่วยงานที่เชื่อมต่อ block (`AgencyCards` + `usePublicAgencies`) is fed by
-  the anonymous `GET /public/agencies`.
+  the anonymous `GET /public/agencies`. In **chat mode** the portal switches to a `SidebarProvider`
+  layout (like the staff `AppLayout`) with `features/public/PublicSidebar` — a public, auth-free
+  mirror of `AppSidebar` showing a single **แชทใหม่** action (calls `useChat().reset`, no
+  navigation) plus the same หน่วยงานที่เชื่อมต่อ list. The portal header is stripped to just the
+  **เข้าสู่ระบบเจ้าหน้าที่** staff-login control, rendered as an outline pill `Button` (→ `/chat`).
 - **Agency detail** (`features/agencies/detail/`): tabs ภาพรวม · Health · **แก้ไข (Edit)** · Logs.
-  The Edit tab (`EditTab`) — shown only when **not** `isReadOnly` (admin/agency_owner; hidden from
-  auditor/viewer) — consolidates General/Connection/Routing editing, each a section with its own
-  save. It replaced the former standalone Connection/Routing tabs. The setup wizard
+  The Edit tab (`EditTab`) — shown to admins, the only role that can reach the page — consolidates
+  General/Connection/Routing editing, each a section with its own save. It replaced the former standalone Connection/Routing tabs. The setup wizard
   (`/agencies/{id}/setup`) still handles guided first-time setup + activation. Editing any
   connection-identity field on an **active/maintenance** agency demotes it to `draft` (see below +
   ADR `docs/adr/0002-agency-edit-connection-demote.md`); the Connection section confirms before
@@ -271,7 +321,12 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `shared/lib/summary.ts::stripSummaryPrefix` strips the duplicate summary prefix from
   the composed `answer` (upstream embeds summary → refs → `---` → sections in one string). The
   same pair renders stored summaries in the history detail dialog (`features/history/MessageItem`).
-  Message rating uses optimistic UI updates.
+  Message rating uses optimistic UI updates. The message list + typing indicator and the input bar
+  are shared components — `features/chat/ChatConversation` and `features/chat/ChatInput` — reused by
+  both the staff `ChatPage` and the public `PublicPortal` (chat mode) so the two stay in sync.
+  The staff sidebar's **แชทใหม่** item (`AppSidebar`) navigates to `/chat`; when already on `/chat`
+  it instead pushes `/chat?new=1`, and `ChatPage` resets the conversation on that `new` flag (then
+  clears it). The public portal's แชทใหม่ resets directly via `useChat().reset`.
 - **Serve**: multi-stage Dockerfile → `vite build` → static `dist/` served by nginx
   (`frontend/nginx.conf`, SPA fallback). Container healthcheck hits **`/healthz`** (not `/health`,
   which is a client route).
@@ -285,8 +340,8 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 - **Branches**: `main` = prod (protected, **PR-only**, deploys to prod), `dev` = dev env.
   Branch off `dev` → PR into `dev`; promote via PR `dev` → `main`. Never push `main` directly.
 - **`.github/workflows/test.yml`** (on PR / manual): parallel jobs — backend `pytest` (with redis
-  service), agent-proxy `go build && go test`, frontend `tsc --noEmit` + vitest coverage. **No E2E**
-  (removed from CI).
+  service), agent-proxy `go build && go test`, frontend `tsc --noEmit` + vitest coverage, and
+  `scripts` (`./scripts/tunnel-url_test.sh`). **No E2E** (removed from CI).
 - **`.github/workflows/deploy.yml`** (merged PR to `main` / manual): self-hosted runner, validates
   `JWT_SECRET`/`OPENROUTER_API_KEY`, writes prod `.env` (`ENV=production`), then
   `docker compose up -d --build --remove-orphans`. Deploy does **not** depend on the test job.
@@ -344,7 +399,24 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 - **TDD is mandatory** (red → green → refactor). Go changes: run `/use-modern-go`, then gofmt +
   `golangci-lint run --allow-parallel-runners` (repeat until clean).
 - Prefix all shell commands with **`rtk`** (token-optimizing proxy) — see `docs/rtk.md`.
-- Agencies router registers literal paths (`/mine`, `/mcp/discover`, `/parse-spec`) **before**
+- Agencies router registers literal paths (`/mcp/discover`, `/parse-spec`) **before**
   parametric `/{agency_id}` to avoid UUID wildcard shadowing (`routers/agencies/__init__.py`).
+  Note the flip side, now that `/mine` is gone: an unmatched literal falls through to
+  `/{agency_id}` and returns **422** (UUID validation), not 404.
 - Error responses use a unified envelope `{"error":{"code","message","retryable","upstream_status"}}`
   (`app/errors.py`); frontend unwraps it, with legacy `detail` fallback.
+- **Editing `frontend/vite.config.ts` does not affect a running stack.** The dev override's
+  `develop.watch` syncs only `frontend/src`, and `docker compose up` will not rebuild an existing
+  image — so config changes silently do nothing until `docker compose up -d --build frontend`.
+  This is what made the tunnel serve `Blocked request` despite `allowedHosts` being correct in
+  source; a unit test would not have caught it.
+- **Frontend tests cannot use the `node` environment, and cannot import `vite.config.ts`.**
+  `vitest.config.ts` applies `setupFiles: ["./src/test/setup.ts"]` to every file in that file's own
+  resolved environment, and `setup.ts` unconditionally touches `window` — so
+  `// @vitest-environment node` throws `ReferenceError: window is not defined`. Staying in jsdom
+  instead breaks differently: jsdom's realm does not share `Uint8Array` with Node's, so importing
+  `vite` crashes esbuild's cross-realm invariant, and jsdom's `URL` ignores a `file://` base, so
+  `new URL(..., import.meta.url)` + `readFileSync` fails too. Root cause is `jsdom@20` under Node
+  24. A regression test for `allowedHosts` was dropped for this reason (covered by the tunnel smoke
+  check instead); fixing `setup.ts` to tolerate a missing `window` is deferred to its own `chore/`
+  branch.

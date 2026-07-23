@@ -14,7 +14,6 @@ import {
   type PopularQuestionUpdate,
 } from "@/features/popular-questions/popularQuestionsApi";
 import { useAgencies } from "@/features/agencies/useAgencies";
-import { useAuth } from "@/features/auth/useAuth";
 import { PopularQuestionsList } from "./PopularQuestionsList";
 import { CreatePopularQuestionDialog } from "./CreatePopularQuestionDialog";
 import { EditPopularQuestionDialog } from "./EditPopularQuestionDialog";
@@ -24,7 +23,6 @@ const QUERY_KEY = ["popular-questions"];
 
 export default function PopularQuestionsPage() {
   const queryClient = useQueryClient();
-  const { isReadOnly } = useAuth();
 
   const { data: questions = [], isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -94,27 +92,25 @@ export default function PopularQuestionsPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">คำถามยอดนิยม</h2>
-        {!isReadOnly && (
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => regenerateMutation.mutate()}
-              disabled={regenerateMutation.isPending}
-            >
-              {regenerateMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-1" />
-              )}
-              สร้างใหม่ตอนนี้
-            </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              เพิ่มคำถาม
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => regenerateMutation.mutate()}
+            disabled={regenerateMutation.isPending}
+          >
+            {regenerateMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-1" />
+            )}
+            สร้างใหม่ตอนนี้
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            เพิ่มคำถาม
+          </Button>
+        </div>
       </div>
 
       {isLoading && (
@@ -126,7 +122,6 @@ export default function PopularQuestionsPage() {
       {!isLoading && (
         <PopularQuestionsList
           questions={questions}
-          isReadOnly={isReadOnly}
           onEdit={setEditTarget}
           onDelete={setDeleteTarget}
           onTogglePin={(q) => patchMutation.mutate({ id: q.id, body: { pinned: !q.pinned } })}

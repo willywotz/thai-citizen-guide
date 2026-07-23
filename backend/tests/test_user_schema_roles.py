@@ -1,16 +1,20 @@
-"""The user-management schema accepts the five supported roles."""
+"""The Role literal accepts only the two surviving roles."""
 import pytest
 from pydantic import ValidationError
 
 from app.schemas.user import UserCreate
 
 
-@pytest.mark.parametrize("role", ["user", "viewer", "auditor", "agency_owner", "admin"])
-def test_usercreate_accepts_supported_roles(role):
-    model = UserCreate(email="x@example.com", role=role)
-    assert model.role == role
+@pytest.mark.parametrize("role", ["user", "admin"])
+def test_supported_roles_accepted(role):
+    assert UserCreate(email="a@x.com", role=role).role == role
 
 
-def test_usercreate_rejects_unknown_role():
+@pytest.mark.parametrize("role", ["viewer", "auditor", "agency_owner"])
+def test_removed_roles_rejected(role):
     with pytest.raises(ValidationError):
-        UserCreate(email="x@example.com", role="superuser")
+        UserCreate(email="a@x.com", role=role)
+
+
+def test_role_defaults_to_user():
+    assert UserCreate(email="a@x.com").role == "user"

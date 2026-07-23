@@ -17,7 +17,6 @@ const ExecutivePage = lazy(() => import("@/features/executive/ExecutivePage"));
 const HealthPage = lazy(() => import("@/features/health/HealthPage"));
 const HeatmapPage = lazy(() => import("@/features/heatmap/HeatmapPage"));
 const AgenciesPage = lazy(() => import("@/features/agencies/AgenciesPage"));
-const MyAgenciesPage = lazy(() => import("@/features/agencies/MyAgenciesPage"));
 const AgencyDetailPage = lazy(() => import("@/features/agencies/detail/AgencyDetailPage"));
 const AgencyWizardPage = lazy(() => import("@/features/agencies/wizard/AgencyWizardPage"));
 const HistoryPage = lazy(() => import("@/features/history/HistoryPage"));
@@ -27,7 +26,6 @@ const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
 const InfoPage = lazy(() => import("@/features/public/InfoPage"));
 const StatusPage = lazy(() => import("@/features/status/StatusPage"));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
-const SignupPage = lazy(() => import("@/features/auth/SignupPage"));
 const ForgotPasswordPage = lazy(() => import("@/features/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("@/features/auth/ResetPasswordPage"));
 const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
@@ -73,7 +71,6 @@ const App = () => (
               <Route path="/contact" element={<InfoPage />} />
               <Route path="/status" element={<StatusPage />} />
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
@@ -81,39 +78,23 @@ const App = () => (
                 {/* Every authenticated role */}
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/executive" element={<ExecutivePage />} />
+                <Route path="/health" element={<HealthPage />} />
+                <Route path="/heatmap" element={<HeatmapPage />} />
+                <Route path="/usage" element={<UsageAnalyticsPage />} />
+                <Route path="/feedback" element={<FeedbackPage />} />
+                {/* Own conversation history — the API scopes non-admins to their own rows. */}
+                <Route path="/history" element={<HistoryPage />} />
 
-                {/* viewer + auditor + agency_owner + admin */}
-                <Route element={<ProtectedRoute allowedRoles={["viewer", "auditor", "agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/executive" element={<ExecutivePage />} />
-                  <Route path="/health" element={<HealthPage />} />
-                  <Route path="/heatmap" element={<HeatmapPage />} />
-                </Route>
-
-                {/* viewer + auditor + admin (no agency_owner) */}
-                <Route element={<ProtectedRoute allowedRoles={["viewer", "auditor", "admin"]}><Outlet /></ProtectedRoute>}>
-                  <Route path="/usage" element={<UsageAnalyticsPage />} />
-                  <Route path="/feedback" element={<FeedbackPage />} />
-                </Route>
-
-                {/* auditor (read-only) + agency_owner + admin */}
-                <Route element={<ProtectedRoute allowedRoles={["auditor", "agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
+                {/* admin only */}
+                <Route element={<ProtectedRoute allowedRoles={["admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/agencies" element={<AgenciesPage />} />
                   <Route path="/agencies/:id" element={<AgencyDetailPage />} />
-                  <Route path="/history" element={<HistoryPage />} />
                   <Route path="/connection-logs" element={<ConnectionLogsPage />} />
                   <Route path="/api-keys" element={<ApiKeysPage />} />
-                </Route>
-
-                {/* agency_owner + admin only (owner-personal / write flows) */}
-                <Route element={<ProtectedRoute allowedRoles={["agency_owner", "admin"]}><Outlet /></ProtectedRoute>}>
-                  <Route path="/my-agencies" element={<MyAgenciesPage />} />
                   <Route path="/agencies/new" element={<AgencyWizardPage />} />
                   <Route path="/agencies/:id/setup" element={<AgencyWizardPage />} />
-                </Route>
-
-                {/* auditor (read-only) + admin */}
-                <Route element={<ProtectedRoute allowedRoles={["auditor", "admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/users" element={<UsersPage />} />
                   <Route path="/audit-log" element={<AuditLogPage />} />
                 </Route>

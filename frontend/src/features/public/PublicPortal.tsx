@@ -1,9 +1,10 @@
-import { Send, Search, X, ArrowRight, ArrowLeft, Bot } from 'lucide-react';
+import { Send, Search, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
-import { ScrollArea } from '@/shared/components/ui/scroll-area';
-import { MessageBubble } from '@/features/chat/MessageBubble';
-import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
+import { SidebarProvider, SidebarTrigger } from '@/shared/components/ui/sidebar';
+import { ChatConversation } from '@/features/chat/ChatConversation';
+import { ChatInput } from '@/features/chat/ChatInput';
 import { LandingHero } from '@/features/public/LandingHero';
+import { PublicSidebar } from '@/features/public/PublicSidebar';
 import { SuggestedQuestions } from '@/features/public/SuggestedQuestions';
 import { AgencyCards } from '@/features/public/AgencyCards';
 import { InfoLinks } from '@/features/public/InfoLinks';
@@ -33,72 +34,50 @@ export default function PublicPortal() {
     reset();
   };
 
+  const loginButton = (
+    <Button asChild variant="outline" size="sm" className="rounded-full bg-white">
+      <a href="/chat">
+        เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
+      </a>
+    </Button>
+  );
+
+  if (chatMode) {
+    return (
+      <SidebarProvider>
+        <PublicSidebar agencies={publicAgencies ?? []} onNewChat={reset} />
+        <div className="flex-1 flex flex-col min-w-0 min-h-svh bg-background">
+          {/* Header */}
+          <header className="px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+            <div className="flex items-center gap-2.5">
+              <SidebarTrigger />
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleBack}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </div>
+            {loginButton}
+          </header>
+
+          <ChatConversation
+            messages={messages} isTyping={isTyping} isStreaming={isStreaming}
+            activeStepCount={activeStepCount} currentSteps={currentSteps}
+            streamingState={streamingState} scrollRef={scrollRef} onRate={handleRate} />
+          <ChatInput
+            input={input} setInput={setInput} isTyping={isTyping}
+            onSend={() => onSend()} onCancel={cancelStream} />
+        </div>
+      </SidebarProvider>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2.5">
-          {chatMode && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg mr-1" onClick={handleBack}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
-        </div>
-        <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
-          เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
-        </a>
+      <header className="px-6 py-3 flex items-center justify-end sticky top-0 z-10">
+        {loginButton}
       </header>
 
-      {chatMode ? (
-        <>
-          <ScrollArea className="flex-1 p-4">
-            <div className="max-w-3xl mx-auto">
-              {messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} onRate={handleRate} />
-              ))}
-              {isTyping && (
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>
-                  <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
-                    {isStreaming ? (
-                      <StreamingProgress state={streamingState} />
-                    ) : activeStepCount > 0 ? (
-                      <AgentStepDisplay steps={currentSteps} visibleCount={activeStepCount} />
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div ref={scrollRef} />
-            </div>
-          </ScrollArea>
-
-          <div className="border-t border-border bg-card p-3">
-            <div className="max-w-3xl mx-auto flex gap-2">
-              <input value={input} onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSend()}
-                placeholder="พิมพ์คำถามของคุณที่นี่..."
-                className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              {isTyping ? (
-                <Button onClick={cancelStream} size="icon" variant="outline" className="rounded-xl shrink-0" title="ยกเลิก">
-                  <X className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button onClick={() => onSend()} size="icon" className="rounded-xl shrink-0" disabled={!input.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
+      <>
           <main className="flex-1 flex flex-col items-center justify-center px-4 py-16">
             <LandingHero />
 
@@ -140,7 +119,6 @@ export default function PublicPortal() {
             </div>
           </footer>
         </>
-      )}
     </div>
   );
 }

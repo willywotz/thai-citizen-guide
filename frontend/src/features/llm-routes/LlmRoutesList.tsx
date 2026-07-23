@@ -4,12 +4,11 @@ import type { LlmRoute } from "./llmRouteApi";
 
 interface Props {
   routes: LlmRoute[];
-  isReadOnly: boolean;
   onEdit: (route: LlmRoute) => void;
   onDelete: (route: LlmRoute) => void;
 }
 
-export function LlmRoutesList({ routes, isReadOnly, onEdit, onDelete }: Props) {
+export function LlmRoutesList({ routes, onEdit, onDelete }: Props) {
   if (routes.length === 0) {
     return (
       <p className="text-center text-sm text-muted-foreground py-12">
@@ -47,24 +46,22 @@ export function LlmRoutesList({ routes, isReadOnly, onEdit, onDelete }: Props) {
                     : "ใช้ค่าเริ่มต้นของผู้ให้บริการ"}
                 </p>
               </div>
-              {!isReadOnly && (
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => onEdit(r)}
-                    className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label="แก้ไข"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onDelete(r)}
-                    className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                    aria-label="ลบ"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => onEdit(r)}
+                  className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="แก้ไข"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => onDelete(r)}
+                  className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  aria-label="ลบ"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </CardContent>
         </Card>

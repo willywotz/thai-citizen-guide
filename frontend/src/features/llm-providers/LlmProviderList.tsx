@@ -4,12 +4,11 @@ import type { LlmProvider } from "./llmProviderApi";
 
 interface Props {
   providers: LlmProvider[];
-  isReadOnly: boolean;
   onEdit: (provider: LlmProvider) => void;
   onDelete: (provider: LlmProvider) => void;
 }
 
-export function LlmProviderList({ providers, isReadOnly, onEdit, onDelete }: Props) {
+export function LlmProviderList({ providers, onEdit, onDelete }: Props) {
   if (providers.length === 0) {
     return (
       <p className="text-center text-sm text-muted-foreground py-12">
@@ -54,24 +53,22 @@ export function LlmProviderList({ providers, isReadOnly, onEdit, onDelete }: Pro
                   {p.request_usage ? "เปิด" : "ปิด"}
                 </p>
               </div>
-              {!isReadOnly && (
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => onEdit(p)}
-                    className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label="แก้ไข"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onDelete(p)}
-                    className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                    aria-label="ลบ"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => onEdit(p)}
+                  className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="แก้ไข"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => onDelete(p)}
+                  className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  aria-label="ลบ"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </CardContent>
         </Card>

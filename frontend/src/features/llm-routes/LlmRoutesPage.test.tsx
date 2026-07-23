@@ -11,9 +11,6 @@ import type { LlmProvider } from "@/features/llm-providers/llmProviderApi";
 // Mocks
 // ---------------------------------------------------------------------------
 
-const auth = { isReadOnly: false };
-vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
-
 const mockListRoutes = vi.fn();
 const mockCreateRoute = vi.fn();
 const mockUpdateRoute = vi.fn();
@@ -84,7 +81,6 @@ function renderPage() {
 
 describe("LlmRoutesPage create button", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     mockListRoutes.mockResolvedValue({ data: [], total: 0 });
     mockListPurposes.mockResolvedValue({ data: ["chat", "classification"] });
     mockListProviders.mockResolvedValue({ data: [makeProvider()], total: 1 });
@@ -96,18 +92,10 @@ describe("LlmRoutesPage create button", () => {
     renderPage();
     expect(await screen.findByText("เพิ่มเส้นทาง")).toBeInTheDocument();
   });
-
-  it("hides the create button for a read-only role", async () => {
-    auth.isReadOnly = true;
-    renderPage();
-    await screen.findByText("ยังไม่มีเส้นทาง LLM กรุณาเพิ่มใหม่");
-    expect(screen.queryByText("เพิ่มเส้นทาง")).not.toBeInTheDocument();
-  });
 });
 
 describe("LlmRoutesPage list rendering", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     mockListPurposes.mockResolvedValue({ data: ["chat", "classification"] });
     mockListProviders.mockResolvedValue({ data: [makeProvider()], total: 1 });
   });
@@ -134,20 +122,10 @@ describe("LlmRoutesPage list rendering", () => {
     expect(screen.getAllByText(/OpenAI · gpt-4o/).length).toBeGreaterThan(0);
     expect(screen.getByText("ปิดใช้งาน")).toBeInTheDocument();
   });
-
-  it("hides action buttons for read-only users", async () => {
-    auth.isReadOnly = true;
-    mockListRoutes.mockResolvedValue({ data: [makeRoute()], total: 1 });
-    renderPage();
-    await screen.findByText("chat");
-    expect(screen.queryByRole("button", { name: "แก้ไข" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "ลบ" })).not.toBeInTheDocument();
-  });
 });
 
 describe("LlmRoutesPage create flow", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     mockListRoutes.mockResolvedValue({ data: [], total: 0 });
     mockListPurposes.mockResolvedValue({ data: ["chat", "classification"] });
     mockListProviders.mockResolvedValue({ data: [makeProvider({ id: "p1", name: "OpenAI" })], total: 1 });
@@ -224,7 +202,6 @@ describe("LlmRoutesPage create flow", () => {
 
 describe("LlmRoutesPage edit flow", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     mockListPurposes.mockResolvedValue({ data: ["chat", "classification"] });
     mockListProviders.mockResolvedValue({
       data: [
@@ -280,7 +257,6 @@ describe("LlmRoutesPage edit flow", () => {
 
 describe("LlmRoutesPage delete flow", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     mockListPurposes.mockResolvedValue({ data: ["chat", "classification"] });
     mockListProviders.mockResolvedValue({ data: [makeProvider()], total: 1 });
   });

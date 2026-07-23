@@ -2,14 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { server } from "@/mocks/server";
 import { resetMockData } from "@/mocks/fixtures";
 import PopularQuestionsPage from "./PopularQuestionsPage";
-
-const auth = { isReadOnly: false };
-vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -19,10 +16,6 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
-
-beforeEach(() => {
-  auth.isReadOnly = false;
-});
 
 afterEach(() => resetMockData());
 
@@ -34,14 +27,6 @@ describe("PopularQuestionsPage list rendering", () => {
     expect(screen.getByText("ตั้งต้น")).toBeInTheDocument();
     expect(screen.getByText("อัตโนมัติ")).toBeInTheDocument();
     expect(screen.getByText("กำหนดเอง")).toBeInTheDocument();
-  });
-
-  it("hides action buttons for a read-only role", async () => {
-    auth.isReadOnly = true;
-    renderPage();
-    await screen.findByText("สอบถามเรื่องการลดหย่อนภาษี 2568");
-    expect(screen.queryByRole("button", { name: "แก้ไข" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "เพิ่มคำถาม" })).not.toBeInTheDocument();
   });
 });
 

@@ -147,9 +147,8 @@ app.include_router(llm_router.router, prefix="/api/v1")
 # NOTE: enforce_role_allowlist (an app-level FastAPI dependency) does NOT cover
 # this mount. Mounted sub-apps (app.mount) bypass FastAPI's dependency
 # injection by design. MCP auth is enforced in app/mcp/server.py via API key:
-# any active user is admitted with no role check, so read-only roles (viewer,
-# auditor) may use MCP chat. Do not "fix" this by gating the mount without
-# revisiting that intent — see backend/tests/test_mcp_role_access.py.
+# any active user is admitted with no role check. Do not "fix" this by gating
+# the mount without revisiting that intent — see backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------
 
 # MCP server — stateless streamable-HTTP sub-app

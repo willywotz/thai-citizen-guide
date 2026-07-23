@@ -2,7 +2,6 @@ import { memo } from "react";
 import { ArrowRight, MoreVertical, Pencil, Trash2, Wifi } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { useAuth } from "@/features/auth/useAuth";
 import { AgencyLogo } from "@/shared/components/AgencyLogo";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -51,7 +50,6 @@ export const AgencyCard = memo(function AgencyCard({
   manageActions = true,
 }: Props) {
   const navigate = useNavigate();
-  const { isReadOnly } = useAuth();
   const showHealth = agency.status === "active" || agency.status === "maintenance";
   const uptime = agency.health.uptime24h;
 
@@ -83,43 +81,41 @@ export const AgencyCard = memo(function AgencyCard({
               <p className="text-xs text-muted-foreground mt-0.5">{agency.description}</p>
             </div>
           </div>
-          {!isReadOnly && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="actions" onClick={(e) => e.stopPropagation()}>
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/agencies/${agency.id}?tab=edit`); }}>
-                  <Pencil className="h-3.5 w-3.5 mr-2" /> แก้ไข
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTest(agency); }}>
-                  <Wifi className="h-3.5 w-3.5 mr-2" /> ทดสอบการเชื่อมต่อ
-                </DropdownMenuItem>
-                {manageActions && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {legalTransitions(agency.status).map((to) => (
-                      <DropdownMenuItem
-                        key={to}
-                        onClick={(e) => { e.stopPropagation(); onStatusChange?.(agency, to); }}
-                      >
-                        {TRANSITION_LABEL[to]}
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="actions" onClick={(e) => e.stopPropagation()}>
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/agencies/${agency.id}?tab=edit`); }}>
+                <Pencil className="h-3.5 w-3.5 mr-2" /> แก้ไข
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTest(agency); }}>
+                <Wifi className="h-3.5 w-3.5 mr-2" /> ทดสอบการเชื่อมต่อ
+              </DropdownMenuItem>
+              {manageActions && (
+                <>
+                  <DropdownMenuSeparator />
+                  {legalTransitions(agency.status).map((to) => (
                     <DropdownMenuItem
-                      onClick={(e) => { e.stopPropagation(); onDelete?.(agency); }}
-                      className="text-destructive"
+                      key={to}
+                      onClick={(e) => { e.stopPropagation(); onStatusChange?.(agency, to); }}
                     >
-                      <Trash2 className="h-3.5 w-3.5 mr-2" /> ลบ
+                      {TRANSITION_LABEL[to]}
                     </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={(e) => { e.stopPropagation(); onDelete?.(agency); }}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" /> ลบ
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -158,7 +154,7 @@ export const AgencyCard = memo(function AgencyCard({
           </div>
         )}
 
-        {!isReadOnly && agency.status === "draft" && (
+        {agency.status === "draft" && (
           <Link
             to={`/agencies/${agency.id}/setup`}
             onClick={(e) => e.stopPropagation()}

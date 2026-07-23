@@ -1,4 +1,5 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BadgeCheck, BarChart3, ScrollText, Cpu, Route, Sparkles } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BarChart3, ScrollText, Cpu, Route, Sparkles } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/shared/components/NavLink";
 import {
   Sidebar,
@@ -18,13 +19,12 @@ import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 
 const navItems = [
-  { title: "แชท", url: "/chat", icon: MessageSquare },
+  { title: "แชทใหม่", url: "/chat", icon: MessageSquare },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Executive", url: "/executive", icon: Briefcase },
   { title: "Agency Health", url: "/health", icon: Activity },
   { title: "Usage Heatmap", url: "/heatmap", icon: Flame },
   { title: "จัดการหน่วยงาน", url: "/agencies", icon: Building2 },
-  { title: "หน่วยงานของฉัน", url: "/my-agencies", icon: BadgeCheck },
   { title: "ประวัติการสนทนา", url: "/history", icon: History },
   { title: "ประวัติการเชื่อมต่อ", url: "/connection-logs", icon: Activity },
   { title: "Architecture", url: "/architecture", icon: Network },
@@ -43,7 +43,18 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { data: agencies = [] } = useAgencies();
   const { user, signOut } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const collapsed = state === "collapsed";
+
+  // Clicking แชทใหม่ while already on /chat starts a fresh conversation
+  // (ChatPage resets on the ?new flag) instead of a no-op same-route nav.
+  const handleNavClick = (url: string) => (e: React.MouseEvent) => {
+    if (url === "/chat" && location.pathname === "/chat") {
+      e.preventDefault();
+      navigate("/chat?new=1");
+    }
+  };
 
   const visibleNavItems = user
     ? navItems.filter((item) => canAccess(user.role, item.url))
@@ -71,7 +82,7 @@ export function AppSidebar() {
 
         {/* Navigation */}
         <SidebarGroup>
-          <SidebarGroupLabel>เมนูหลัก</SidebarGroupLabel>
+          {/* <SidebarGroupLabel>เมนูหลัก</SidebarGroupLabel> */}
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleNavItems.map((item) => (
@@ -80,6 +91,7 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/chat"}
+                      onClick={handleNavClick(item.url)}
                       className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                     >

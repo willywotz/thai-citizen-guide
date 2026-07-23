@@ -4,7 +4,6 @@ SQLite-portable (db fixture). Auth is mocked via dependency_overrides.
 """
 import uuid
 from datetime import timedelta
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -80,7 +79,7 @@ async def test_conversation_messages_expose_summary_fields():
     """The history detail dialog needs the stored summary to render its card."""
     from app.models.conversation import Conversation, Message
     from app.routers.conversations import get_conversation_messages
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import MagicMock
 
     conv = await Conversation.create(status="success")
     await Message.create(
@@ -89,8 +88,9 @@ async def test_conversation_messages_expose_summary_fields():
         summary_references=[{"number": 1, "agency_id": "land", "agency_name": "กรมที่ดิน", "url": None}],
     )
 
-    with patch("app.routers.conversations.authorize_or_403", new=AsyncMock(return_value=None)):
-        rows = await get_conversation_messages(conv.id, MagicMock())
+    # MagicMock's `.is_admin` is a truthy Mock, so the ownership check
+    # short-circuits and passes without needing to patch the check away.
+    rows = await get_conversation_messages(conv.id, MagicMock())
 
     assert rows[0]["summary"] == "สรุป [1]"
     assert rows[0]["summary_references"][0]["number"] == 1

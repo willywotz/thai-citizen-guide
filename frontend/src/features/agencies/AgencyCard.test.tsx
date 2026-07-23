@@ -1,15 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { mapRowToAgency } from "@/shared/types/agency";
 import { makeFixtureAgencies } from "@/mocks/fixtures";
 
 import { AgencyCard } from "./AgencyCard";
-
-const auth = { isReadOnly: false };
-vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
 
 const agencies = makeFixtureAgencies().map(mapRowToAgency);
 const active = agencies.find((a) => a.status === "active")!;
@@ -28,10 +25,6 @@ function renderCard(agency: typeof active) {
 }
 
 describe("AgencyCard write controls", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   it("renders the actions menu for a writer", () => {
     render(
       <MemoryRouter>
@@ -40,23 +33,9 @@ describe("AgencyCard write controls", () => {
     );
     expect(screen.getByLabelText("actions")).toBeInTheDocument();
   });
-
-  it("hides the actions menu for a read-only role", () => {
-    auth.isReadOnly = true;
-    render(
-      <MemoryRouter>
-        <AgencyCard agency={active} onTest={noop} onDelete={noop} onStatusChange={noop} testing={false} testResult={null} />
-      </MemoryRouter>,
-    );
-    expect(screen.queryByLabelText("actions")).not.toBeInTheDocument();
-  });
 });
 
 describe("AgencyCard", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   it("shows health stats for an active agency", () => {
     renderCard(active);
     expect(screen.getByText("Active")).toBeInTheDocument();

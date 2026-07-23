@@ -26,7 +26,6 @@ const SOURCE_VARIANT: Record<PopularQuestionSource, "secondary" | "default" | "o
 
 interface Props {
   questions: PopularQuestionAdmin[];
-  isReadOnly: boolean;
   onEdit: (question: PopularQuestionAdmin) => void;
   onDelete: (question: PopularQuestionAdmin) => void;
   onTogglePin: (question: PopularQuestionAdmin) => void;
@@ -35,7 +34,7 @@ interface Props {
 }
 
 export function PopularQuestionsList({
-  questions, isReadOnly, onEdit, onDelete, onTogglePin, onToggleHidden, onReorder,
+  questions, onEdit, onDelete, onTogglePin, onToggleHidden, onReorder,
 }: Props) {
   if (questions.length === 0) {
     return (
@@ -57,7 +56,7 @@ export function PopularQuestionsList({
             <TableHead>ปักหมุด</TableHead>
             <TableHead>สถานะ</TableHead>
             <TableHead>ลำดับ</TableHead>
-            {!isReadOnly && <TableHead className="text-right">การจัดการ</TableHead>}
+            <TableHead className="text-right">การจัดการ</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -83,7 +82,6 @@ export function PopularQuestionsList({
               <TableCell>
                 <button
                   onClick={() => onTogglePin(q)}
-                  disabled={isReadOnly}
                   aria-label={q.pinned ? "เลิกปักหมุด" : "ปักหมุด"}
                   aria-pressed={q.pinned}
                   className={cn(
@@ -97,7 +95,6 @@ export function PopularQuestionsList({
               <TableCell>
                 <button
                   onClick={() => onToggleHidden(q)}
-                  disabled={isReadOnly}
                   aria-label={q.hidden ? "แสดง" : "ซ่อน"}
                   className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
                 >
@@ -109,7 +106,6 @@ export function PopularQuestionsList({
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => onReorder(q, -1)}
-                    disabled={isReadOnly}
                     aria-label="เลื่อนขึ้น"
                     className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -118,7 +114,6 @@ export function PopularQuestionsList({
                   <span className="text-xs tabular-nums w-4 text-center">{q.sort_order}</span>
                   <button
                     onClick={() => onReorder(q, 1)}
-                    disabled={isReadOnly}
                     aria-label="เลื่อนลง"
                     className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -126,26 +121,24 @@ export function PopularQuestionsList({
                   </button>
                 </div>
               </TableCell>
-              {!isReadOnly && (
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => onEdit(q)}
-                      className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label="แก้ไข"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => onDelete(q)}
-                      className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                      aria-label="ลบ"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </TableCell>
-              )}
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    onClick={() => onEdit(q)}
+                    className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="แก้ไข"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onDelete(q)}
+                    className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    aria-label="ลบ"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
