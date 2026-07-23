@@ -71,11 +71,6 @@ class Settings(BaseSettings):
     CHAT_STREAM_VERSION: str = "v5"        # "v4" | "v5" — upstream for POST /chat/stream
     MCP_ENDPOINT_URL: str = "http://185.84.161.145/mcp/"
 
-    # ── MCP ──────────────────────────────────────────────────────────────────
-    MCP_CLIENT_URL: str = "http://localhost:8080/mcp/"
-    MCP_PROTOCOL_VERSION: str = "2024-11-05"
-    MCP_CLIENT_VERSION: str = "1.0"
-
     # ── Chat ─────────────────────────────────────────────────────────────────
     A2A_DISPATCH_TIMEOUT: int = 30
     V4_STREAM_TIMEOUT: float = 300.0
@@ -157,9 +152,8 @@ def assert_production_secrets(s: "Settings") -> None:
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
     "Similarity": ["SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_CACHE_ENABLED"],
-    "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
+    # "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
     "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "ONECHAT_V5_URL", "CHAT_STREAM_VERSION", "MCP_ENDPOINT_URL"],
-    "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
     "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS", "RESPONSES_WS_MAX_CONNECTIONS", "RESPONSES_WS_MAX_DURATION_SECONDS"],
     "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
 }
