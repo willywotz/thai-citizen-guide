@@ -236,7 +236,7 @@ transport deliver the same object as the `response` field of the terminal
 |---|---|
 | `id` | `resp_<assistant message uuid>` |
 | `status` | `"in_progress"` (on `response.created`), `"completed"`, or `"failed"` |
-| `output` / `output_text` | `output` is empty and `output_text` is `""` until the answer arrives; `output_text` is the composed `answer` byte-for-byte, including any v5 summary prefix — no client-side stripping |
+| `output` / `output_text` | `output` is empty and `output_text` is `""` until the answer arrives; `output_text` is the composed `answer`, including any v5 summary prefix — no summary-side stripping, though leading/trailing whitespace is trimmed |
 | `usage` | Always the zero object — see § 6 |
 | `portal` | Non-standard top-level block — see § 6 |
 | `error` | Present only on a failed response — see § 7 |
@@ -338,7 +338,7 @@ Source: the `"type": "response.*"` literals in `ResponseAccumulator` in
 **Two error timings, not one:**
 
 - **Before the stream starts** — request-validation failures (unknown `model`, unknown
-  `previous_response_id`, empty `input`, rate limit, quota) are detected in the prelude of
+  `previous_response_id`, empty `input`) are detected in the prelude of
   `run_response()`, before any bytes are sent. They are returned as a normal HTTP error response
   with the JSON error envelope (§ 7), **not** as an SSE event, even when `stream: true` was
   requested — HTTP status and headers are already committed by the time an SSE body iterator
@@ -391,8 +391,8 @@ Source: `ResponseAccumulator._response_body`, `_answer_events` in
 { "error": { "message": "...", "type": "invalid_request_error", "param": null, "code": null } }
 ```
 
-`type` is `"invalid_request_error"` for client errors, `"rate_limit_error"` for rate/quota
-errors, and `"server_error"` for unexpected 5xx failures. This router uses this shape instead
+`type` is `"invalid_request_error"` for client errors and `"server_error"` for unexpected 5xx
+failures. This router uses this shape instead
 of the portal's `app/errors.py` envelope, via a dedicated exception handler scoped to
 `/api/v1/responses`.
 
@@ -404,8 +404,6 @@ Source: `ResponsesApiError.envelope()` in `app/services/responses/errors.py`.
 |---|---|---|---|
 | `previous_response_not_found` | 404 | `invalid_request_error` | `app/services/responses/continuity.py` |
 | `conversation_not_found` | 404 | `invalid_request_error` | `app/services/responses/session.py`, `app/routers/responses.py` |
-| `rate_limit_exceeded` | 429 | `rate_limit_error` | `app/routers/responses.py` (`_enforce_limits`) |
-| `quota_exceeded` | 429 | `rate_limit_error` | `app/routers/responses.py` (`_enforce_limits`) |
 | `websocket_connection_limit_reached` | — (WS close, not an HTTP status) | `invalid_request_error` | `app/routers/responses.py` (`_connection_limit_frame`) |
 | `no_answer` | 502 | `server_error` | `app/routers/responses.py` (`create_response`) — the non-streaming path ran to completion without a `response.completed` or `response.failed` |
 
@@ -494,14 +492,14 @@ exception inside `_generate` is logged server-side and reported as `server_error
 leaking its message.
 
 **Connection limit.** The server closes the socket after
-`RESPONSES_WS_MAX_DURATION_SECONDS` (default `3600`, 60 minutes), sending this frame first
-and then closing with code `1000`:
+`RESPONSES_WS_MAX_DURATION_SECONDS` (default `900`, 15 minutes), sending this frame first
+and then closing with code `1000`. The message interpolates the configured duration in seconds:
 
 ```json
-{ "type": "error", "error": { "message": "Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue.", "type": "invalid_request_error", "param": null, "code": "websocket_connection_limit_reached" } }
+{ "type": "error", "error": { "message": "Responses websocket connection limit reached (900 seconds). Create a new websocket connection to continue.", "type": "invalid_request_error", "param": null, "code": "websocket_connection_limit_reached" } }
 ```
 
-A new handshake beyond `RESPONSES_WS_MAX_CONNECTIONS` (default `100`) concurrent sockets is
+A new handshake beyond `RESPONSES_WS_MAX_CONNECTIONS` (default `1024`) concurrent sockets is
 refused at `accept()` time with WebSocket close code `1013` ("try again later") — no frame is
 sent, since the connection was never accepted.
 
