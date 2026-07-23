@@ -82,14 +82,10 @@ async def test_user_surface_is_exactly_this(db):
         ("DELETE", f"/api/v1/conversations/{_SAMPLE_ID}"),
         # History page expands a conversation; ownership-scoped in the handler.
         ("GET", f"/api/v1/conversations/{_SAMPLE_ID}/messages"),
-        # Read-only ops dashboards: Dashboard, Executive, Agency Health, Usage
-        # Heatmap, Usage Analytics, Feedback.
-        ("GET", "/api/v1/dashboard/stats"),
-        ("GET", "/api/v1/executive-summary"),
-        ("GET", "/api/v1/agency-health"),
-        ("GET", "/api/v1/usage-heatmap"),
-        ("GET", "/api/v1/insight/usage"),
-        ("GET", "/api/v1/feedback/stats"),
+        # NOTE: the six read-only ops dashboards (dashboard/stats, executive-summary,
+        # agency-health, usage-heatmap, insight/usage, feedback/stats) were moved to
+        # `staff`-only in the staff-role split — a plain `user` can no longer reach
+        # them. Their staff access is pinned in test_staff_allowlist.py.
     }
     # Every /auth/* route and every public GET is also reachable; enumerate them
     # from the route table so new ones are picked up rather than silently missed.
