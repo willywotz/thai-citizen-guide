@@ -208,7 +208,7 @@ is cached (~30s) and invalidated on any provider/route mutation.
 | Model | Table | Purpose / key fields |
 |---|---|---|
 | `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. `logo` holds an emoji **or** an uploaded-image URL (`/api/v1/agencies/{id}/logo?v=<hash>`). |
-| `User` | `users` | Account. `role` = `user|staff|admin`, bcrypt `hashed_password`, reset-token fields. |
+| `User` | `users` | Account. `role` = `user|staff|admin`, bcrypt `hashed_password`. |
 | `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
 | `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
@@ -307,7 +307,14 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `localStorage['auth_token']`; response interceptor unwraps the `{error:{message}}` envelope
   (with legacy `detail` fallback).
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
-  `/data-policy`, `/contact`, `/status`, `/login`, `/forgot-password`, `/reset-password`.
+  `/data-policy`, `/contact`, `/status`, `/login`. There is no password-reset or email-invite
+  flow — admins create users with an initial password (`POST /users`) and can change any user's
+  password via `PATCH /users/{id}` (optional `password` field); login is the only credential
+  entry point. Any authenticated user changes their own password via
+  `POST /auth/change-password` (requires the current password) — reached from the key-icon
+  button in the sidebar user section (`ChangePasswordDialog`). All masked fields (passwords and
+  secret API keys) use the shared `shared/components/ui/password-input` `PasswordInput`, which
+  adds an eye-icon show/hide toggle.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
   `/architecture` any role; `/popular-questions` admin-only). **Seven admin pages are merged into a
   tabbed Settings area** `features/settings/SettingsLayout` at `/settings`: System settings, LLM,

@@ -5,7 +5,7 @@ import {
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { Switch } from '@/shared/components/ui/switch';
+import { PasswordInput } from '@/shared/components/ui/password-input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/shared/components/ui/select';
@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import type { ManagedUser, UserRole } from './userApi';
 import { ROLE_LABEL, ROLE_ORDER } from './roleLabels';
 import { useCreateUser, useUpdateUser } from './useUsers';
-import { validateCreateMode } from './userForm';
+import { validatePassword } from './userForm';
 
 interface Props {
   open: boolean;
@@ -30,7 +30,6 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<UserRole>('user');
-  const [sendInvite, setSendInvite] = useState(false);
   const [password, setPassword] = useState('');
 
   useEffect(() => {
@@ -38,7 +37,6 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
       setEmail(user?.email ?? '');
       setDisplayName(user?.displayName ?? '');
       setRole(user?.role ?? 'user');
-      setSendInvite(false);
       setPassword('');
     }
   }, [open, user]);
@@ -46,22 +44,25 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
   async function handleSubmit() {
     try {
       if (isEdit && user) {
-        await updateMut.mutateAsync({ id: user.id, payload: { display_name: displayName || null, role } });
+        if (password) {
+          const err = validatePassword(password);
+          if (err) { toast.error(err); return; }
+        }
+        await updateMut.mutateAsync({
+          id: user.id,
+          payload: { display_name: displayName || null, role, ...(password ? { password } : {}) },
+        });
         toast.success('อัปเดตผู้ใช้เรียบร้อยแล้ว');
       } else {
-        const err = validateCreateMode({ sendInvite, password });
+        const err = validatePassword(password);
         if (err) { toast.error(err); return; }
-        const res = await createMut.mutateAsync({
+        await createMut.mutateAsync({
           email,
           role,
           display_name: displayName || null,
-          ...(sendInvite ? { send_invite: true } : { password }),
+          password,
         });
-        if (res.reset_token) {
-          toast.message('สร้างผู้ใช้แล้ว — ส่งอีเมลไม่สำเร็จ', { description: `Reset token: ${res.reset_token}` });
-        } else {
-          toast.success(sendInvite ? 'สร้างผู้ใช้และส่งคำเชิญแล้ว' : 'สร้างผู้ใช้เรียบร้อยแล้ว');
-        }
+        toast.success('สร้างผู้ใช้เรียบร้อยแล้ว');
       }
       onOpenChange(false);
     } catch (e) {
@@ -102,21 +103,12 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
             </Select>
           </div>
 
-          {!isEdit && (
-            <>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="sendInvite">ส่งคำเชิญทางอีเมล</Label>
-                <Switch id="sendInvite" checked={sendInvite} onCheckedChange={setSendInvite} />
-              </div>
-              {!sendInvite && (
-                <div className="space-y-2">
-                  <Label htmlFor="password">รหัสผ่านเริ่มต้น</Label>
-                  <Input id="password" type="password" value={password}
-                    onChange={(e) => setPassword(e.target.value)} />
-                </div>
-              )}
-            </>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="password">{isEdit ? 'รหัสผ่านใหม่ (เว้นว่างไว้หากไม่เปลี่ยน)' : 'รหัสผ่านเริ่มต้น'}</Label>
+            <PasswordInput id="password" value={password}
+              autoComplete="new-password"
+              onChange={(e) => setPassword(e.target.value)} />
+          </div>
         </div>
 
         <DialogFooter>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/shared/lib/apiClient";
 import { useAuth, type AuthUser } from "@/features/auth/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { PasswordInput } from "@/shared/components/ui/password-input";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
 
@@ -66,15 +67,9 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">รหัสผ่าน</Label>
-                <Link to="/forgot-password" className="text-xs text-primary hover:underline">
-                  ลืมรหัสผ่าน?
-                </Link>
-              </div>
-              <Input
+              <Label htmlFor="password">รหัสผ่าน</Label>
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -23,13 +23,13 @@ export interface CreateUserPayload {
   email: string;
   role: UserRole;
   display_name?: string | null;
-  password?: string;
-  send_invite?: boolean;
+  password: string;
 }
 
 export interface UpdateUserPayload {
   display_name?: string | null;
   role?: UserRole;
+  password?: string;
 }
 
 export async function listUsers(params: UserListParams): Promise<ManagedUser[]> {
@@ -37,8 +37,8 @@ export async function listUsers(params: UserListParams): Promise<ManagedUser[]> 
   return res.data;
 }
 
-export async function createUser(payload: CreateUserPayload): Promise<{ user: ManagedUser; email_sent?: boolean; reset_token?: string }> {
-  return api.post<{ user: ManagedUser; email_sent?: boolean; reset_token?: string }>('/api/v1/users', payload);
+export async function createUser(payload: CreateUserPayload): Promise<{ user: ManagedUser }> {
+  return api.post<{ user: ManagedUser }>('/api/v1/users', payload);
 }
 
 export async function updateUser(id: string, payload: UpdateUserPayload): Promise<ManagedUser> {

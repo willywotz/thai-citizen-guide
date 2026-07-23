@@ -18,10 +18,6 @@ class User(Model):
     avatar_url = fields.CharField(max_length=500, null=True)
     is_active = fields.BooleanField(default=True)
 
-    # Password-reset token (stored as a short-lived secret)
-    reset_token = fields.CharField(max_length=255, null=True)
-    reset_token_expires = fields.DatetimeField(null=True)
-
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

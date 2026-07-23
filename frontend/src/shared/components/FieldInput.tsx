@@ -1,4 +1,5 @@
 import { Input } from "@/shared/components/ui/input";
+import { PasswordInput } from "@/shared/components/ui/password-input";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import type { SettingField } from "@/shared/types/settings";
@@ -14,8 +15,7 @@ interface FieldInputProps {
 export function FieldInput({ field, value, onChange }: FieldInputProps) {
   if (field.is_secret) {
     return (
-      <Input
-        type="password"
+      <PasswordInput
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={MASK}

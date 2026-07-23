@@ -8,28 +8,19 @@ Endpoints
 ---------
   POST  /auth/login             Sign in → returns access_token
   GET   /auth/me                Return the currently authenticated user
-  POST  /auth/forgot-password   Request a password-reset token
-  POST  /auth/reset-password    Set a new password using the reset token
   PATCH /auth/me                Update display_name / avatar_url
+  POST  /auth/change-password   Change your own password
 """
 
 from __future__ import annotations
-
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
-from app.config import settings
-from app.auth.security import (
-    create_access_token,
-    generate_reset_token,
-    hash_password,
-    reset_token_expiry,
-    verify_password,
-)
+from app.auth.security import create_access_token, verify_password
+from app.services.user import hash_new_password
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -43,18 +34,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
-
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
-
 class UpdateProfileRequest(BaseModel):
     display_name: str | None = None
     avatar_url: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 def _user_dict(user: User) -> dict:
@@ -116,49 +103,17 @@ async def update_me(
 
 
 # ---------------------------------------------------------------------------
-# Forgot password — generate reset token
+# Change own password
 # ---------------------------------------------------------------------------
 
-@router.post("/forgot-password", summary="Request a password-reset token")
-async def forgot_password(body: ForgotPasswordRequest) -> dict:
-    user = await User.filter(email=body.email, is_active=True).first()
+@router.post("/change-password", summary="Change your own password")
+async def change_password(
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+) -> dict:
+    if not verify_password(body.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="รหัสผ่านปัจจุบันไม่ถูกต้อง")
 
-    # Always return 200 to avoid email enumeration
-    if not user:
-        return {"message": "หากอีเมลนี้มีอยู่ในระบบ คุณจะได้รับลิงก์รีเซ็ตรหัสผ่าน"}
-
-    token = generate_reset_token()
-    user.reset_token = token
-    user.reset_token_expires = reset_token_expiry()
-    await user.save(update_fields=["reset_token", "reset_token_expires"])
-
-    response: dict = {"message": "สร้าง token รีเซ็ตรหัสผ่านเรียบร้อยแล้ว", "email_sent": False}
-    if settings.EXPOSE_PASSWORD_RESET_TOKEN:
-        response["reset_token"] = token
-    return response
-
-
-# ---------------------------------------------------------------------------
-# Reset password — consume the token
-# ---------------------------------------------------------------------------
-
-@router.post("/reset-password", summary="Set a new password using the reset token")
-async def reset_password(body: ResetPasswordRequest) -> dict:
-    if len(body.new_password) < settings.MIN_PASSWORD_LENGTH:
-        raise HTTPException(status_code=400, detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")
-
-    user = await User.filter(reset_token=body.token, is_active=True).first()
-
-    if not user:
-        raise HTTPException(status_code=400, detail="Token ไม่ถูกต้องหรือหมดอายุแล้ว")
-
-    # Check expiry
-    if user.reset_token_expires and datetime.now(timezone.utc) > user.reset_token_expires.replace(tzinfo=timezone.utc):
-        raise HTTPException(status_code=400, detail="Token หมดอายุแล้ว กรุณาขอ token ใหม่")
-
-    user.hashed_password = hash_password(body.new_password)
-    user.reset_token = None
-    user.reset_token_expires = None
-    await user.save(update_fields=["hashed_password", "reset_token", "reset_token_expires"])
-
+    user.hashed_password = hash_new_password(body.new_password)
+    await user.save(update_fields=["hashed_password"])
     return {"message": "เปลี่ยนรหัสผ่านสำเร็จ"}
