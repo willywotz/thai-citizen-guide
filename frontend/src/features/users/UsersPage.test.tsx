@@ -3,9 +3,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
 import UsersPage from "./UsersPage";
+import { listUsers } from "./userApi";
+
+const staffUser = {
+  id: "1",
+  email: "staff@test.com",
+  displayName: "Staff",
+  role: "staff",
+  avatarUrl: null,
+  isActive: true,
+  createdAt: "2026-01-01T00:00:00Z",
+};
 
 vi.mock("./userApi", () => ({
-  listUsers: () => Promise.resolve([]),
+  listUsers: vi.fn(() => Promise.resolve([])),
   createUser: vi.fn(),
   updateUser: vi.fn(),
   deactivateUser: vi.fn(),
@@ -30,5 +41,11 @@ describe("UsersPage create control", () => {
   it("renders the role filter defaulting to all roles", async () => {
     renderPage();
     expect(await screen.findByText("บทบาททั้งหมด")).toBeInTheDocument();
+  });
+
+  it("shows the staff role label on a staff row", async () => {
+    vi.mocked(listUsers).mockResolvedValueOnce([staffUser]);
+    renderPage();
+    expect(await screen.findByText("เจ้าหน้าที่")).toBeInTheDocument();
   });
 });

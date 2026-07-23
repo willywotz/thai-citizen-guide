@@ -34,8 +34,17 @@ describe("AppSidebar visibility", () => {
     auth.user = { id: "1", email: "u@x.com", displayName: "U", role: "user", avatarUrl: null };
   });
 
-  it("shows read-only operational pages but not admin-only pages for a basic user", () => {
+  it("shows only chat and architecture for a basic user (no dashboards, no admin pages)", () => {
     auth.user = { ...auth.user!, role: "user" };
+    renderSidebar();
+    expect(screen.getByText("แชทใหม่")).toBeInTheDocument();
+    expect(screen.getByText("Architecture")).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("จัดการหน่วยงาน")).not.toBeInTheDocument();
+  });
+
+  it("shows read-only operational pages but not admin-only pages for staff", () => {
+    auth.user = { ...auth.user!, role: "staff" };
     renderSidebar();
     expect(screen.getByText("แชทใหม่")).toBeInTheDocument();
     expect(screen.getByText("Architecture")).toBeInTheDocument();
