@@ -5,7 +5,7 @@ import type { LlmRoute } from "./llmRouteApi";
 interface Props {
   routes: LlmRoute[];
   onEdit: (route: LlmRoute) => void;
-  onDelete: (route: LlmRoute) => void;
+  onDelete?: (route: LlmRoute) => void;
 }
 
 export function LlmRoutesList({ routes, onEdit, onDelete }: Props) {
@@ -54,13 +54,15 @@ export function LlmRoutesList({ routes, onEdit, onDelete }: Props) {
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  onClick={() => onDelete(r)}
-                  className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                  aria-label="ลบ"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {onDelete && (
+                  <button
+                    onClick={() => onDelete(r)}
+                    className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    aria-label="ลบ"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           </CardContent>
