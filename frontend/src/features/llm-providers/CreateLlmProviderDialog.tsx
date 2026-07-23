@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { PasswordInput } from "@/shared/components/ui/password-input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import {
@@ -91,9 +92,8 @@ export function CreateLlmProviderDialog({ open, mutation, onClose }: Props) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="create-api-key">API Key</Label>
-            <Input
+            <PasswordInput
               id="create-api-key"
-              type="password"
               placeholder="sk-..."
               value={form.api_key}
               onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}

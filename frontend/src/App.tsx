@@ -27,8 +27,6 @@ const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
 const InfoPage = lazy(() => import("@/features/public/InfoPage"));
 const StatusPage = lazy(() => import("@/features/status/StatusPage"));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
-const ForgotPasswordPage = lazy(() => import("@/features/auth/ForgotPasswordPage"));
-const ResetPasswordPage = lazy(() => import("@/features/auth/ResetPasswordPage"));
 const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const SettingsLayout = lazy(() => import("@/features/settings/SettingsLayout"));
@@ -72,8 +70,6 @@ const App = () => (
               <Route path="/contact" element={<InfoPage />} />
               <Route path="/status" element={<StatusPage />} />
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 {/* Every authenticated role */}

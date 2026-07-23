@@ -17,4 +17,14 @@ describe("LoginPage", () => {
     );
     expect(screen.queryByRole("link", { name: /สมัครสมาชิก/ })).not.toBeInTheDocument();
   });
+
+  it("links back to the home page", () => {
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole("link", { name: /กลับสู่หน้าหลัก/ });
+    expect(link).toHaveAttribute("href", "/");
+  });
 });

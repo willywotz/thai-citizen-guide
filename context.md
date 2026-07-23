@@ -135,7 +135,7 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
 
 **Package map (`app/`):**
 - `routers/` — 18 mounted REST routers, all mounted under `/api/v1`: `auth`, `users`, `agencies/`
-  (package: `crud`, `golden`, `lifecycle`, `owners`, `spec`, `logo`), `conversations`, `messages`,
+  (package: `crud`, `golden`, `lifecycle`, `logo`, `spec`, `_utils`), `conversations`, `messages`,
   `chat`, `dashboard`, `feedback`, `connection_logs`, `api_key`, `executive_summary`,
   `insight`, `public_status`, `popular_questions`, `settings`, `audit_log`, `llm`, `responses`.
   (`seed` router is not mounted.) `popular_questions` exposes anonymous
@@ -151,8 +151,9 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
   translation, WebSocket session), `analytics/` (brief, dashboard, health), `similarity`,
   `rate_limit` (LLM-provider throttle only), `session`, `evaluation`, `mcp_discovery`,
   `usage_context`, `log_sanitize`, `audit`, `cache_flush`, `user`.
-- `auth/` — `security.py` (bcrypt, JWT, API-key hashing), `dependencies.py` (auth + RBAC
-  chokepoint), `authz.py` (ReBAC relationship checks).
+- `auth/` — `security.py` (bcrypt, JWT, API-key hashing) and `dependencies.py` (the **sole**
+  authz module: dual-token resolution + the RBAC chokepoint). The former `authz.py` ReBAC engine
+  was removed in the 2026-07 RBAC simplification and no longer exists.
 - `mcp/` — FastMCP `server.py` (exposes `list_agency` tool / `agencies://list` resource,
   API-key authed) and `client.py`.
 - `scheduler.py` — APScheduler jobs (see below).
@@ -195,8 +196,10 @@ source of truth**: the `Purpose(StrEnum)` in `app/services/llm/purpose.py` (valu
 `classification`, `brief`, `judge`, `parse_spec`, `popular_questions`); `KNOWN_PURPOSES` derives
 from it and is served by `GET /api/v1/llm/purposes`. All service call sites and `seed.py` use
 `Purpose.*`; `schemas/llm_route.py` types `purpose` as `Purpose` so the create/update API 422s on
-unknown values (no DB constraint). The frontend hardcodes no list — it reads purposes at runtime
-via `listPurposes()`. Route resolution is cached (~30s) and invalidated on any provider/route mutation.
+unknown values (no DB constraint). `GET /api/v1/llm/purposes` serves the list, but the **frontend
+Routes panel is edit-only and shows `purpose` read-only** — a `listPurposes()` helper exists in
+`llmRouteApi.ts` yet is currently unused (the UI offers no route create/delete). Route resolution
+is cached (~30s) and invalidated on any provider/route mutation.
 
 **Tests:** pytest (`asyncio_mode=auto`, `backend/tests/`), httpx AsyncClient transport.
 
@@ -205,7 +208,7 @@ via `listPurposes()`. Route resolution is cached (~30s) and invalidated on any p
 | Model | Table | Purpose / key fields |
 |---|---|---|
 | `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. `logo` holds an emoji **or** an uploaded-image URL (`/api/v1/agencies/{id}/logo?v=<hash>`). |
-| `User` | `users` | Account. `role` = `user|staff|admin`, bcrypt `hashed_password`, reset-token fields. |
+| `User` | `users` | Account. `role` = `user|staff|admin`, bcrypt `hashed_password`. |
 | `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, `last_used_at`. Keys are prefixed **`tcg_`**. |
 | `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
 | `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
@@ -219,7 +222,9 @@ via `listPurposes()`. Route resolution is cached (~30s) and invalidated on any p
 | `Setting` | `settings` | Runtime config overrides (key/value/type/group/is_secret), loaded at startup over env defaults. |
 | `PopularQuestion` | `popular_questions` | คำถามยอดนิยม shown on portal/chat. `text`, unique normalized `text_key` (dedupe + hidden-tombstone), nullable `agency` FK (SET_NULL), `source` (seed/auto/manual), `pinned`, `hidden`, `sort_order`, `score`. Published = not-hidden, pinned→sort_order→score→recency, capped `POPULAR_QUESTIONS_DISPLAY_COUNT` (8). |
 
-Migrations: **aerich** (`backend/migrations/`, 24 applied). **Never hand-carry `MODELS_STATE`** —
+Migrations: **aerich** (`backend/migrations/`, **27 applied, `0`–`26`**; recent: `19` drop
+embedding + add pg_trgm, `24` drop `relationships`/collapse roles, `25` drop rate-limit columns,
+`26` promote `user`→`staff`). **Never hand-carry `MODELS_STATE`** —
 always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
 and the mandatory rules in `CLAUDE.md`.
 
@@ -281,8 +286,11 @@ and the mandatory rules in `CLAUDE.md`.
 
 Reverse proxy between backend and agency endpoints. `POST /agent-proxy/{agencyID}` looks up the
 agency's `endpoint_url` + `api_headers` (cached in-memory, TTL `AGENCY_CACHE_TTL` default 60s;
-`store.go` reads shared postgres via `DATABASE_URL`), forwards the request, writes a
-`connection_logs` row, and increments `agencies.total_calls`. Exports spans to Jaeger. `GET /health`.
+`store.go` reads shared postgres via `DATABASE_URL`), forwards the request (strips inbound
+`X-Forwarded*`, injects `api_headers`, 180s upstream timeout), streams the response back, **always**
+writes a `connection_logs` row with `action="proxy"`, and increments `agencies.total_calls`
+**only on a 2xx** upstream; a transport failure returns 502. Hand-rolled UUIDv7 ids, Asia/Bangkok
+tz. Exports spans to Jaeger. `GET /health`.
 
 ## Frontend (`frontend/`, React SPA)
 
@@ -299,7 +307,15 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   `localStorage['auth_token']`; response interceptor unwraps the `{error:{message}}` envelope
   (with legacy `detail` fallback).
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
-  `/data-policy`, `/contact`, `/status`, `/login`, `/forgot-password`, `/reset-password`.
+  `/data-policy`, `/contact`, `/status`, `/login`. There is no password-reset or email-invite
+  flow — admins create users with an initial password (`POST /users`) and can change any user's
+  password via `PATCH /users/{id}` (optional `password` field); login is the only credential
+  entry point. Any authenticated user changes their own password via
+  `POST /auth/change-password` (requires the current password) — reached from the key-icon
+  button in the sidebar user section (`ChangePasswordDialog`). All masked fields (passwords and
+  secret API keys) use the shared `shared/components/ui/password-input` `PasswordInput`, which
+  adds an eye-icon show/hide toggle. `LoginPage` has a "กลับสู่หน้าหลัก" (back to home) link to `/`
+  below the form.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
   `/architecture` any role; `/popular-questions` admin-only). **Seven admin pages are merged into a
   tabbed Settings area** `features/settings/SettingsLayout` at `/settings`: System settings, LLM,
@@ -375,12 +391,13 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 
 ## Testing suites
 
-- **backend/tests** — pytest, in-process httpx AsyncClient.
-- **blackbox/** — vitest API-contract tests: a role × endpoint/page access matrix
-  (`src/access-matrix.ts`); only 401/403 responses fail. Seeds `bb-<role>` users. Needs a running
-  stack + existing admin (`admin@example.com`/`admin1234` default).
-- **e2e/** — Playwright, drives the real SPA per role (login → visit entitled pages → assert no
-  redirect and no 401/403 in background calls). Reuses blackbox provisioning. **Not run in CI.**
+- **backend/tests** — pytest (`asyncio_mode=auto`), in-process httpx AsyncClient over a SQLite
+  `:memory:` DB; Postgres-only paths (pg_trgm similarity, some analytics SQL) are `skipif`-gated on
+  `TEST_PG_URL`. The RBAC "access matrix" now lives here as `test_basic_user_allowlist` /
+  `test_staff_allowlist` / `test_residual_role_denied` / `test_mcp_role_access` / `test_surface_parity`.
+- **frontend** — vitest + jsdom + MSW, colocated `*.test.tsx`/`*.test.ts` throughout `src/features`.
+- The former standalone **`blackbox/`** (vitest access-matrix) and **`e2e/`** (Playwright) suites
+  were **removed from the tree** — neither directory exists anymore, and E2E is not in CI.
 
 ## Agency integration contract (for `examples/reference-agency`)
 

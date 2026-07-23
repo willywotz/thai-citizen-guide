@@ -16,13 +16,13 @@ class UserCreate(BaseModel):
     email: EmailStr
     role: Role = "user"
     display_name: str | None = None
-    password: str | None = None
-    send_invite: bool = False
+    password: str
 
 
 class UserUpdate(BaseModel):
     display_name: str | None = None
     role: Role | None = None
+    password: str | None = None
 
 
 class UserResponse(BaseModel):
@@ -49,8 +49,6 @@ class UserResponse(BaseModel):
 
 class UserCreateResponse(BaseModel):
     user: UserResponse
-    email_sent: bool | None = None
-    reset_token: str | None = None
 
 
 class UserListResponse(BaseModel):

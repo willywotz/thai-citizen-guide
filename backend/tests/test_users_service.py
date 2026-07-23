@@ -1,7 +1,6 @@
 """Tests for app.services.user — create flow and guardrails."""
 
 import uuid
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -19,53 +18,11 @@ async def _make_admin(email="admin@example.com", active=True):
 
 @pytest.mark.asyncio
 async def test_create_with_password_hashes_and_persists(db):
-    created, extra = await user_service.create_user(
+    created = await user_service.create_user(
         UserCreate(email="new@example.com", role="user", password="secret123")
     )
     assert created.id is not None
     assert created.hashed_password != "secret123"
-    assert extra == {}
-
-
-@pytest.mark.asyncio
-async def test_create_with_invite_issues_token_exposed_when_flag_on(db):
-    from app.config import settings
-
-    with patch.object(settings, "EXPOSE_PASSWORD_RESET_TOKEN", True):
-        created, extra = await user_service.create_user(
-            UserCreate(email="inv@example.com", role="user", send_invite=True)
-        )
-    assert created.reset_token is not None
-    assert extra["email_sent"] is False
-    assert extra["reset_token"] == created.reset_token
-
-
-@pytest.mark.asyncio
-async def test_create_invite_omits_token_when_flag_off(db):
-    from app.config import settings
-
-    with patch.object(settings, "EXPOSE_PASSWORD_RESET_TOKEN", False):
-        created, extra = await user_service.create_user(
-            UserCreate(email="inv2@example.com", send_invite=True)
-        )
-    assert created.reset_token is not None  # token still set on the user
-    assert "reset_token" not in extra
-
-
-@pytest.mark.asyncio
-async def test_create_rejects_both_password_and_invite(db):
-    with pytest.raises(HTTPException) as exc:
-        await user_service.create_user(
-            UserCreate(email="x@example.com", password="secret123", send_invite=True)
-        )
-    assert exc.value.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_create_rejects_neither_password_nor_invite(db):
-    with pytest.raises(HTTPException) as exc:
-        await user_service.create_user(UserCreate(email="x@example.com"))
-    assert exc.value.status_code == 400
 
 
 @pytest.mark.asyncio

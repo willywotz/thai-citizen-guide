@@ -47,14 +47,6 @@ def decode_access_token(token: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Password-reset token (random URL-safe string)
-# ---------------------------------------------------------------------------
-
-def generate_reset_token() -> str:
-    return secrets.token_urlsafe(settings.RESET_TOKEN_BYTES)
-
-
-# ---------------------------------------------------------------------------
 # API key generation and hashing
 # ---------------------------------------------------------------------------
 
@@ -67,7 +59,3 @@ def generate_api_key() -> str:
 
 def hash_api_key(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
-def reset_token_expiry() -> datetime:
-    return datetime.now(timezone.utc) + timedelta(hours=settings.RESET_TOKEN_EXPIRE_HOURS)

@@ -1,4 +1,5 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, Briefcase, Flame, Settings, MessageSquareWarning, Sparkles } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, Briefcase, Flame, Settings, MessageSquareWarning, Sparkles, KeyRound } from "lucide-react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/shared/components/NavLink";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/shared/components/ui/sidebar";
 import { useAgencies } from "@/features/agencies/useAgencies";
 import { useAuth } from "@/features/auth/useAuth";
+import { ChangePasswordDialog } from "@/features/auth/ChangePasswordDialog";
 import { canAccess } from "@/features/auth/roles";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
@@ -39,6 +41,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const collapsed = state === "collapsed";
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   // Clicking แชทใหม่ while already on /chat starts a fresh conversation
   // (ChatPage resets on the ?new flag) instead of a no-op same-route nav.
@@ -130,17 +133,26 @@ export function AppSidebar() {
                 </p>
                 <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
               </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setChangePasswordOpen(true)} title="เปลี่ยนรหัสผ่าน">
+                <KeyRound className="h-3.5 w-3.5" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={signOut} title="ออกจากระบบ">
                 <LogOut className="h-3.5 w-3.5" />
               </Button>
             </div>
           ) : (
-            <Button variant="ghost" size="icon" className="h-8 w-8 mx-auto" onClick={signOut} title="ออกจากระบบ">
-              <LogOut className="h-4 w-4" />
-            </Button>
+            <div className="flex flex-col items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setChangePasswordOpen(true)} title="เปลี่ยนรหัสผ่าน">
+                <KeyRound className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={signOut} title="ออกจากระบบ">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
           )}
         </div>
       </SidebarContent>
+      <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
     </Sidebar>
   );
 }
