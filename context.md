@@ -308,8 +308,9 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   (with legacy `detail` fallback).
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
   `/data-policy`, `/contact`, `/status`, `/login`. There is no password-reset or email-invite
-  flow — admins create users with an initial password (`POST /users`); login is the only
-  credential entry point.
+  flow — admins create users with an initial password (`POST /users`) and can change any user's
+  password via `PATCH /users/{id}` (optional `password` field); login is the only credential
+  entry point.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
   `/architecture` any role; `/popular-questions` admin-only). **Seven admin pages are merged into a
   tabbed Settings area** `features/settings/SettingsLayout` at `/settings`: System settings, LLM,

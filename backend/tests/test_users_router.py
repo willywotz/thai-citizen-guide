@@ -77,6 +77,30 @@ async def test_patch_updates_display_name_and_role(db):
 
 
 @pytest.mark.asyncio
+async def test_patch_updates_password(db):
+    from app.auth.security import verify_password
+
+    admin = await _admin()
+    target = await _user(email="t@example.com")
+    await users_router.update_user(
+        target.id, UserUpdate(password="newsecret123"), admin=admin
+    )
+    await target.refresh_from_db()
+    assert verify_password("newsecret123", target.hashed_password)
+
+
+@pytest.mark.asyncio
+async def test_patch_rejects_short_password(db):
+    admin = await _admin()
+    target = await _user(email="t@example.com")
+    with pytest.raises(HTTPException) as exc:
+        await users_router.update_user(
+            target.id, UserUpdate(password="123"), admin=admin
+        )
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_patch_self_role_change_blocked(db):
     admin = await _admin()
     with pytest.raises(HTTPException) as exc:

@@ -29,6 +29,7 @@ export interface CreateUserPayload {
 export interface UpdateUserPayload {
   display_name?: string | null;
   role?: UserRole;
+  password?: string;
 }
 
 export async function listUsers(params: UserListParams): Promise<ManagedUser[]> {

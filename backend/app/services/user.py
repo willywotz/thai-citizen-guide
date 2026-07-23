@@ -2,7 +2,7 @@
 Business logic for admin user management.
 
 Kept separate from the router so guardrails (no self-mutation, protect the last
-active admin) and the dual create/invite flow can be unit-tested directly.
+active admin) and password validation can be unit-tested directly.
 """
 
 from __future__ import annotations
@@ -15,6 +15,16 @@ from app.auth.security import hash_password
 from app.config import settings
 from app.models.user import User
 from app.schemas.user import UserCreate
+
+
+def hash_new_password(password: str) -> str:
+    """Validate a plaintext password and return its bcrypt hash."""
+    if len(password) < settings.MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
+        )
+    return hash_password(password)
 
 
 def ensure_not_self(acting_user_id: uuid.UUID, target_id: uuid.UUID) -> None:
@@ -43,11 +53,7 @@ async def create_user(data: UserCreate) -> User:
     Create a user with an admin-set initial password; the user can log in
     immediately.
     """
-    if len(data.password) < settings.MIN_PASSWORD_LENGTH:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
-        )
+    hashed = hash_new_password(data.password)
 
     if await User.filter(email=data.email).exists():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="อีเมลนี้ถูกใช้งานแล้ว")
@@ -55,6 +61,6 @@ async def create_user(data: UserCreate) -> User:
     return await User.create(
         email=data.email,
         display_name=data.display_name,
-        hashed_password=hash_password(data.password),
+        hashed_password=hashed,
         role=data.role,
     )

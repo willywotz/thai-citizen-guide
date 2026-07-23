@@ -22,6 +22,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     display_name: str | None = None
     role: Role | None = None
+    password: str | None = None
 
 
 class UserResponse(BaseModel):

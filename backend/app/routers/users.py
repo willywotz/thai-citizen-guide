@@ -90,11 +90,15 @@ async def update_user(
     if body.display_name is not None:
         user.display_name = body.display_name
         changed.append("display_name")
+    if body.password is not None:
+        user.hashed_password = user_service.hash_new_password(body.password)
+        changed.append("hashed_password")
     if changed:
         await user.save(update_fields=changed)
+        audit_changed = ["password" if c == "hashed_password" else c for c in changed]
         await record_audit(
             admin, "user.update", object_type="user", object_id=user.id,
-            detail={"changed": changed, "role": user.role},
+            detail={"changed": audit_changed, "role": user.role},
         )
     return UserResponse.from_user(user)
 

@@ -43,7 +43,14 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
   async function handleSubmit() {
     try {
       if (isEdit && user) {
-        await updateMut.mutateAsync({ id: user.id, payload: { display_name: displayName || null, role } });
+        if (password) {
+          const err = validatePassword(password);
+          if (err) { toast.error(err); return; }
+        }
+        await updateMut.mutateAsync({
+          id: user.id,
+          payload: { display_name: displayName || null, role, ...(password ? { password } : {}) },
+        });
         toast.success('อัปเดตผู้ใช้เรียบร้อยแล้ว');
       } else {
         const err = validatePassword(password);
@@ -95,13 +102,12 @@ export function UserFormDialog({ open, onOpenChange, user }: Props) {
             </Select>
           </div>
 
-          {!isEdit && (
-            <div className="space-y-2">
-              <Label htmlFor="password">รหัสผ่านเริ่มต้น</Label>
-              <Input id="password" type="password" value={password}
-                onChange={(e) => setPassword(e.target.value)} />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="password">{isEdit ? 'รหัสผ่านใหม่ (เว้นว่างไว้หากไม่เปลี่ยน)' : 'รหัสผ่านเริ่มต้น'}</Label>
+            <Input id="password" type="password" value={password}
+              autoComplete="new-password"
+              onChange={(e) => setPassword(e.target.value)} />
+          </div>
         </div>
 
         <DialogFooter>
