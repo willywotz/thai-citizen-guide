@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BarChart3, ScrollText, Cpu, Route, Sparkles } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity, KeyRound, Briefcase, Flame, Settings, Users, MessageSquareWarning, BarChart3, ScrollText, Cpu, Sparkles } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/shared/components/NavLink";
 import {
@@ -34,8 +34,7 @@ const navItems = [
   { title: "บันทึกการตรวจสอบ", url: "/audit-log", icon: ScrollText },
   { title: "การใช้งาน API Key", url: "/usage", icon: BarChart3 },
   { title: "ตั้งค่าระบบ", url: "/settings", icon: Settings },
-  { title: "LLM Providers", url: "/llm-providers", icon: Cpu },
-  { title: "LLM Routes", url: "/llm-routes", icon: Route },
+  { title: "LLM Settings", url: "/llm-settings", icon: Cpu },
   { title: "คำถามยอดนิยม", url: "/popular-questions", icon: Sparkles },
 ];
 

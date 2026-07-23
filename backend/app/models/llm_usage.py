@@ -8,7 +8,7 @@ from app.utils import generate_uuid
 class LlmUsage(Model):
     id = fields.UUIDField(primary_key=True, default=generate_uuid)
     model = fields.CharField(max_length=100)
-    purpose = fields.CharField(max_length=30)  # router | synthesis | classification | embedding | brief | judge
+    purpose = fields.CharField(max_length=30)  # free-form; see app.services.llm.purpose.Purpose for known values
     prompt_tokens = fields.IntField(default=0)
     completion_tokens = fields.IntField(default=0)
     cost_usd = fields.FloatField(null=True)

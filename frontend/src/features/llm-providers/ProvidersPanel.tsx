@@ -1,33 +1,30 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/shared/components/ui/button";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
+
+import { CreateLlmProviderDialog } from "./CreateLlmProviderDialog";
+import { DeleteLlmProviderDialog } from "./DeleteLlmProviderDialog";
+import { EditLlmProviderDialog } from "./EditLlmProviderDialog";
+import { LlmProviderList } from "./LlmProviderList";
 import {
-  listProviders,
   createProvider,
-  updateProvider,
   deleteProvider,
+  listProviders,
+  updateProvider,
   type LlmProvider,
   type LlmProviderInput,
-} from "@/features/llm-providers/llmProviderApi";
-import { LlmProviderList } from "./LlmProviderList";
-import { CreateLlmProviderDialog } from "./CreateLlmProviderDialog";
-import { EditLlmProviderDialog } from "./EditLlmProviderDialog";
-import { DeleteLlmProviderDialog } from "./DeleteLlmProviderDialog";
+} from "./llmProviderApi";
+import { Button } from "@/shared/components/ui/button";
 
 const QUERY_KEY = ["llm-providers"];
 
-export default function LlmProvidersPage() {
+export function ProvidersPanel() {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: listProviders,
-  });
+  const { data, isLoading } = useQuery({ queryKey: QUERY_KEY, queryFn: listProviders });
   const providers = data?.data ?? [];
 
-  // Create
   const [createOpen, setCreateOpen] = useState(false);
   const createMutation = useMutation({
     mutationFn: (input: LlmProviderInput) => createProvider(input),
@@ -39,11 +36,9 @@ export default function LlmProvidersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Edit
   const [editTarget, setEditTarget] = useState<LlmProvider | null>(null);
   const editMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<LlmProviderInput> }) =>
-      updateProvider(id, body),
+    mutationFn: ({ id, body }: { id: string; body: Partial<LlmProviderInput> }) => updateProvider(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("แก้ไขผู้ให้บริการ LLM เรียบร้อย");
@@ -52,7 +47,6 @@ export default function LlmProvidersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<LlmProvider | null>(null);
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteProvider(id),
@@ -65,7 +59,7 @@ export default function LlmProvidersPage() {
   });
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">ผู้ให้บริการ LLM</h2>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
@@ -81,25 +75,11 @@ export default function LlmProvidersPage() {
       )}
 
       {!isLoading && (
-        <LlmProviderList
-          providers={providers}
-          onEdit={setEditTarget}
-          onDelete={setDeleteTarget}
-        />
+        <LlmProviderList providers={providers} onEdit={setEditTarget} onDelete={setDeleteTarget} />
       )}
 
-      <CreateLlmProviderDialog
-        open={createOpen}
-        mutation={createMutation}
-        onClose={() => setCreateOpen(false)}
-      />
-
-      <EditLlmProviderDialog
-        target={editTarget}
-        mutation={editMutation}
-        onClose={() => setEditTarget(null)}
-      />
-
+      <CreateLlmProviderDialog open={createOpen} mutation={createMutation} onClose={() => setCreateOpen(false)} />
+      <EditLlmProviderDialog target={editTarget} mutation={editMutation} onClose={() => setEditTarget(null)} />
       <DeleteLlmProviderDialog
         target={deleteTarget}
         mutation={deleteMutation}

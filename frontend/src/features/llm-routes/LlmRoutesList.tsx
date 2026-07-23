@@ -1,14 +1,13 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import type { LlmRoute } from "./llmRouteApi";
 
 interface Props {
   routes: LlmRoute[];
   onEdit: (route: LlmRoute) => void;
-  onDelete: (route: LlmRoute) => void;
 }
 
-export function LlmRoutesList({ routes, onEdit, onDelete }: Props) {
+export function LlmRoutesList({ routes, onEdit }: Props) {
   if (routes.length === 0) {
     return (
       <p className="text-center text-sm text-muted-foreground py-12">
@@ -53,13 +52,6 @@ export function LlmRoutesList({ routes, onEdit, onDelete }: Props) {
                   aria-label="แก้ไข"
                 >
                   <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => onDelete(r)}
-                  className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                  aria-label="ลบ"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>

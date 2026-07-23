@@ -190,8 +190,13 @@ Both entry points share it: `GET /api/v1/agencies/{id}/test` (admin-only; also r
 **External integrations (config.py):** OpenRouter (`CLASSIFICATION_MODEL`
 `google/gemini-2.5-flash-lite`), ThaiLLM parse-spec endpoint, OneChat v3/v4, MCP endpoint.
 LLM providers/models are now also DB-configurable via `LlmProvider`/`LlmRoute` (admin pages):
-a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_spec`,
-`popular_questions`) to a provider + model. Route resolution is cached (~30s) and invalidated on any provider/route mutation.
+a `LlmRoute` maps a `purpose` to a provider + model. **Purposes are centralized as a single
+source of truth**: the `Purpose(StrEnum)` in `app/services/llm/purpose.py` (values
+`classification`, `brief`, `judge`, `parse_spec`, `popular_questions`); `KNOWN_PURPOSES` derives
+from it and is served by `GET /api/v1/llm/purposes`. All service call sites and `seed.py` use
+`Purpose.*`; `schemas/llm_route.py` types `purpose` as `Purpose` so the create/update API 422s on
+unknown values (no DB constraint). The frontend hardcodes no list — it reads purposes at runtime
+via `listPurposes()`. Route resolution is cached (~30s) and invalidated on any provider/route mutation.
 
 **Tests:** pytest (`asyncio_mode=auto`, `backend/tests/`), httpx AsyncClient transport.
 
@@ -277,7 +282,7 @@ agency's `endpoint_url` + `api_headers` (cached in-memory, TTL `AGENCY_CACHE_TTL
 React 18 + Vite 5 + TypeScript, **shadcn/ui** (Radix + Tailwind), **TanStack Query**, **axios**,
 **react-router-dom v6**, react-hook-form + zod. **Feature-based** layout under `src/features/*`
 (one dir per page: chat, dashboard, executive, health, heatmap, agencies, history, architecture,
-connection-logs, api-keys, settings, llm-providers, llm-routes, popular-questions, users, audit,
+connection-logs, api-keys, settings, llm (merged LLM Settings page), llm-providers, llm-routes, popular-questions, users, audit,
 usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package manager = **pnpm** (Dockerfile uses
 `pnpm --frozen-lockfile`; stray `bun.lock`/`package-lock.json` are not authoritative).
 
@@ -288,8 +293,12 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
   `/data-policy`, `/contact`, `/status`, `/login`, `/forgot-password`, `/reset-password`.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
-  `/architecture` any role; `/settings`, `/llm-providers`, `/llm-routes`, `/popular-questions`
-  admin-only). The portal/chat คำถามยอดนิยม block is fed by the anonymous
+  `/architecture` any role; `/settings`, `/llm-settings`, `/popular-questions`
+  admin-only). **LLM admin is one merged page** `features/llm/LlmSettingsPage` at `/llm-settings`
+  (Providers left / Routes right, two-column on `md`+): `ProvidersPanel` (full CRUD) +
+  `RoutesPanel` (edit-only — no create/delete; edits provider, model, timeout, enabled). The old
+  `/llm-providers` and `/llm-routes` paths now `<Navigate replace>` to `/llm-settings`; `roles.ts`
+  gates `/llm-settings` to admin. The portal/chat คำถามยอดนิยม block is fed by the anonymous
   `GET /public/popular-questions` (no more hardcoded `suggestedQuestions` in `mockData.ts`).
   The public portal's หน่วยงานที่เชื่อมต่อ block (`AgencyCards` + `usePublicAgencies`) is fed by
   the anonymous `GET /public/agencies`. In **chat mode** the portal switches to a `SidebarProvider`

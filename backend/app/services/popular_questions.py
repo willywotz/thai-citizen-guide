@@ -151,10 +151,10 @@ def _extract_json_payload(text: str) -> str:
 
 
 async def _ask_llm(questions: list[str]) -> list[dict]:
-    from app.services.llm import LlmError, chat
+    from app.services.llm import LlmError, Purpose, chat
     prompt = _LLM_PROMPT.format(k=_LLM_MAX_QUESTIONS, questions="\n".join(f"- {q}" for q in questions))
     try:
-        res = await chat(purpose="popular_questions", messages=[{"role": "user", "content": prompt}])
+        res = await chat(purpose=Purpose.POPULAR_QUESTIONS, messages=[{"role": "user", "content": prompt}])
         data = json.loads(_extract_json_payload(res.content))
         candidates = data.get("questions", [])
         return candidates if isinstance(candidates, list) else []

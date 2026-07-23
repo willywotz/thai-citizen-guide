@@ -27,8 +27,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   "/users": ADMIN,
   "/audit-log": ADMIN,
   "/settings": ADMIN,
-  "/llm-providers": ADMIN,
-  "/llm-routes": ADMIN,
+  "/llm-settings": ADMIN,
   "/popular-questions": ADMIN,
 };
 

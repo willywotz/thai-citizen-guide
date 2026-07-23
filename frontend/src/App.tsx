@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
 import { AuthProvider } from "@/features/auth/useAuth";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
@@ -30,8 +30,7 @@ const ForgotPasswordPage = lazy(() => import("@/features/auth/ForgotPasswordPage
 const ResetPasswordPage = lazy(() => import("@/features/auth/ResetPasswordPage"));
 const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
-const LlmProvidersPage = lazy(() => import("@/features/llm-providers/LlmProvidersPage"));
-const LlmRoutesPage = lazy(() => import("@/features/llm-routes/LlmRoutesPage"));
+const LlmSettingsPage = lazy(() => import("@/features/llm/LlmSettingsPage"));
 const PopularQuestionsPage = lazy(() => import("@/features/popular-questions/PopularQuestionsPage"));
 const UsersPage = lazy(() => import("@/features/users/UsersPage"));
 const AuditLogPage = lazy(() => import("@/features/audit/AuditLogPage"));
@@ -101,8 +100,9 @@ const App = () => (
 
                 {/* admin only */}
                 <Route path="/settings" element={<ProtectedRoute requireAdmin><SettingsPage /></ProtectedRoute>} />
-                <Route path="/llm-providers" element={<ProtectedRoute requireAdmin><LlmProvidersPage /></ProtectedRoute>} />
-                <Route path="/llm-routes" element={<ProtectedRoute requireAdmin><LlmRoutesPage /></ProtectedRoute>} />
+                <Route path="/llm-settings" element={<ProtectedRoute requireAdmin><LlmSettingsPage /></ProtectedRoute>} />
+                <Route path="/llm-providers" element={<Navigate to="/llm-settings" replace />} />
+                <Route path="/llm-routes" element={<Navigate to="/llm-settings" replace />} />
                 <Route path="/popular-questions" element={<ProtectedRoute requireAdmin><PopularQuestionsPage /></ProtectedRoute>} />
               </Route>
 
