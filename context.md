@@ -282,7 +282,8 @@ agency's `endpoint_url` + `api_headers` (cached in-memory, TTL `AGENCY_CACHE_TTL
 React 18 + Vite 5 + TypeScript, **shadcn/ui** (Radix + Tailwind), **TanStack Query**, **axios**,
 **react-router-dom v6**, react-hook-form + zod. **Feature-based** layout under `src/features/*`
 (one dir per page: chat, dashboard, executive, health, heatmap, agencies, history, architecture,
-connection-logs, api-keys, settings, llm (merged LLM Settings page), llm-providers, llm-routes, popular-questions, users, audit,
+connection-logs, api-keys, settings (SettingsLayout — merges settings/llm/api-keys/usage/connection-logs/audit
+into one tabbed `/settings` area), llm (merged LLM Settings page), llm-providers, llm-routes, popular-questions, users, audit,
 usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package manager = **pnpm** (Dockerfile uses
 `pnpm --frozen-lockfile`; stray `bun.lock`/`package-lock.json` are not authoritative).
 
@@ -293,12 +294,23 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
   `/data-policy`, `/contact`, `/status`, `/login`, `/forgot-password`, `/reset-password`.
   Authenticated routes are role-gated in `App.tsx`, mirroring backend RBAC (e.g. `/chat` +
-  `/architecture` any role; `/settings`, `/llm-settings`, `/popular-questions`
-  admin-only). **LLM admin is one merged page** `features/llm/LlmSettingsPage` at `/llm-settings`
+  `/architecture` any role; `/popular-questions` admin-only). **Six admin pages are merged into a
+  tabbed Settings area** `features/settings/SettingsLayout` at `/settings`: System settings, LLM,
+  API Keys, Usage, Connection logs, Audit log — one nested route per tab (`/settings/system`,
+  `/settings/llm`, `/settings/api-keys`, `/settings/usage`, `/settings/connections`,
+  `/settings/audit`). `SettingsLayout` renders a role-filtered `TabsList` (via the shared
+  `canAccess`) + `<Outlet/>`; the active tab derives from the URL. `/settings` itself is
+  authenticated-only (it holds the all-roles **Usage** tab), while each admin tab is individually
+  wrapped in `<ProtectedRoute requireAdmin>` so a non-admin deep-linking to e.g. `/settings/audit`
+  is blocked, not merely hidden; the index redirects by role (admin→system, else→usage). The old
+  top-level paths (`/api-keys`, `/usage`, `/connection-logs`, `/audit-log`, `/llm-settings`,
+  `/llm-providers`, `/llm-routes`) `<Navigate replace>` into their new tab. `roles.ts`
+  (`ROUTE_ROLES`, single source of truth) sets `/settings`=all-roles + per-child access, and the
+  sidebar collapses the six former entries into a single **ตั้งค่าระบบ** link. **LLM admin is one
+  merged page** `features/llm/LlmSettingsPage` (now the `/settings/llm` tab)
   (Providers left / Routes right, two-column on `md`+): `ProvidersPanel` (full CRUD) +
-  `RoutesPanel` (edit-only — no create/delete; edits provider, model, timeout, enabled). The old
-  `/llm-providers` and `/llm-routes` paths now `<Navigate replace>` to `/llm-settings`; `roles.ts`
-  gates `/llm-settings` to admin. The portal/chat คำถามยอดนิยม block is fed by the anonymous
+  `RoutesPanel` (edit-only — no create/delete; edits provider, model, timeout, enabled).
+  The portal/chat คำถามยอดนิยม block is fed by the anonymous
   `GET /public/popular-questions` (no more hardcoded `suggestedQuestions` in `mockData.ts`).
   The public portal's หน่วยงานที่เชื่อมต่อ block (`AgencyCards` + `usePublicAgencies`) is fed by
   the anonymous `GET /public/agencies`. In **chat mode** the portal switches to a `SidebarProvider`
