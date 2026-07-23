@@ -154,12 +154,13 @@ or a list of content parts, each part's `text` joined with a space:
 (`"part one" + "part two"` → `"part one part two"`). A plain string `content` on the last item
 is accepted directly (`{"role": "user", "content": "hello"}` → `"hello"`).
 
-**Rejected as `400 invalid_request_error`, `param: "input"`:**
+**Rejected as `400 invalid_request_error`, `param: "input"`** with one of these exact `message`
+values:
 
-- Empty string, whitespace-only string, or empty array
-- Last array item is not a `role: "user"` message
-- Last item's `content` is `null`, a non-string/non-list, or resolves to an empty string after
-  trimming
+| Cause | `message` |
+|---|---|
+| Empty string, whitespace-only string, empty array, or last item's `content` is `null` / a non-string-non-list / trims to empty | ``` `input` must not be empty. ``` |
+| Last array item is not a `role: "user"` message | ``` The last item of `input` must be a message with role 'user'. ``` |
 
 Source: `extract_query()` in `app/services/responses/request.py`;
 `backend/tests/services/test_responses_request.py`.
@@ -176,7 +177,7 @@ the SPA.
 | Field | Behavior |
 |---|---|
 | `previous_response_id` | `resp_<uuid>` → look up that assistant `Message` → its `conversation_id`. Not found or malformed → `404`, `code: "previous_response_not_found"`, `param: "previous_response_id"` |
-| `conversation` | A raw portal `conversation_id`. May be supplied alone, or together with `previous_response_id` if it resolves to the *same* conversation. Supplied together and disagreeing → `400 invalid_request_error`, `param: "conversation"` |
+| `conversation` | A raw portal `conversation_id`. May be supplied alone, or together with `previous_response_id` if it resolves to the *same* conversation (compared as UUID values, so textual case never causes a spurious conflict). Supplied together and disagreeing → `400 invalid_request_error`, `param: "conversation"`, `message` ``` `conversation` does not match the conversation of `previous_response_id`; supply only one. ``` |
 | Neither supplied | A new conversation id is generated; the turn is eligible for the similarity cache like any new `/chat/stream` turn |
 
 On the WebSocket transport, a connection-local `dict[str, str]` (response id → conversation id)
@@ -194,6 +195,44 @@ for it — e.g. it was deleted, or a WS `generate: false` warm-up targets a stal
 Source: `app/services/responses/continuity.py`; the `conversation_not_found` raise sites in
 `app/routers/responses.py` (`run_response`, via `ConversationNotFound`) and
 `app/services/responses/session.py` (`WsSession._warm`).
+
+---
+
+## Upstream input — the OneChat `ChatEvent` stream
+
+Everything in §§ 4–7 is a *translation* of the upstream turn, so a rebuild needs this **input**
+contract as much as the output shapes below. `run_turn()` yields `ChatEvent(name, data)` values
+(the OneChat pipeline vocabulary, unchanged) and `ResponseAccumulator.consume()` maps each one to
+zero or more OpenAI events:
+
+| `ChatEvent.name` | Drives | Notes |
+|---|---|---|
+| `answer` | The six output-item events (§ 5, events 2–7) and the populated response body (§ 4) | The terminal answer, delivered whole — OneChat does not stream token deltas |
+| `done` | `response.completed` (§ 5, event 8) | Ends the turn; suppressed if a `response.failed` was already emitted |
+| `error` | `response.failed` (§ 7) | Mid-stream upstream failure; `data["message"]` is copied verbatim into `response.error.message` |
+| `step`, `intent`, `routing`, `agency_start`, `agency_responded`, `agency_verified` | *Nothing* | Pipeline-progress events, dropped (§ 5.1) |
+
+The `answer` event's `data` is the **sole** source of the answer text, summary, references and
+agency ids that §§ 4 and 6 expose:
+
+```json
+{
+  "answer": "คำตอบเต็ม",
+  "summary": "สรุป",
+  "references": [{ "number": 1, "agency_id": "a-1", "agency_name": "กรมการปกครอง", "url": null }],
+  "sections": [{ "agencies": [{ "id": "a-1", "name": "กรมการปกครอง" }] }]
+}
+```
+
+| `data` key | Becomes | Notes |
+|---|---|---|
+| `answer` | `output_text` and every `output_text` field (§ 4, § 5) | Leading/trailing whitespace trimmed; missing or empty → `""` |
+| `summary` | `portal.summary` (§ 6) | v5 only; `""` on v4 or a degraded summary |
+| `references` | `portal.references` (§ 6) | Passed through verbatim — OneChat v5 shape |
+| `sections[].agencies[].id` | `portal.agency_ids` (§ 6) | The `id` of each agency, flattened across every section |
+
+Source: `ChatEvent` and `run_turn()` in `app/services/chat/stream.py`;
+`ResponseAccumulator.consume` / `_answer_events` in `app/services/responses/translate.py`.
 
 ---
 
@@ -235,8 +274,9 @@ transport deliver the same object as the `response` field of the terminal
 | Field | Notes |
 |---|---|
 | `id` | `resp_<assistant message uuid>` |
+| `model` | Echoes the requested `model` **verbatim** — the default id stays `"thai-citizen-guide"`, not the resolved `"…-v5"` (§ 1) |
 | `status` | `"in_progress"` (on `response.created`), `"completed"`, or `"failed"` |
-| `output` / `output_text` | `output` is empty and `output_text` is `""` until the answer arrives; `output_text` is the composed `answer`, including any v5 summary prefix — no summary-side stripping, though leading/trailing whitespace is trimmed |
+| `output` / `output_text` | `output` is empty and `output_text` is `""` until the answer arrives — and `output` stays `[]` even in a `completed` response whose answer is empty (the degrade case); `output_text` is the composed `answer`, including any v5 summary prefix — no summary-side stripping, though leading/trailing whitespace is trimmed |
 | `usage` | Always the zero object — see § 6 |
 | `portal` | Non-standard top-level block — see § 6 |
 | `error` | Present only on a failed response — see § 7 |
@@ -300,6 +340,10 @@ response.completed              ← carries the full Response object (§ 4)
 Over HTTP SSE, each event is framed as `event: <type>\ndata: <json>\n\n`, and the stream
 terminates with the literal line `data: [DONE]`. On the WebSocket, each event is one JSON text
 frame (no `event:`/`data:` framing, no `[DONE]` sentinel — the sequence simply ends).
+
+All JSON on this surface — SSE `data:` payloads, WebSocket frames, and non-streaming/error bodies
+alike — is serialized as UTF-8 with `ensure_ascii=False`, so Thai and other non-ASCII text appears
+literally (e.g. `คำตอบเต็ม`) and is **never** `\uXXXX`-escaped.
 
 **Upstream pipeline-progress events are dropped.** `step`, `intent`, `routing`, `agency_start`,
 `agency_responded` and `agency_verified` produce zero OpenAI events — there is no standard
@@ -481,6 +525,7 @@ fault while generating, produces an `error` frame — the socket is never closed
 | Situation | Frame |
 |---|---|
 | Invalid JSON | `{"type": "error", "error": {"message": "Frame is not valid JSON.", "type": "invalid_request_error", "param": null, "code": null}}` |
+| Binary (non-text) frame | `{"type": "error", "error": {"message": "This endpoint accepts text frames only; binary frames are not supported.", "type": "invalid_request_error", "param": null, "code": null}}` |
 | Wrong/missing `type` | `{"type": "error", "error": {"message": "Unsupported frame type; this endpoint accepts \`response.create\` only.", "type": "invalid_request_error", "param": "type", "code": null}}` |
 | Body fails `ResponsesRequest` validation | `{"type": "error", "error": {"message": "<pydantic ValidationError text>", "type": "invalid_request_error", "param": null, "code": null}}` |
 | A `ResponsesApiError` raised while generating (e.g. `previous_response_not_found`) | Its own `envelope()`, wrapped in `{"type": "error", ...}` |

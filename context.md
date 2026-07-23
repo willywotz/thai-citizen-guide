@@ -467,16 +467,16 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `RESPONSES_WS_MAX_CONNECTIONS = 1024`, `RESPONSES_WS_MAX_DURATION_SECONDS = 900` (15 min), and the
   limit frame interpolates the value in **seconds**. `spec/openai-responses.md` was corrected to match
   (it had drifted to fabricated rate/quota rows and stale 100/3600/"60 minutes" values).
-- **`spec/openai-responses.md` is a complete *output* contract but not a complete *build* contract.**
-  A spec-first rebuild of the responses layer produced **25/25 byte-identical** wire output (pinned-
-  upstream differential diff), but only after resolving 8 wire-visible gaps from the code — the
-  biggest being that the spec never names the upstream `ChatEvent` **inputs** (`answer`/`done`/`error`)
-  that drive `translate.consume()`, nor the `answer` payload shape feeding `portal.agency_ids`
-  (`sections[].agencies[].id`). Also unstated: `ensure_ascii=False` (only implied by raw-Thai
-  examples), that response `model` echoes the request verbatim, that `output` stays `[]` on an empty
-  answer, and several error `message` strings (input validation, conversation mismatch, binary frame)
-  that other messages in the same spec *do* pin. Full findings + fix list:
-  `spec/openai-responses-spec-gap-log.md`.
+- **`spec/openai-responses.md` was a complete *output* contract but not a complete *build* contract —
+  now fixed.** A spec-first rebuild of the responses layer produced **25/25 byte-identical** wire
+  output (pinned-upstream differential diff), but only after resolving 8 wire-visible gaps from the
+  code. Those gaps are now closed in the spec: a new **"Upstream input — the OneChat `ChatEvent`
+  stream"** section (between §3 and §4) documents the `answer`/`done`/`error` inputs to
+  `translate.consume()` and the `answer` payload shape feeding `portal.agency_ids`
+  (`sections[].agencies[].id`); §5 states the `ensure_ascii=False` UTF-8 rule; §4 states that response
+  `model` echoes the request verbatim and `output` stays `[]` on an empty answer; and the previously
+  unstated error `message` strings (input validation §2.1, conversation mismatch §3, binary frame §8)
+  are now pinned. Full findings + fix list: `spec/openai-responses-spec-gap-log.md`.
 - **Editing `frontend/vite.config.ts` does not affect a running stack.** The dev override's
   `develop.watch` syncs only `frontend/src`, and `docker compose up` will not rebuild an existing
   image — so config changes silently do nothing until `docker compose up -d --build frontend`.
