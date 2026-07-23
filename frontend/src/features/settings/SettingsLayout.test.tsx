@@ -13,6 +13,7 @@ function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
+        <Route path="/chat" element={<div>CHAT PAGE</div>} />
         <Route path="/settings" element={<SettingsLayout />}>
           <Route index element={<SettingsIndexRedirect />} />
           <Route path="system" element={<div>SYSTEM PANEL</div>} />
@@ -41,8 +42,8 @@ describe("SettingsLayout", () => {
     }
   });
 
-  it("shows only the Usage tab for a non-admin", () => {
-    mockUseAuth.mockReturnValue({ user: { role: "user" }, isAdmin: false });
+  it("shows only the Usage tab for staff", () => {
+    mockUseAuth.mockReturnValue({ user: { role: "staff" }, isAdmin: false });
     renderAt("/settings/usage");
     expect(screen.getByRole("tab", { name: "การใช้งาน API Key" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "API Keys" })).not.toBeInTheDocument();
@@ -65,9 +66,15 @@ describe("SettingsLayout", () => {
     expect(screen.getByText("SYSTEM PANEL")).toBeInTheDocument();
   });
 
-  it("redirects the index to the usage tab for a non-admin", () => {
-    mockUseAuth.mockReturnValue({ user: { role: "user" }, isAdmin: false });
+  it("redirects the index to the usage tab for staff", () => {
+    mockUseAuth.mockReturnValue({ user: { role: "staff" }, isAdmin: false });
     renderAt("/settings");
     expect(screen.getByText("USAGE PANEL")).toBeInTheDocument();
+  });
+
+  it("redirects the index to chat for a plain user (no settings tab)", () => {
+    mockUseAuth.mockReturnValue({ user: { role: "user" }, isAdmin: false });
+    renderAt("/settings");
+    expect(screen.getByText("CHAT PAGE")).toBeInTheDocument();
   });
 });

@@ -79,13 +79,17 @@ const App = () => (
                 {/* Every authenticated role */}
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/executive" element={<ExecutivePage />} />
-                <Route path="/health" element={<HealthPage />} />
-                <Route path="/heatmap" element={<HeatmapPage />} />
-                <Route path="/feedback" element={<FeedbackPage />} />
                 {/* Own conversation history — the API scopes non-admins to their own rows. */}
                 <Route path="/history" element={<HistoryPage />} />
+
+                {/* staff + admin: read-only ops dashboards */}
+                <Route element={<ProtectedRoute allowedRoles={["staff", "admin"]}><Outlet /></ProtectedRoute>}>
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/executive" element={<ExecutivePage />} />
+                  <Route path="/health" element={<HealthPage />} />
+                  <Route path="/heatmap" element={<HeatmapPage />} />
+                  <Route path="/feedback" element={<FeedbackPage />} />
+                </Route>
 
                 {/* admin only */}
                 <Route element={<ProtectedRoute allowedRoles={["admin"]}><Outlet /></ProtectedRoute>}>
@@ -104,7 +108,7 @@ const App = () => (
                   <Route path="llm" element={<ProtectedRoute requireAdmin><LlmSettingsPage /></ProtectedRoute>} />
                   <Route path="api-keys" element={<ProtectedRoute requireAdmin><ApiKeysPage /></ProtectedRoute>} />
                   <Route path="users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
-                  <Route path="usage" element={<UsageAnalyticsPage />} />
+                  <Route path="usage" element={<ProtectedRoute allowedRoles={["staff", "admin"]}><UsageAnalyticsPage /></ProtectedRoute>} />
                   <Route path="connections" element={<ProtectedRoute requireAdmin><ConnectionLogsPage /></ProtectedRoute>} />
                   <Route path="audit" element={<ProtectedRoute requireAdmin><AuditLogPage /></ProtectedRoute>} />
                 </Route>
