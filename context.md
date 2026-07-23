@@ -460,6 +460,13 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `/{agency_id}` and returns **422** (UUID validation), not 404.
 - Error responses use a unified envelope `{"error":{"code","message","retryable","upstream_status"}}`
   (`app/errors.py`); frontend unwraps it, with legacy `detail` fallback.
+- **Responses surface has no rate/quota enforcement.** `/api/v1/responses` only ever produces
+  `invalid_request_error` and `server_error` types — there is no `_enforce_limits`,
+  `rate_limit_exceeded`, or `quota_exceeded` in the responses router/services (unlike `app/errors.py`,
+  which has its own `quota_exceeded` for other routes). WS defaults live in `app/config.py`:
+  `RESPONSES_WS_MAX_CONNECTIONS = 1024`, `RESPONSES_WS_MAX_DURATION_SECONDS = 900` (15 min), and the
+  limit frame interpolates the value in **seconds**. `spec/openai-responses.md` was corrected to match
+  (it had drifted to fabricated rate/quota rows and stale 100/3600/"60 minutes" values).
 - **Editing `frontend/vite.config.ts` does not affect a running stack.** The dev override's
   `develop.watch` syncs only `frontend/src`, and `docker compose up` will not rebuild an existing
   image — so config changes silently do nothing until `docker compose up -d --build frontend`.
