@@ -226,7 +226,7 @@ def _connection_limit_frame() -> dict:
     return {
         "type": "error",
         **ResponsesApiError(
-            "Responses websocket connection limit reached (60 minutes). "
+            f"Responses websocket connection limit reached ({settings.RESPONSES_WS_MAX_DURATION_SECONDS} seconds). "
             "Create a new websocket connection to continue.",
             type="invalid_request_error",
             code="websocket_connection_limit_reached",
