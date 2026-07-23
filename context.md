@@ -190,8 +190,13 @@ Both entry points share it: `GET /api/v1/agencies/{id}/test` (admin-only; also r
 **External integrations (config.py):** OpenRouter (`CLASSIFICATION_MODEL`
 `google/gemini-2.5-flash-lite`), ThaiLLM parse-spec endpoint, OneChat v3/v4, MCP endpoint.
 LLM providers/models are now also DB-configurable via `LlmProvider`/`LlmRoute` (admin pages):
-a `LlmRoute` maps a `purpose` (e.g. `classification`, `brief`, `judge`, `parse_spec`,
-`popular_questions`) to a provider + model. Route resolution is cached (~30s) and invalidated on any provider/route mutation.
+a `LlmRoute` maps a `purpose` to a provider + model. **Purposes are centralized as a single
+source of truth**: the `Purpose(StrEnum)` in `app/services/llm/purpose.py` (values
+`classification`, `brief`, `judge`, `parse_spec`, `popular_questions`); `KNOWN_PURPOSES` derives
+from it and is served by `GET /api/v1/llm/purposes`. All service call sites and `seed.py` use
+`Purpose.*`; `schemas/llm_route.py` types `purpose` as `Purpose` so the create/update API 422s on
+unknown values (no DB constraint). The frontend hardcodes no list — it reads purposes at runtime
+via `listPurposes()`. Route resolution is cached (~30s) and invalidated on any provider/route mutation.
 
 **Tests:** pytest (`asyncio_mode=auto`, `backend/tests/`), httpx AsyncClient transport.
 
