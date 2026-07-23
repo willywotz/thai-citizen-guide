@@ -38,7 +38,7 @@ const makeProvider = (o: Partial<LlmProvider> = {}): LlmProvider => ({
 
 const makeRoute = (o: Partial<LlmRoute> = {}): LlmRoute => ({
   id: "r1",
-  purpose: "chat",
+  purpose: "classification",
   provider_id: "p1",
   provider_name: "OpenAI",
   model: "gpt-4o",
