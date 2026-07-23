@@ -112,6 +112,11 @@ through `canAccess(user.role, item.url)` and picks up the new `ROUTE_ROLES`. A l
 simply sees fewer items (Chat, History, Architecture). No new layout: `user` uses the same
 `AppLayout` shell as `staff`.
 
+The public portal's login control is relabelled from **เข้าสู่ระบบเจ้าหน้าที่** ("staff login") to
+**เข้าสู่ระบบ** ("login"), since the login now serves citizens as well as staff. Two source sites:
+`features/public/PublicPortal.tsx` and `features/public/InfoPage.tsx`. (The `frontend/dist/`
+occurrences are build artifacts and regenerate on build — not edited by hand.)
+
 Any component still gating on a two-role assumption (e.g. treating "not admin" as "read-only
 dashboard viewer") is reviewed during implementation; the canonical gate is `canAccess` /
 `ROUTE_ROLES`, not ad-hoc role checks.
