@@ -19,9 +19,6 @@ export function RoutingTab({ agency }: { agency: Agency }) {
   const [timeoutS, setTimeoutS] = useState(
     agency.dispatchTimeoutS != null ? String(agency.dispatchTimeoutS) : "",
   );
-  const [rateLimit, setRateLimit] = useState(
-    agency.rateLimitRpm != null ? String(agency.rateLimitRpm) : "",
-  );
 
   const save = async () => {
     try {
@@ -31,7 +28,6 @@ export function RoutingTab({ agency }: { agency: Agency }) {
         routerHint,
         priority: parseIntOrNull(priority),
         dispatchTimeoutS: parseIntOrNull(timeoutS),
-        rateLimitRpm: parseIntOrNull(rateLimit),
       });
       toast.success("บันทึก routing สำเร็จ");
     } catch (err: unknown) {
@@ -63,10 +59,6 @@ export function RoutingTab({ agency }: { agency: Agency }) {
         <div className="space-y-1.5">
           <Label htmlFor="rt-timeout">Timeout (วินาที)</Label>
           <Input id="rt-timeout" type="number" min={1} placeholder="ค่าเริ่มต้นระบบ" value={timeoutS} onChange={(e) => setTimeoutS(e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="rt-rpm">Rate limit (rpm)</Label>
-          <Input id="rt-rpm" type="number" min={1} placeholder="ไม่จำกัด" value={rateLimit} onChange={(e) => setRateLimit(e.target.value)} />
         </div>
       </div>
       <Button onClick={save} disabled={updateMutation.isPending}>

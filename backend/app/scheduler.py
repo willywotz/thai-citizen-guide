@@ -1,11 +1,7 @@
 import asyncio
-import json
-import random
-import time
 from datetime import timedelta
 import logging
 
-import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
@@ -16,6 +12,7 @@ from app.services.agency import test_connection
 from app.services.agency_reconcile import reconcile_statuses
 from app.services.analytics import regenerate_weekly_brief
 from app.services.evaluation import run_evaluation
+from app.services.popular_questions import regenerate as regenerate_popular_questions
 from app.services.log_sanitize import sanitize_body
 from app.utils import generate_uuid, now
 
@@ -45,64 +42,22 @@ async def _run_agency_item(agency: Agency) -> None:
             if agency.status in ("draft", "disabled"):
                 span.set_attribute("agency.skipped", True)
                 return
-            if agency.connection_type == "API":
-                span.set_attribute("agency.connection_type", "API")
-                scope = agency.data_scope or ["ทั่วไป"]
-                scope = scope[random.randint(0, len(scope) - 1)] if scope else "ทั่วไป"
-                span.set_attribute("agency.data_scope", scope)
-
-                async with httpx.AsyncClient(timeout=settings.AGENCY_CHAT_TIMEOUT) as client:
-                    headers = {"content-type": "application/json"}
-                    for v in (agency.api_headers or []):
-                        headers[v["name"].lower()] = v["value"]
-                    span.set_attribute("agency.api_headers", json.dumps(headers))
-                    payload = {}
-                    for k, v in (agency.expected_payload or {}).items():
-                        payload[k] = v
-                        if v == "__query__":
-                            payload[k] = "ปรึกษากฎหมาย" + scope
-                        if v == "__user_id__":
-                            payload[k] = str(generate_uuid())
-                        if v == "__session_id__":
-                            payload[k] = str(generate_uuid())
-                        if v == "__conversation_id__":
-                            payload[k] = str(generate_uuid())
-                    span.set_attribute("agency.api_payload", json.dumps(payload))
-                    span.set_attribute("agency.api_endpoint", agency.endpoint_url)
-                    start_ns = time.perf_counter_ns()
-                    resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
-                    end_ns = time.perf_counter_ns()
-                    latency = int((end_ns - start_ns) // 1_000_000)
-                    span.set_attribute("agency.api_latency_ms", latency)
-                    span.set_attribute("agency.api_status_code", resp.status_code)
-                    span.set_attribute("agency.api_response", sanitize_body(resp.text, max_chars=500))
-                    await ConnectionLog.create(
-                        id=str(generate_uuid()),
-                        agency=agency,
-                        action="test",
-                        connection_type="API",
-                        status="success" if resp.status_code == 200 else "error",
-                        latency_ms=latency,
-                        detail=sanitize_body(f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}"),
-                        request_body=sanitize_body(json.dumps(payload)),
-                        response_body=sanitize_body(resp.text),
-                    )
-            elif agency.connection_type in ("MCP", "A2A"):
-                span.set_attribute("agency.connection_type", agency.connection_type)
-                result = await test_connection(agency.connection_type, agency)
-                try:
-                    latency = int(str(result.get("latency", "0")).rstrip("ms"))
-                except ValueError:
-                    latency = 0
-                await ConnectionLog.create(
-                    id=str(generate_uuid()),
-                    agency=agency,
-                    action="test",
-                    connection_type=agency.connection_type,
-                    status="success" if result.get("success") else "error",
-                    latency_ms=latency,
-                    detail=sanitize_body(result.get("error") or "ok"),
-                )
+            span.set_attribute("agency.connection_type", agency.connection_type)
+            result = await test_connection(agency.connection_type, agency)
+            try:
+                latency = int(str(result.get("latency", "0")).rstrip("ms"))
+            except ValueError:
+                latency = 0
+            span.set_attribute("agency.api_latency_ms", latency)
+            await ConnectionLog.create(
+                id=str(generate_uuid()),
+                agency=agency,
+                action="test",
+                connection_type=agency.connection_type,
+                status="success" if result.get("success") else "error",
+                latency_ms=latency,
+                detail=sanitize_body(result.get("error") or "ok"),
+            )
         except Exception as e:
             logger.error(f"Error testing agency {agency.name}: {e}")
             span.set_attribute("agency.error", str(e))
@@ -135,6 +90,15 @@ async def regenerate_brief_job() -> None:
         logger.error(f"Error regenerating weekly brief: {e}")
 
 
+async def regenerate_popular_questions_job() -> None:
+    logger.info("Regenerating popular questions...")
+    try:
+        n = await regenerate_popular_questions()
+        logger.info("Popular questions regenerated: %d new row(s)", n)
+    except Exception as e:
+        logger.error(f"Error regenerating popular questions: {e}")
+
+
 async def purge_old_connection_logs() -> int:
     logger.info("Purging old connection logs...")
     cutoff = now() - timedelta(days=settings.CONNECTION_LOG_RETENTION_DAYS)
@@ -150,6 +114,10 @@ async def start_scheduler() -> None:
     scheduler.add_job(regenerate_brief_job, IntervalTrigger(hours=settings.BRIEF_REGEN_INTERVAL_HOURS))
     scheduler.add_job(purge_old_connection_logs, IntervalTrigger(hours=24))
     scheduler.add_job(run_evaluation, IntervalTrigger(hours=settings.EVAL_INTERVAL_HOURS))
+    scheduler.add_job(
+        regenerate_popular_questions_job,
+        IntervalTrigger(hours=settings.POPULAR_QUESTIONS_REGEN_INTERVAL_HOURS),
+    )
     scheduler.start()
     logger.info("Scheduler started.")
 

@@ -51,17 +51,6 @@ export function StepRouting({ form, patch }: Props) {
             onChange={(e) => patch({ dispatchTimeoutS: e.target.value })}
           />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="wiz-rpm">Rate limit (rpm)</Label>
-          <Input
-            id="wiz-rpm"
-            type="number"
-            min={1}
-            placeholder="ไม่จำกัด"
-            value={form.rateLimitRpm}
-            onChange={(e) => patch({ rateLimitRpm: e.target.value })}
-          />
-        </div>
       </div>
     </div>
   );

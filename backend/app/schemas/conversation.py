@@ -29,6 +29,8 @@ class MessageResponse(BaseModel):
     content: str
     agent_steps: list[Any]
     sources: list[Any]
+    summary: str | None = None
+    summary_references: list[Any] = []
     rating: str | None
     feedback_text: str | None
     created_at: datetime

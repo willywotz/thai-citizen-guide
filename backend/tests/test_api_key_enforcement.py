@@ -44,26 +44,6 @@ async def test_future_expiry_key_works(db):
     assert result.id == u.id
 
 
-async def test_per_key_rate_limit(db, monkeypatch):
-    import app.auth.dependencies as dep
-    from app.services.rate_limit import InProcessLimiter
-    monkeypatch.setattr(dep, "api_key_limiter", InProcessLimiter())
-    u = await User.create(email="rl@x.com", hashed_password="h")
-    raw = await _key(u, rate_limit_rpm=1)
-    await get_current_user(_creds(raw))  # 1st ok
-    with pytest.raises(HTTPException) as e:
-        await get_current_user(_creds(raw))  # 2nd over limit
-    assert e.value.status_code == 429
-    assert "Retry-After" in e.value.headers
-
-
-async def test_no_per_key_limit_when_unset(db):
-    u = await User.create(email="nl@x.com", hashed_password="h")
-    raw = await _key(u)  # rate_limit_rpm is None
-    for _ in range(5):
-        assert (await get_current_user(_creds(raw))).id == u.id
-
-
 async def test_optional_revoked_key_raises_401(db):
     u = await User.create(email="or@x.com", hashed_password="h")
     raw = await _key(u, revoked_at=now())

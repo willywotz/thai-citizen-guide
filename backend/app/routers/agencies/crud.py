@@ -12,24 +12,29 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from tortoise.exceptions import DoesNotExist
 
-from app.auth.authz import authorize_or_403
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import require_admin
 from app.models.agency import Agency
 from app.models.user import User
 from app.routers.agencies._utils import _with_health
+from app.routers.agencies.logo import sweep_agency_logo_files
 from app.schemas.agency import (
     AgencyCreate,
     AgencyListResponse,
     AgencyResponse,
     AgencyUpdate,
 )
-from app.services import agency_directory
 from app.services.audit import record_audit
 from app.services.cache_flush import flush_similarity_cache
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Fields that identify *how* an agency is reached. Changing any of these on a
+# live agency invalidates its conformance battery, so it must be re-vetted.
+_CONNECTION_IDENTITY_FIELDS = frozenset(
+    {"connection_type", "endpoint_url", "api_headers", "expected_payload", "mcp_tool_name"}
+)
 
 
 # list_agencies and create_agency are registered by __init__.py directly
@@ -68,7 +73,6 @@ async def create_agency(body: AgencyCreate, _: User = Depends(require_admin)):
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
 
     agency = await Agency.create(**data)
-    agency_directory.invalidate()
     return await _with_health(agency)
 
 
@@ -82,19 +86,17 @@ async def get_agency(agency_id: uuid.UUID):
 
 
 @router.put("/{agency_id}", response_model=AgencyResponse, summary="Replace agency")
-async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = Depends(get_current_user)):
+async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:edit", agency)
 
     data = body.model_dump()
     data["api_endpoints"] = [e.model_dump() for e in body.api_endpoints]
     data["response_schema"] = [f.model_dump() for f in body.response_schema]
     data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
     await agency.update_from_dict(data).save()
-    agency_directory.invalidate()
     try:
         await flush_similarity_cache()
     except Exception:
@@ -104,12 +106,11 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, user: User = 
 
 
 @router.patch("/{agency_id}", response_model=AgencyResponse, summary="Partial update agency")
-async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = Depends(get_current_user)):
+async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:edit", agency)
 
     update_data = body.model_dump(exclude_unset=True)
 
@@ -129,8 +130,15 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = D
             for h in update_data["api_headers"]
         ]
 
+    connection_changed = any(
+        field in update_data and update_data[field] != getattr(agency, field)
+        for field in _CONNECTION_IDENTITY_FIELDS
+    )
+    if connection_changed and agency.status in ("active", "maintenance"):
+        update_data["status"] = "draft"
+        update_data["conformance_report"] = None
+
     await agency.update_from_dict(update_data).save()
-    agency_directory.invalidate()
     try:
         await flush_similarity_cache()
     except Exception:
@@ -140,14 +148,13 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, user: User = D
 
 
 @router.delete("/{agency_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete agency")
-async def delete_agency(agency_id: uuid.UUID, user: User = Depends(get_current_user)):
+async def delete_agency(agency_id: uuid.UUID, user: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:delete", agency)
     await agency.delete()
-    agency_directory.invalidate()
+    sweep_agency_logo_files(agency_id)
     await record_audit(user, "agency.delete", object_type="agency", object_id=agency_id)
 
 

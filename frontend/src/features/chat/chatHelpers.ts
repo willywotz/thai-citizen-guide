@@ -16,6 +16,9 @@ export const INITIAL_STREAMING_STATE: StreamingState = {
   answer: null,
   sections: [],
   errors: [],
+  summary: null,
+  summaryReferences: [],
+  threadName: null,
   sessionId: null,
   messageId: null,
   totalMs: null,
@@ -27,6 +30,7 @@ export const STEP_LABELS: Record<string, { icon: string; label: string }> = {
   classify: { icon: '🧠', label: 'วิเคราะห์คำถาม' },
   invoke: { icon: '🔗', label: 'สืบค้นจากหน่วยงาน' },
   verify: { icon: '✅', label: 'ตรวจสอบความเกี่ยวข้อง' },
+  summarize: { icon: '📌', label: 'สรุปภาพรวม' },
   synthesize: { icon: '📝', label: 'สังเคราะห์คำตอบ' },
 };
 
@@ -83,6 +87,8 @@ export function buildAiMessageFromState(state: StreamingState): ChatMessage | nu
     sources: state.sections?.flatMap((s) =>
       s.agencies.map((a) => ({ agency: a.name, url: '', title: s.title }))
     ),
+    summary: state.summary,
+    summaryReferences: state.summaryReferences,
     rating: null,
   };
 }
@@ -185,11 +191,25 @@ export function applyAgencyVerifiedEvent(prev: StreamingState, event: AgencyVeri
 }
 
 export function applyAnswerEvent(prev: StreamingState, event: AnswerEvent): StreamingState {
-  return { ...prev, answer: event.answer, sections: event.sections, errors: event.errors };
+  return {
+    ...prev,
+    answer: event.answer,
+    sections: event.sections,
+    errors: event.errors,
+    summary: event.summary?.trim() ? event.summary : null,
+    summaryReferences: event.references ?? [],
+  };
 }
 
 export function applyDoneEvent(prev: StreamingState, event: DoneEvent): StreamingState {
-  return { ...prev, sessionId: event.session_id, totalMs: event.total_ms, messageId: event.message_id ?? prev.messageId, done: true };
+  return {
+    ...prev,
+    sessionId: event.session_id,
+    totalMs: event.total_ms,
+    threadName: event.thread_name ?? prev.threadName,
+    messageId: event.message_id ?? prev.messageId,
+    done: true,
+  };
 }
 
 export function applyErrorEvent(prev: StreamingState, event: ErrorEvent): StreamingState {

@@ -27,7 +27,7 @@ class Agency(Model):
     id = fields.UUIDField(primary_key=True, default=generate_uuid)
     name = fields.CharField(max_length=255)
     short_name = fields.CharField(max_length=50, null=True)
-    logo = fields.CharField(max_length=20, null=True)           # emoji icon
+    logo = fields.CharField(max_length=255, null=True)           # emoji icon or uploaded image URL
     description = fields.TextField(null=True)
 
     # Connection
@@ -40,6 +40,10 @@ class Agency(Model):
     # Set True when the health rule auto-set maintenance; lets only rule-set
     # maintenance be auto-reactivated. Cleared on every manual status change.
     auto_maintenance = fields.BooleanField(default=False)
+    # Baseline for health measures: rows older than this are ignored by
+    # error_window / embedded_health / health_history. Set on each connection
+    # test. NULL = count all history.
+    stats_reset_at = fields.DatetimeField(null=True)
 
     # Scope
     data_scope = fields.JSONField(default=list)                 # list[str]
@@ -51,7 +55,6 @@ class Agency(Model):
     auth_header = fields.CharField(max_length=100, null=True)
     base_path = fields.CharField(max_length=255, null=True)
     api_key_name = fields.CharField(max_length=100, null=True)
-    rate_limit_rpm = fields.IntField(null=True)
     request_format = fields.CharField(max_length=50, null=True)
 
     # Schema / spec

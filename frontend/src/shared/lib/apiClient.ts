@@ -88,7 +88,10 @@ async function req<T>(fn: () => Promise<AxiosResponse<T>>): Promise<T> {
 // ---------------------------------------------------------------------------
 
 export const api = {
-  get: <T = unknown>(path: string, params?: Record<string, unknown>) =>
+  // `params` is `object`, not `Record<string, unknown>`: an interface has no
+  // implicit index signature, so callers passing a typed params interface
+  // (AuditLogParams, UsageParams, …) would not type-check against Record.
+  get: <T = unknown>(path: string, params?: object) =>
     req<T>(() => axiosInstance.get<T>(path, { params })),
 
   post: <T = unknown>(path: string, body?: unknown) =>

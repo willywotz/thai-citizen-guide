@@ -7,8 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from tortoise.exceptions import DoesNotExist
 
-from app.auth.authz import authorize_or_403
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import require_admin
 from app.errors import ApiError
 from app.models.agency import Agency
 from app.models.connection_log import ConnectionLog
@@ -20,12 +19,12 @@ from app.schemas.agency import (
     HealthHistoryResponse,
     StatusUpdateRequest,
 )
-from app.services import agency_directory
 from app.services.agency import test_connection
 from app.services.agency_health import health_history
 from app.services.agency_lifecycle import is_legal_transition
 from app.services.audit import record_audit
 from app.services.log_sanitize import sanitize_body
+from app.utils import now
 
 router = APIRouter()
 
@@ -70,15 +69,14 @@ class TestConnectionResponse(BaseModel):
 
 
 @router.patch("/{agency_id}/status", response_model=AgencyResponse, summary="Transition agency lifecycle status")
-async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, user: User = Depends(get_current_user)):
+async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, user: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    await authorize_or_403(user, "agency:change_status", agency)
     if not is_legal_transition(agency.status.value, body.status):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Illegal status transition: {agency.status.value} → {body.status}",
         )
     if agency.status.value == "draft" and body.status == "active":
@@ -89,17 +87,15 @@ async def update_agency_status(agency_id: uuid.UUID, body: StatusUpdateRequest, 
     agency.status = body.status
     agency.auto_maintenance = False
     await agency.save(update_fields=["status", "auto_maintenance", "updated_at"])
-    agency_directory.invalidate()
     await record_audit(user, "agency.status_change", object_type="agency", object_id=agency.id, detail={"from": old_status, "to": body.status})
     return await _with_health(agency)
 
 
-@router.post("/{agency_id}/conformance", summary="Run the conformance battery (owner or admin)")
-async def run_agency_conformance(agency_id: str, user: User = Depends(get_current_user)):
+@router.post("/{agency_id}/conformance", summary="Run the conformance battery (admin)")
+async def run_agency_conformance(agency_id: str, _: User = Depends(require_admin)):
     agency = await Agency.get_or_none(id=agency_id)
     if agency is None:
         raise HTTPException(status_code=404, detail="Agency not found")
-    await authorize_or_403(user, "agency:edit", agency)
     from app.services.conformance import run_conformance
     return await run_conformance(agency)
 
@@ -107,10 +103,10 @@ async def run_agency_conformance(agency_id: str, user: User = Depends(get_curren
 @router.get("/{agency_id}/health/history", response_model=HealthHistoryResponse, summary="Agency health history")
 async def agency_health_history(agency_id: uuid.UUID, window: str = "24h"):
     try:
-        await Agency.get(id=agency_id)
+        agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    buckets = await health_history(agency_id, window)
+    buckets = await health_history(agency_id, window, agency.stats_reset_at)
     return HealthHistoryResponse(data=[HealthHistoryBucket(**b) for b in buckets])
 
 
@@ -124,6 +120,9 @@ async def test_connection_endpoint(agency_id: uuid.UUID, _: User = Depends(requi
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+
+    # Each test resets the health measurement baseline to this moment.
+    agency.stats_reset_at = now()
 
     raw = await test_connection(agency.connection_type, agency)
 
@@ -143,6 +142,14 @@ async def test_connection_endpoint(agency_id: uuid.UUID, _: User = Depends(requi
         server_info=raw.get("serverInfo"),
         agent_card=AgentCardInfo(**agent_card_raw) if agent_card_raw else None,
     )
+
+    # A passing test on a rule-set maintenance agency brings it back immediately.
+    update_fields = ["stats_reset_at", "updated_at"]
+    if response.success and agency.status == "maintenance" and agency.auto_maintenance:
+        agency.status = "active"
+        agency.auto_maintenance = False
+        update_fields += ["status", "auto_maintenance"]
+    await agency.save(update_fields=update_fields)
 
     latency_ms = int(response.latency.replace("ms", ""))
     await ConnectionLog.create(

@@ -68,7 +68,7 @@ async def test_repeated_list_agency_calls_have_no_session_error():
     root = Starlette(routes=[Mount("/mcp", app=main.mcp_app)], lifespan=_mcp_lifespan)
     port = _free_port()
     server = uvicorn.Server(
-        uvicorn.Config(root, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+        uvicorn.Config(root, host="127.0.0.1", port=port, log_level="warning", lifespan="on", ws="none")
     )
     serve_task = asyncio.create_task(server.serve())
     url = f"http://127.0.0.1:{port}/mcp/"

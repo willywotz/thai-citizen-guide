@@ -1,6 +1,5 @@
 """Spec and MCP discovery endpoints: parse-spec, mcp/discover."""
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
@@ -8,6 +7,7 @@ from app.auth.dependencies import get_current_user, require_admin
 from app.models.user import User
 from app.schemas.agency import McpDiscoverRequest, McpDiscoverResponse, McpToolInfo
 from app.services.agency import parse_spec
+from app.services.llm import LlmError
 from app.services.mcp_discovery import discover_tools
 
 router = APIRouter()
@@ -20,7 +20,7 @@ class ParseSpecRequest(BaseModel):
 @router.post("/mcp/discover", response_model=McpDiscoverResponse, summary="Discover MCP tools at an endpoint")
 async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin)):
     if not body.endpoint_url.strip():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="endpoint_url is required")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="endpoint_url is required")
     try:
         tools = await discover_tools(body.endpoint_url)
     except Exception as exc:  # noqa: BLE001 — surface any MCP/connection failure to the client
@@ -35,10 +35,8 @@ async def parse_api_spec(body: ParseSpecRequest, _: User = Depends(get_current_u
 
     try:
         parsed = await parse_spec(body.spec_text)
-    except httpx.RequestError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"gateway error: {exc}")
-    except httpx.HTTPStatusError as exc:
-        raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text[:500])
+    except LlmError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM provider error: {exc}")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 

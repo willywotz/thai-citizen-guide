@@ -24,7 +24,6 @@ from jose import JWTError
 
 from app.auth.security import API_KEY_PREFIX, decode_access_token, hash_api_key
 from app.models.user import User, UserAPIKey
-from app.services.rate_limit import api_key_limiter
 from app.services.usage_context import current_api_key_id, current_user_id
 from app.utils import now
 
@@ -38,38 +37,61 @@ _invalid_credentials = HTTPException(
 )
 
 _MESSAGE_RATING_PATH = re.compile(r"^/api/v1/messages/[^/]+/rating$")
-# Matches the collection and /{id} only — sub-resources like /{id}/messages are intentionally excluded; only HistoryPage uses them and it's gated at the frontend.
+# Matches the collection and /{id} only. The /{id}/messages sub-resource is granted
+# separately and GET-only (see below), so adding a write verb there would not inherit access.
 _CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/[^/]+)?$")
+# The History page reads this to expand a conversation. Safe to grant because the
+# handler applies the same own-or-admin ownership check as GET /conversations/{id}.
+_CONVERSATION_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/conversations/[^/]+/messages$")
 
-# GET endpoints backing the pages a `viewer` may open (Architecture, Dashboard,
-# Executive, Health, Heatmap, analytics insights, Usage, Feedback). Detail/admin
-# endpoints are deliberately excluded — viewer is narrower than auditor.
-_VIEWER_GET_EXACT = frozenset({
-    "/api/v1/agencies",            # Architecture list
-    "/api/v1/dashboard/stats",     # Dashboard
-    "/api/v1/executive-summary",   # Executive
-    "/api/v1/agency-health",       # Agency Health
-    "/api/v1/usage-heatmap",       # Usage Heatmap
-    "/api/v1/analytics-insights",  # Dashboard insights
-    "/api/v1/insight/usage",       # Usage analytics
-    "/api/v1/feedback/stats",      # Feedback
+_PUBLIC_PREFIX = "/api/v1/public"
+# Agency logo images are already publicly exposed via GET /public/agencies;
+# serving them at /agencies/{id}/logo (not under /public/) keeps the URL an
+# <img> tag hits stable, but it must still bypass the role allowlist so an
+# authenticated user's attached JWT doesn't 403 the fetch.
+_AGENCY_LOGO_GET_PATTERN = re.compile(r"^/api/v1/agencies/[^/]+/logo$")
+
+# Read-only ops dashboards a plain `user` may view: Dashboard, Executive,
+# Agency Health, Usage Heatmap, Usage Analytics, Feedback. The write side of
+# each page (e.g. POST /executive-summary/regenerate) stays admin-only.
+_BASIC_USER_GET_EXACT = frozenset({
+    "/api/v1/dashboard/stats",
+    "/api/v1/executive-summary",
+    "/api/v1/agency-health",
+    "/api/v1/usage-heatmap",
+    "/api/v1/insight/usage",
+    "/api/v1/feedback/stats",
 })
-_VIEWER_GET_PATTERN = [
-    re.compile(r"^/api/v1/agencies/[^/]+/health/history$"),       # Health detail
-    re.compile(r"^/api/v1/feedback/agencies/[^/]+/low-rated$"),   # Feedback detail
-]
-_SETTINGS_PREFIX = "/api/v1/settings"
+
+
+def _is_public_get(method: str, path: str) -> bool:
+    """Anything under ``/api/v1/public/`` is a public GET by definition.
+
+    A logged-in caller's role must never gate an endpoint that an anonymous
+    caller can already reach — see ``app/routers/public_status.py`` and
+    ``app/routers/popular_questions.py`` (both mounted under this prefix).
+    """
+    if method != "GET":
+        return False
+    return (
+        path == _PUBLIC_PREFIX
+        or path.startswith(_PUBLIC_PREFIX + "/")
+        or bool(_AGENCY_LOGO_GET_PATTERN.match(path))
+    )
 
 
 def _is_shared_write(method: str, path: str) -> bool:
     """Writes every authenticated role (incl. read-only ones) may perform.
 
-    Chat, message rating, own-conversation management, and the self/auth
-    endpoints. Everything else is a privileged write.
+    Chat (including the OpenAI-compatible /responses surface), message rating,
+    own-conversation management, and the self/auth endpoints. Everything else is
+    a privileged write.
     """
     if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
         return True
-    if method == "POST" and path in ("/api/v1/chat", "/api/v1/chat/stream"):
+    if method == "POST" and path in (
+        "/api/v1/chat", "/api/v1/chat/stream", "/api/v1/responses",
+    ):
         return True
     if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
         return True
@@ -79,32 +101,14 @@ def _is_shared_write(method: str, path: str) -> bool:
 
 
 def _is_allowed_for_basic_user(method: str, path: str) -> bool:
-    """A plain ``user`` role: chat + architecture list + the shared writes."""
+    """A plain ``user`` role: chat + architecture list + read-only ops pages + shared writes."""
     if _is_shared_write(method, path):
         return True
     if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
         return True
-    return False
-
-
-def _is_allowed_for_viewer(method: str, path: str) -> bool:
-    """``viewer``: read-only on its operational/analytics pages, plus chat."""
-    if _is_shared_write(method, path):
+    if method == "GET" and path in _BASIC_USER_GET_EXACT:
         return True
-    if method == "GET" and (
-        path in _VIEWER_GET_EXACT or any(p.match(path) for p in _VIEWER_GET_PATTERN)
-    ):
-        return True
-    return False
-
-
-def _is_allowed_for_auditor(method: str, path: str) -> bool:
-    """``auditor``: read-only on everything except Settings, plus chat."""
-    if _is_shared_write(method, path):
-        return True
-    if method == "GET" and not (
-        path == _SETTINGS_PREFIX or path.startswith(_SETTINGS_PREFIX + "/")
-    ):
+    if method == "GET" and _CONVERSATION_MESSAGES_GET_PATTERN.match(path):
         return True
     return False
 
@@ -151,16 +155,6 @@ async def _resolve_token(token: str) -> User | None:
         user = await User.filter(id=api_key.user_id, is_active=True).first()
         if user is None:
             return None
-        rpm = api_key.rate_limit_rpm or 0
-        if rpm:
-            key = f"apikey:{api_key.id}"
-            result = await api_key_limiter.check(key, limit=rpm)
-            if not result.allowed:
-                raise HTTPException(
-                    status_code=429,
-                    detail="API key rate limit exceeded",
-                    headers={"Retry-After": str(result.retry_after)},
-                )
         api_key.last_used_at = now()
         await api_key.save(update_fields=["last_used_at"])
         current_user_id.set(user.id)
@@ -198,7 +192,8 @@ async def get_current_user_optional(
     token = credentials.credentials
     user = await _resolve_token(token)
     # A deliberate API-key auth that fails must NOT silently degrade to anonymous
-    # — that would let a typo'd key bypass rate limits / quotas. A JWT, by
+    # — a typo'd or revoked key should surface an error, not run as an anonymous
+    # caller under a different identity. A JWT, by
     # contrast, is a session token a browser auto-attaches; an expired one
     # degrades to anonymous so optional-auth endpoints (e.g. chat) still work.
     if user is None and token.startswith(API_KEY_PREFIX):
@@ -215,39 +210,31 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-async def require_admin_or_auditor(user: User = Depends(get_current_user)) -> User:
-    """Read-only management access: full admins and read-only auditors."""
-    if user.role not in ("admin", "auditor"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or auditor privileges required",
-        )
-    return user
-
-
-_ROLE_ALLOWLIST = {
-    "user": _is_allowed_for_basic_user,
-    "viewer": _is_allowed_for_viewer,
-    "auditor": _is_allowed_for_auditor,
-}
+_ROLE_ALLOWLIST = {"user": _is_allowed_for_basic_user}
 
 
 async def enforce_role_allowlist(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
 ) -> None:
-    """Chokepoint for read-restricted roles (``user``, ``viewer``, ``auditor``).
+    """Deny-by-default chokepoint for every role except ``admin``.
 
-    Anonymous, ``admin`` and ``agency_owner`` callers pass straight through;
-    their access is governed by each endpoint's own auth. Wired as a global
-    dependency in ``app.main`` so it runs once per request.
+    Anonymous callers pass straight through; their access is governed by each
+    endpoint's own auth. Wired as a global dependency in ``app.main`` so it
+    runs once per request.
     """
     if credentials is None:
         return
-    role = await _resolve_role(credentials.credentials)
-    check = _ROLE_ALLOWLIST.get(role or "")
-    if check is None:  # admin, agency_owner, unknown/None → governed per-endpoint
+    if _is_public_get(request.method, request.url.path):
         return
+    role = await _resolve_role(credentials.credentials)
+    # An unresolvable token (invalid/expired/inactive) passes through so the
+    # endpoint's own auth returns 401 rather than a misleading 403. `admin` is
+    # governed per-endpoint. Every other role — including rows left behind by a
+    # not-yet-run migration — is denied by default.
+    if role is None or role == "admin":
+        return
+    check = _ROLE_ALLOWLIST.get(role, _is_allowed_for_basic_user)
     if not check(request.method, request.url.path):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

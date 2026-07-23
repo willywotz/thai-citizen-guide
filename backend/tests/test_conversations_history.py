@@ -70,3 +70,27 @@ async def test_history_date_range_filters_in_query():
         r = await c.get("/api/v1/conversations", params={"date_from": cutoff})
     app.dependency_overrides.clear()
     assert [d["title"] for d in r.json()["data"]] == ["new"]
+
+
+# ─── v5 summary exposure ─────────────────────────────────────────────────────
+
+@pytest.mark.usefixtures("db")
+async def test_conversation_messages_expose_summary_fields():
+    """The history detail dialog needs the stored summary to render its card."""
+    from app.models.conversation import Conversation, Message
+    from app.routers.conversations import get_conversation_messages
+    from unittest.mock import MagicMock
+
+    conv = await Conversation.create(status="success")
+    await Message.create(
+        conversation=conv, role="assistant", content="a",
+        summary="สรุป [1]",
+        summary_references=[{"number": 1, "agency_id": "land", "agency_name": "กรมที่ดิน", "url": None}],
+    )
+
+    # MagicMock's `.is_admin` is a truthy Mock, so the ownership check
+    # short-circuits and passes without needing to patch the check away.
+    rows = await get_conversation_messages(conv.id, MagicMock())
+
+    assert rows[0]["summary"] == "สรุป [1]"
+    assert rows[0]["summary_references"][0]["number"] == 1

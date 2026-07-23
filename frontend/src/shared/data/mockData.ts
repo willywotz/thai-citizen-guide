@@ -1,3 +1,4 @@
+import { UNKNOWN_HEALTH } from '@/shared/types/agency';
 import type { Agency, AgentStep, ChatMessage, ConversationHistory, DashboardStats } from '@/shared/types';
 
 // Re-export types for backward compatibility
@@ -18,6 +19,13 @@ export const agencies: Agency[] = [
     totalCalls: 12450,
     color: 'hsl(145 55% 40%)',
     endpointUrl: 'https://api.fda.moph.go.th/mcp',
+    priority: null,
+    routerHint: '',
+    dispatchTimeoutS: null,
+    mcpToolName: null,
+    ratingUp: 0,
+    ratingDown: 0,
+    health: UNKNOWN_HEALTH,
   },
   {
     id: 'revenue',
@@ -31,6 +39,13 @@ export const agencies: Agency[] = [
     totalCalls: 18320,
     color: 'hsl(213 70% 45%)',
     endpointUrl: 'https://api.rd.go.th/v1',
+    priority: null,
+    routerHint: '',
+    dispatchTimeoutS: null,
+    mcpToolName: null,
+    ratingUp: 0,
+    ratingDown: 0,
+    health: UNKNOWN_HEALTH,
   },
   {
     id: 'dopa',
@@ -44,6 +59,13 @@ export const agencies: Agency[] = [
     totalCalls: 9870,
     color: 'hsl(25 85% 55%)',
     endpointUrl: 'https://api.dopa.go.th/a2a',
+    priority: null,
+    routerHint: '',
+    dispatchTimeoutS: null,
+    mcpToolName: null,
+    ratingUp: 0,
+    ratingDown: 0,
+    health: UNKNOWN_HEALTH,
   },
   {
     id: 'land',
@@ -57,14 +79,14 @@ export const agencies: Agency[] = [
     totalCalls: 7650,
     color: 'hsl(280 50% 50%)',
     endpointUrl: 'https://api.dol.go.th/mcp',
+    priority: null,
+    routerHint: '',
+    dispatchTimeoutS: null,
+    mcpToolName: null,
+    ratingUp: 0,
+    ratingDown: 0,
+    health: UNKNOWN_HEALTH,
   },
-];
-
-export const suggestedQuestions = [
-  'ขอตรวจสอบทะเบียนยา พาราเซตามอล',
-  'สอบถามเรื่องการลดหย่อนภาษี 2568',
-  'ขั้นตอนการทำบัตรประชาชนใหม่',
-  'ตรวจสอบราคาประเมินที่ดิน กรุงเทพฯ',
 ];
 
 export const mockAgentSteps: AgentStep[] = [

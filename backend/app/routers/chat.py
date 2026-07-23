@@ -8,11 +8,9 @@ Public endpoints (schema-visible)
 
 Internal endpoints (hidden from OpenAPI schema, still functional)
 -----------------------------------------------------------------
-  POST /chat/internal   → LangGraph multi-agent pipeline
   POST /chat/external   → OneChat v3 sync (alias of /chat; deprecated)
 """
 
-import asyncio
 import json
 import logging
 import time
@@ -26,20 +24,21 @@ from opentelemetry.trace import StatusCode
 from tortoise.exceptions import DoesNotExist
 
 from app.auth.dependencies import get_current_user_optional
-from app.concurrency import spawn_logged
 from app.config import settings
 from app.models.connection_log import ConnectionLog
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.chat.graph import build_graph
-from app.services.chat.llm import classify_message_category, extract_tag, store_embedding
+from app.services.chat.llm import classify_message_category
+from app.services.chat.stream import (
+    ConversationNotFound,
+    _stream_upstream,  # re-exported: tests/routers/test_chat_stream_version.py imports it from here
+    prepare_turn,
+    run_turn,
+)
 from app.services.chat.turn import save_turn
-from app.services.embedding import generate_embedding
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
-from app.services.quota import QuotaExceeded, check_global_budget, check_user_quota
-from app.services.rate_limit import user_limiter
 from app.services.session import ensure_session_warmed
 from app.utils import generate_uuid
 
@@ -48,116 +47,10 @@ tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
 
-async def enforce_user_rate_limit(user) -> None:
-    key = f"user:{user.id}"
-    result = await user_limiter.check(key, limit=settings.USER_RATE_LIMIT_RPM)
-    if not result.allowed:
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded",
-            headers={"Retry-After": str(result.retry_after)},
-        )
-
-
-# ─── Internal endpoint (LangGraph pipeline) ────────────────────────────────────
-
-@router.post("/internal", include_in_schema=False)  # internal LangGraph pipeline
-async def chat_internal(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-    if user is not None:
-        await enforce_user_rate_limit(user)
-    try:
-        await check_global_budget()
-        if user is not None:
-            await check_user_quota(user.id)
-    except QuotaExceeded as e:
-        raise HTTPException(status_code=429, detail=str(e))
-    start = time.time()
-    query = body.query.strip()
-
-    if not query:
-        return {"success": False, "error": "Missing query"}
-
-    embedding = await generate_embedding(query)
-    cached = await find_similar_question(query=query, embedding=embedding)
-    if cached:
-        user_msg, asst_msg, _ = cached
-        conversation_id = body.conversation_id or str(generate_uuid())
-        new_asst_msg = await _copy_cached_answer(
-            query=query,
-            conversation_id=conversation_id,
-            user=user,
-            user_msg=user_msg,
-            asst_msg=asst_msg,
-        )
-        return {
-            "success": True,
-            "data": {
-                "message_id": new_asst_msg.id,
-                "answer": asst_msg.content,
-                "references": asst_msg.sources if asst_msg.sources else [],
-                "agentSteps": asst_msg.agent_steps if asst_msg.agent_steps else [],
-                "agencies": [],
-                "confidence": settings.SIMILARITY_THRESHOLD,
-                "cached": True,
-            },
-            "conversation_id": conversation_id,
-            "responseTime": 0,
-        }
-
-    conversation_id = body.conversation_id or str(generate_uuid())
-    result = await build_graph().ainvoke({"query": query, "conversation_id": conversation_id})
-    response_time = int((time.time() - start) * 1000)
-    answer = result.get("final_answer", "").strip()
-
-    references = []
-    answer, refs_raw = extract_tag(answer, "references")
-    if refs_raw is not None:
-        try:
-            references = json.loads(refs_raw)
-        except json.JSONDecodeError:
-            references = []
-
-    answer, category = extract_tag(answer, "category")
-
-    routes = result.get("routes", [])
-    results = result.get("results", [])
-    succeeded = bool(routes) and any(r.get("status") == "ok" for r in results)
-
-    saved = await save_turn(
-        query=query, conversation_id=conversation_id, answer=answer,
-        references=references, category=category,
-        agency_ids=[str(ag["agency_id"]) for ag in routes],
-        response_time=response_time, user=user, succeeded=succeeded,
-    )
-    spawn_logged(store_embedding(saved.user_message_id, query), name="store_embedding")
-
-    return {
-        "success": True,
-        "data": {
-            "message_id": saved.assistant_message_id,
-            "answer": answer,
-            "references": references,
-            "agentSteps": [],
-            "agencies": [],
-            "confidence": 0.0,
-        },
-        "conversation_id": conversation_id,
-        "responseTime": response_time,
-    }
-
-
 # ─── External endpoint (OneChat v3) ────────────────────────────────────────────
 
 @router.post("/external", include_in_schema=False, deprecated=True)  # alias; use POST /chat
 async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-    if user is not None:
-        await enforce_user_rate_limit(user)
-    try:
-        await check_global_budget()
-        if user is not None:
-            await check_user_quota(user.id)
-    except QuotaExceeded as e:
-        raise HTTPException(status_code=429, detail=str(e))
     with tracer.start_as_current_span("chat_external_endpoint") as span:
         query = body.query.strip()
         conversation_id = body.conversation_id or str(generate_uuid())
@@ -173,8 +66,7 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
             raise HTTPException(status_code=400, detail="Missing query")
 
         if not body.conversation_id:
-            embedding = await generate_embedding(query)
-            cached = await find_similar_question(query=query, embedding=embedding)
+            cached = await find_similar_question(query=query)
             if cached:
                 user_msg, asst_msg, _ = cached
                 span.set_attribute("cache_hit", True)
@@ -254,7 +146,6 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         )
 
         background_tasks.add_task(classify_message_category, saved.user_message_id, query, answer)
-        background_tasks.add_task(store_embedding, saved.user_message_id, query)
 
         return {
             "success": True,
@@ -271,143 +162,44 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
         }
 
 
-# ─── Stream endpoint (OneChat v4 SSE) ─────────────────────────────────────────
+# ─── Stream endpoint (OneChat v5 SSE) ─────────────────────────────────────────
 
-@router.post("/stream", summary="Send a query and receive SSE streaming response (v4)")
+@router.post("/stream", summary="Send a query and receive SSE streaming response")
 async def chat_stream(body: ChatRequest, request: Request, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)):
-    """Proxy to OneChat v4 SSE endpoint, re-emit events to client, save conversation after answer."""
-    if user is not None:
-        await enforce_user_rate_limit(user)
-    try:
-        await check_global_budget()
-        if user is not None:
-            await check_user_quota(user.id)
-    except QuotaExceeded as e:
-        raise HTTPException(status_code=429, detail=str(e))
+    """Format the shared turn pipeline as SSE. All logic lives in services/chat/stream.py."""
     query = body.query.strip()
     conversation_id = body.conversation_id or str(generate_uuid())
 
     with tracer.start_as_current_span("chat_stream_endpoint") as span:
         span.set_attribute("conversation_id", conversation_id)
-
         if not query:
             span.set_status(StatusCode.ERROR, "Missing query")
             raise HTTPException(status_code=400, detail="Missing query")
-
         span.set_attribute("query", query)
 
-        if not body.conversation_id:
-            embedding = await generate_embedding(query)
-            cached = await find_similar_question(query=query, embedding=embedding)
-            if cached:
-                user_msg, asst_msg, conn_log = cached
+        try:
+            plan = await prepare_turn(
+                query=query, conversation_id=conversation_id, user=user,
+                is_continuation=bool(body.conversation_id),
+            )
+        except ConversationNotFound:
+            span.set_status(StatusCode.ERROR, "Conversation not found for session warm-up")
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
-                async def cached_stream():
-                    await asyncio.sleep(0.01)
-                    span.set_attribute("cache_hit", True)
-                    try:
-                        answer_data = json.loads(conn_log.response_body)
-                    except Exception:
-                        answer_data = {"answer": asst_msg.content}
-                    assistant_id = await _save_stream_conversation(
-                        query=query,
-                        conversation_id=conversation_id,
-                        answer_data=answer_data,
-                        session_id=None,
-                        total_ms=0,
-                        latency_ms=0,
-                        user=user,
-                        background_tasks=background_tasks,
-                    )
-                    yield _sse_event("answer", {"answer": asst_msg.content})
-                    yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0, "message_id": str(assistant_id)})
+        span.set_attribute("chat_stream_version", plan.stream_version)
+        if plan.cached is not None:
+            span.set_attribute("cache_hit", True)
 
-                return StreamingResponse(cached_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-        else:
-            try:
-                conv = await Conversation.get(id=conversation_id)
-            except DoesNotExist:
-                span.set_status(StatusCode.ERROR, "Conversation not found for session warm-up")
-                raise HTTPException(status_code=404, detail="Conversation not found")
-            try:
-                await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
-            except Exception:
-                logger.warning("Session warm-up failed for conversation %s", conversation_id)
+        async def sse():
+            async for event in run_turn(plan, background_tasks=background_tasks):
+                if event.name == "error":
+                    span.set_status(StatusCode.ERROR, event.data.get("message"))
+                yield _sse_event(event.name, event.data)
 
-        payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
-
-        async def event_generator():
-            answer_data = None
-            session_id = None
-            total_ms = None
-            done_event_data = None
-            start_ns = time.perf_counter_ns()
-            log_latency_ms = 0
-
-            try:
-                async with httpx.AsyncClient(timeout=settings.V4_STREAM_TIMEOUT) as client:
-                    async with client.stream("POST", settings.ONECHAT_V4_URL, headers={"Content-Type": "application/json"}, json=payload) as resp:
-                        if resp.status_code != 200:
-                            error_msg = f"OneChat v4 returned {resp.status_code}"
-                            try:
-                                error_body = await resp.aread()
-                                error_msg = f"OneChat v4 returned {resp.status_code}: {error_body.decode()[:200]}"
-                            except Exception:
-                                pass
-                            span.set_status(StatusCode.ERROR, error_msg)
-                            yield _sse_event("error", {"message": error_msg, "code": resp.status_code})
-                            yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-                            return
-
-                        log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
-                        buffer = ""
-                        async for chunk in resp.aiter_text():
-                            buffer += chunk
-                            while "\n\n" in buffer:
-                                event_block, buffer = buffer.split("\n\n", 1)
-                                parsed = _parse_sse_block(event_block)
-                                if not parsed:
-                                    continue
-                                event_name, event_data = parsed
-                                if event_name == "answer":
-                                    answer_data = event_data
-                                elif event_name == "done":
-                                    session_id = event_data.get("session_id")
-                                    total_ms = event_data.get("total_ms")
-                                    done_event_data = event_data
-                                with tracer.start_as_current_span("event") as event_span:
-                                    event_span.set_attribute("stream_event", event_name)
-                                    event_span.set_attribute("event_data", json.dumps(event_data)[:500])
-                                if event_name != "done":
-                                    yield _sse_event(event_name, event_data)
-
-            except httpx.ReadTimeout:
-                span.set_status(StatusCode.ERROR, "OneChat v4 stream read timeout")
-                yield _sse_event("error", {"message": "OneChat v4 connection timed out", "code": 504})
-                yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-                return
-            except Exception as e:
-                span.set_status(StatusCode.ERROR, f"Exception during OneChat v4 streaming: {e}")
-                yield _sse_event("error", {"message": str(e), "code": 500})
-                yield _sse_event("done", {"session_id": conversation_id, "total_ms": 0})
-                return
-
-            if answer_data:
-                assistant_id = await _save_stream_conversation(
-                    query=query,
-                    conversation_id=conversation_id,
-                    answer_data=answer_data,
-                    session_id=session_id,
-                    total_ms=total_ms,
-                    latency_ms=log_latency_ms,
-                    user=user,
-                    background_tasks=background_tasks,
-                )
-                yield _sse_event("done", {**(done_event_data or {}), "session_id": conversation_id, "message_id": str(assistant_id)})
-            elif done_event_data is not None:
-                yield _sse_event("done", {**done_event_data, "session_id": conversation_id})
-
-        return StreamingResponse(event_generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+        return StreamingResponse(
+            sse(), media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
 
 # ─── Default route (delegates to /external) ───────────────────────────────────
@@ -450,10 +242,9 @@ async def _copy_cached_answer(
 ) -> Message:
     """Copy a cached answer into a fresh message owned by `conversation_id`.
 
-    Copies are intentionally NOT cache sources: no embedding is stored and no
-    ConnectionLog is created, so neither vector search (filters on
-    embedding IS NOT NULL) nor the text fallback (requires a ConnectionLog in
-    find_similar_question) will ever resurface a copy.
+    Copies are intentionally NOT cache sources: no ConnectionLog is created,
+    so `_fetch_answer_by_match` (which inner-joins connection_logs in
+    find_similar_question) will never resurface a copy.
     """
     try:
         conv = await Conversation.get(id=conversation_id)
@@ -487,49 +278,3 @@ async def _copy_cached_answer(
         agency_ids=asst_msg.agency_ids,
         response_time=0,
     )
-
-
-async def _save_stream_conversation(
-    *,
-    query: str,
-    conversation_id: str,
-    answer_data: dict,
-    session_id: str | None,
-    total_ms: int | None,
-    latency_ms: int,
-    user: User | None,
-    background_tasks: BackgroundTasks,
-) -> Any:
-    """Save a stream turn via save_turn and create the v4 ConnectionLog."""
-    answer = answer_data.get("answer", "").strip()
-    errors = answer_data.get("errors", [])
-    sections = answer_data.get("sections", [])
-
-    agency_ids = []
-    for sec in sections:
-        if "agencies" in sec:
-            agency_ids.extend([ag["id"] for ag in sec["agencies"]])
-
-    response_time = total_ms if total_ms else latency_ms
-
-    saved = await save_turn(
-        query=query, conversation_id=conversation_id, answer=answer,
-        references=answer_data.get("references", []), category=None,
-        agency_ids=agency_ids, response_time=response_time, user=user,
-        succeeded=bool(answer), external_session_id=session_id, errors=errors,
-    )
-    await ConnectionLog.create(
-        id=str(generate_uuid()),
-        action="query",
-        connection_type="external_chat_v4",
-        status="success" if answer else "error",
-        latency_ms=latency_ms,
-        detail=sanitize_body(f"v4 stream query: {query[:100]}"),
-        request_body=sanitize_body(json.dumps({"query": query, "session_id": conversation_id})),
-        response_body=sanitize_body(json.dumps(answer_data, ensure_ascii=False)),
-        message_id=saved.user_message_id,
-        assistant_message_id=saved.assistant_message_id,
-    )
-    background_tasks.add_task(classify_message_category, saved.user_message_id, query, answer)
-    background_tasks.add_task(store_embedding, saved.user_message_id, query)
-    return saved.assistant_message_id

@@ -8,6 +8,8 @@ export interface ChatMessage {
   agentSteps?: AgentStep[];
   sources?: { agency: string; url: string; title: string }[];
   rating?: 'up' | 'down' | null;
+  summary?: string | null;
+  summaryReferences?: SummaryReference[];
 }
 
 export interface ConversationHistory {
@@ -22,7 +24,14 @@ export interface ConversationHistory {
 
 // --- v4 SSE Streaming Types ---
 
-export type PipelineStepName = 'discover' | 'classify' | 'invoke' | 'verify' | 'synthesize';
+export type PipelineStepName = 'discover' | 'classify' | 'invoke' | 'verify' | 'summarize' | 'synthesize';
+
+export interface SummaryReference {
+  number: number;
+  agency_id: string;
+  agency_name: string;
+  url: string | null;
+}
 
 export interface StepEvent {
   name: PipelineStepName;
@@ -88,6 +97,8 @@ export interface AnswerSection {
 
 export interface AnswerEvent {
   answer: string;
+  summary?: string;
+  references?: SummaryReference[];
   sections: AnswerSection[];
   errors: { agency: string; name: string; errorType: string; message: string }[];
   debug: Record<string, unknown> | null;
@@ -97,6 +108,7 @@ export interface DoneEvent {
   session_id: string;
   total_ms: number;
   message_id?: string;
+  thread_name?: string | null;
 }
 
 export interface ErrorEvent {
@@ -131,6 +143,9 @@ export interface StreamingState {
   answer: string | null;
   sections: AnswerSection[];
   errors: AnswerEvent['errors'];
+  summary: string | null;
+  summaryReferences: SummaryReference[];
+  threadName: string | null;
   sessionId: string | null;
   messageId: string | null;
   totalMs: number | null;

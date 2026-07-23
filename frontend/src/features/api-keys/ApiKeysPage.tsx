@@ -12,7 +12,6 @@ import {
   type APIKey,
   type CreatedAPIKey,
 } from "@/features/api-keys/apiKeyApi";
-import { useAuth } from "@/features/auth/useAuth";
 import { ApiKeyList } from "./ApiKeyList";
 import { CreateApiKeyDialog } from "./CreateApiKeyDialog";
 import { RevealKeyDialog } from "./RevealKeyDialog";
@@ -21,7 +20,6 @@ import { DeleteApiKeyDialog } from "./DeleteApiKeyDialog";
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
-  const { isReadOnly } = useAuth();
 
   const { data: keys = [], isLoading } = useQuery({
     queryKey: ["apiKeys"],
@@ -32,21 +30,17 @@ export default function ApiKeysPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createExpiresInDays, setCreateExpiresInDays] = useState("");
-  const [createRateLimit, setCreateRateLimit] = useState("");
   const [newKey, setNewKey] = useState<CreatedAPIKey | null>(null);
   const resetCreateForm = useCallback(() => {
     setCreateName("");
     setCreateExpiresInDays("");
-    setCreateRateLimit("");
   }, []);
   const createMutation = useMutation({
     mutationFn: () => {
       const expiresInDays = createExpiresInDays.trim();
-      const rateLimit = createRateLimit.trim();
       return createAPIKey({
         name: createName.trim(),
         ...(expiresInDays ? { expires_in_days: Number(expiresInDays) } : {}),
-        ...(rateLimit ? { rate_limit_rpm: Number(rateLimit) } : {}),
       });
     },
     onSuccess: (created) => {
@@ -111,12 +105,10 @@ export default function ApiKeysPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">API Keys</h2>
-        {!isReadOnly && (
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            สร้าง API Key
-          </Button>
-        )}
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          สร้าง API Key
+        </Button>
       </div>
 
       {isLoading && (
@@ -128,7 +120,6 @@ export default function ApiKeysPage() {
       {!isLoading && (
         <ApiKeyList
           keys={keys}
-          isReadOnly={isReadOnly}
           revokePending={revokeMutation.isPending}
           onEdit={openEdit}
           onRevoke={handleRevoke}
@@ -140,11 +131,9 @@ export default function ApiKeysPage() {
         open={createOpen}
         name={createName}
         expiresInDays={createExpiresInDays}
-        rateLimit={createRateLimit}
         mutation={createMutation}
         onNameChange={setCreateName}
         onExpiresInDaysChange={setCreateExpiresInDays}
-        onRateLimitChange={setCreateRateLimit}
         onClose={() => { setCreateOpen(false); resetCreateForm(); }}
       />
 

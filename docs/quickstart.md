@@ -54,16 +54,70 @@ token types) and `backend/app/mcp/server.py`.
 
 ## Base URL
 
-The stack runs behind nginx (see `default.conf`). Nginx listens on port 8080 internally;
+The stack runs behind nginx (see `nginx/default.conf`). Nginx listens on port 8080 internally;
 the externally published port is controlled by `EXTERNAL_HTTP_PORT` in the environment.
 
 | Context | Base URL |
 |---------|----------|
 | Local dev (`docker compose up`) | `http://localhost:${EXTERNAL_HTTP_PORT}` — if the variable is unset the port is not bound; set it (e.g. `EXTERNAL_HTTP_PORT=8080`) or use the deployed gateway origin. |
 | Deployed | Your deployment's origin (e.g. `https://chat.example.com`) |
+| Shared dev tunnel | `https://<random>.trycloudflare.com` — printed on startup by the `tunnel-url` service. Random per restart; see "Sharing a dev environment" below. |
 
 All REST endpoints are under `/api/v1`. The examples below use
 `BASE_URL=http://localhost:8080` as a placeholder.
+
+### Sharing a dev environment
+
+`docker compose up` opens a Cloudflare Quick Tunnel and prints the public URL:
+
+```
+=== DEV TUNNEL: https://certificates-text-respected-dad.trycloudflare.com ===
+```
+
+After `docker compose up -d`, or once the tunnel has restarted and minted a new
+hostname, re-print it with:
+
+```bash
+docker compose run --rm --no-deps tunnel-url
+```
+
+`--no-deps` matters: without it Compose restarts `cloudflared` and changes the very
+URL you asked for.
+
+**The URL is public and unauthenticated.** `POST /api/v1/chat` and
+`POST /api/v1/chat/stream` accept unauthenticated requests (they use
+`get_current_user_optional`), and every call spends real money against your
+`OPENROUTER_API_KEY`. A leaked link means someone else's traffic on your balance,
+not just a privacy problem. Beyond that, anyone with the link reaches the whole
+dev gateway — including `/jaeger`, `/docs`, `/redoc`, and `/openapi.json`. The
+hostname is random, unguessable, unindexed, and dies with the container, but it is
+not access control. Do not point it at data you would not hand to the recipient,
+and do not paste it anywhere public. If a tunnel link ever leaks, rotate
+`OPENROUTER_API_KEY` immediately, and consider setting a spend cap on the key so
+an anonymous leak is bounded in cost. If you need a hardened share, use a named
+Cloudflare Tunnel with Access policies instead — a different feature, not set up
+here.
+
+The URL changes on every tunnel restart, so it is unsuitable for webhooks or OAuth
+redirect URIs.
+
+**Troubleshooting.** `cloudflared` tracks the `latest` image tag, but `docker
+compose up` does not re-pull on its own, so a machine can sit on a months-old
+build and drift from a teammate's. If the tunnel fails to connect, refresh it:
+
+```bash
+docker compose pull cloudflared && docker compose up -d cloudflared
+```
+
+**"Blocked request. This host is not allowed."** The running `frontend` image
+predates the `allowedHosts` setting in `frontend/vite.config.ts` — editing that
+file does not affect an already-running container, since the dev override only
+syncs `frontend/src` and `docker compose up` does not rebuild an existing image.
+Rebuild it:
+
+```bash
+docker compose up -d --build frontend
+```
 
 ---
 
@@ -244,48 +298,6 @@ Source: `backend/app/errors.py` — `_STATUS_CODES` dict and `_envelope`.
 
 ---
 
-## Rate limits and quotas
-
-### Per-user rate limit (429)
-
-Authenticated users are limited to **30 requests per minute** (sliding window,
-configurable via `USER_RATE_LIMIT_RPM`, default `30`).
-
-When the limit is exceeded the server returns:
-
-```
-HTTP 429
-Retry-After: <seconds>
-{"error": {"code": "rate_limited", "message": "Rate limit exceeded", "retryable": true}}
-```
-
-Honor the `Retry-After` header and back off for at least that many seconds before
-retrying.
-
-Source: `backend/app/config.py` (`USER_RATE_LIMIT_RPM: int = 30`);
-`backend/app/routers/chat.py` (`enforce_user_rate_limit`).
-
-### Per-user monthly token quota (429)
-
-If `USER_MONTHLY_TOKEN_QUOTA` is configured (non-zero), the user's cumulative prompt +
-completion tokens for the current calendar month are checked before each request. When
-the quota is exceeded the server returns HTTP 429 with the error message
-`"monthly token quota exceeded (<used>/<limit>)"`.
-
-Default: **0 (unlimited)**.
-
-### Global daily cost limit (429)
-
-If `GLOBAL_DAILY_COST_LIMIT_USD` is configured (non-zero), the total USD cost across all
-requests for the current day is checked. When the budget is exceeded the server returns
-HTTP 429 with the error message `"global daily budget exceeded ($<spent>/$<limit>)"`.
-
-Default: **0 (unlimited)**.
-
-Source: `backend/app/services/quota.py`; `backend/app/config.py`.
-
----
-
 ## Interactive API docs
 
 The FastAPI application exposes interactive OpenAPI docs at:
@@ -294,7 +306,7 @@ The FastAPI application exposes interactive OpenAPI docs at:
 - **ReDoc**: `{BASE_URL}/redoc`
 - **OpenAPI JSON**: `{BASE_URL}/openapi.json`
 
-All three paths are proxied through nginx (see `default.conf` — the location regex
+All three paths are proxied through nginx (see `nginx/default.conf` — the location regex
 `^/(api|sse|messages|mcp|docs|redoc|openapi.json)` covers them).
 
 Source: `backend/app/main.py` (`docs_url="/docs"`, `redoc_url="/redoc"`).
@@ -449,6 +461,56 @@ streamChat("ขั้นตอนการทำพาสปอร์ตสำ�
 
 ---
 
+## OpenAI-compatible endpoint
+
+Point the official OpenAI SDK at the portal — no portal-specific client needed.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://<host>/api/v1", api_key="tcg_...")
+
+response = client.responses.create(
+    model="thai-citizen-guide",
+    input="ทำบัตรประชาชนหายต้องทำอย่างไร",
+)
+print(response.output_text)
+```
+
+Continue a conversation with `previous_response_id`:
+
+```python
+follow_up = client.responses.create(
+    model="thai-citizen-guide",
+    input="ต้องใช้เอกสารอะไรบ้าง",
+    previous_response_id=response.id,
+)
+```
+
+**Models:** `thai-citizen-guide` follows the configured upstream;
+`thai-citizen-guide-v5` and `thai-citizen-guide-v4` pin it.
+
+**Streaming:** `stream=True` emits the standard Responses event sequence. The answer
+arrives as a single `response.output_text.delta` — the orchestrator produces a complete
+answer rather than tokens — so streaming buys you connection semantics, not incremental text.
+
+**WebSocket:** connect to `wss://<host>/api/v1/responses` with an `Authorization: Bearer`
+header and send `{"type": "response.create", ...}` frames. One response is in flight at a
+time; connections are closed after 60 minutes. `{"generate": false}` warms a conversation
+without generating.
+
+**Portal extras:** each response carries a non-standard top-level `portal` object with
+`conversation_id`, the v5 `summary`, its `references`, `agency_ids`, and `cached`.
+
+**Three things to know:** `store` is accepted but ignored — every turn is persisted for
+analytics and audit. `usage` is always zero — the orchestrator does not report token counts.
+Pipeline progress events are not surfaced; use `/api/v1/chat/stream` for those.
+
+Full wire contract: [`spec/openai-responses.md`](../spec/openai-responses.md).
+
+---
+
 ## See also
 
 - [Agency Integration Guide](agency-integration.md) — connecting a government agency endpoint to the gateway
+- [OpenAI Responses API wire contract](../spec/openai-responses.md) — the OpenAI-compatible endpoint's full spec

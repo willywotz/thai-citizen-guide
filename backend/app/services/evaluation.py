@@ -2,11 +2,9 @@
 import json
 import logging
 
-from app.config import settings
 from app.models import Agency, EvalResult
 from app.models.evaluation import GoldenQuestion
 from app.services.conformance import _ask
-from app.services.llm_client import openrouter_chat
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +38,7 @@ async def _judge(question: str, topics: list, answer: str) -> tuple[float, str]:
     if not answer.strip():
         return 0.0, "no answer from agency"
     prompt = _JUDGE_PROMPT.format(question=question, topics=", ".join(topics), answer=answer[:4000])
-    resp = await openrouter_chat(
-        {"model": settings.CLASSIFICATION_MODEL, "messages": [{"role": "user", "content": prompt}]},
-        purpose="judge",
-    )
-    content = resp.json()["choices"][0]["message"]["content"]
-    data = json.loads(content)
+    from app.services.llm import Purpose, chat
+    res = await chat(purpose=Purpose.JUDGE, messages=[{"role": "user", "content": prompt}])
+    data = json.loads(res.content)
     return float(data["score"]), str(data.get("reason", ""))

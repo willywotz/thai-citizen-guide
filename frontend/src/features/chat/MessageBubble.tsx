@@ -1,12 +1,13 @@
 import { memo, useState } from "react";
-import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp, Bot } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { cn, parseThinkContent } from "@/shared/lib/utils";
 import type { ChatMessage } from "@/shared/types";
+import { SummaryCard } from "@/shared/components/SummaryCard";
+import { stripSummaryPrefix } from "@/shared/lib/summary";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AppLogo } from "@/shared/components/ui/AppLogo";
 
 export const MessageBubble = memo(function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
   const [showFeedback, setShowFeedback] = useState(false);
@@ -24,12 +25,12 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
 
   return (
     <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
-      {isUser
+      {/* {isUser
         ? <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm bg-primary text-primary-foreground">👤</div>
-        : <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />}
-      <div className={cn("max-w-[75%] space-y-2", isUser && "text-right")}>
+        : <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>} */}
+      <div className={cn("max-w-[80%] space-y-2", isUser && "text-right")}>
         <div className={cn(
-          "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+          "rounded-2xl px-4 py-3 text-base leading-relaxed",
           isUser
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm"
@@ -54,9 +55,12 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
           {isUser ? (
             <div className="whitespace-pre-wrap">{answer}</div>
           ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
-            </div>
+            <>
+              <SummaryCard summary={message.summary} references={message.summaryReferences} />
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripSummaryPrefix(answer, message.summary)}</ReactMarkdown>
+              </div>
+            </>
           )}
         </div>
         {!isUser && message.sources && (

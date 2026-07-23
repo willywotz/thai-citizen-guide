@@ -14,7 +14,6 @@ import uuid
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, status, Depends
-from app.auth.authz import authorize_or_403
 from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.models.user import User
 from tortoise.exceptions import DoesNotExist
@@ -92,7 +91,7 @@ async def list_conversations(
 
     qs = Conversation.all()
 
-    if not (user.is_admin or user.role == "auditor"):
+    if not user.is_admin:
         qs = qs.filter(user_id=user.id)
 
     if search:
@@ -153,7 +152,8 @@ async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    await authorize_or_403(user, "conversation:read", conv)
+    if str(conv.user_id) != str(user.id) and not user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     messages = await Message.filter(conversation_id=conversation_id).order_by("created_at")
 
@@ -173,6 +173,8 @@ async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_
                 "content": m.content,
                 "agent_steps": m.agent_steps,
                 "sources": m.sources,
+                "summary": m.summary,
+                "summary_references": m.summary_references or [],
                 "rating": m.rating,
                 "feedback_text": m.feedback_text,
                 "created_at": m.created_at.isoformat(),
@@ -187,7 +189,8 @@ async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Dep
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    await authorize_or_403(user, "conversation:read", conv)
+    if str(conv.user_id) != str(user.id) and not user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     messages = await Message.filter(conversation_id=conversation_id).order_by("created_at")
 
@@ -198,6 +201,8 @@ async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Dep
             "content": m.content,
             "agent_steps": m.agent_steps,
             "sources": m.sources,
+            "summary": m.summary,
+            "summary_references": m.summary_references or [],
             "rating": m.rating,
             "feedback_text": m.feedback_text,
             "created_at": m.created_at.isoformat(),
@@ -216,5 +221,6 @@ async def delete_conversation(conversation_id: uuid.UUID, user: User = Depends(g
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    await authorize_or_403(user, "conversation:delete", conv)
+    if str(conv.user_id) != str(user.id) and not user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
     await conv.delete()

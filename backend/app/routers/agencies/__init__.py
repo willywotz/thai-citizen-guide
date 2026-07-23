@@ -1,7 +1,7 @@
 """Agencies router package.
 
 Registration order preserves the critical FastAPI matching constraint:
-literal paths (/mine, /mcp/discover, /parse-spec) must be registered
+literal paths (/mcp/discover, /parse-spec) must be registered
 BEFORE parametric /{agency_id} paths to avoid UUID wildcard shadowing.
 
 list_agencies and create_agency are registered directly on this router
@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.auth.dependencies import require_admin
 from app.models.user import User
-from app.routers.agencies import crud, golden, lifecycle, owners, spec
+from app.routers.agencies import crud, golden, lifecycle, logo, spec
 from app.schemas.agency import AgencyCreate, AgencyListResponse, AgencyResponse
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
@@ -24,11 +24,11 @@ router.post("", response_model=AgencyResponse, status_code=status.HTTP_201_CREAT
 
 # Literal-path sub-routers first (no /{agency_id} wildcard)
 router.include_router(spec.router)      # /mcp/discover, /parse-spec
-router.include_router(owners.router)    # /mine, /{id}/owners
 
 # Sub-resource routers
 router.include_router(lifecycle.router)  # /{id}/status, /{id}/conformance, /{id}/health/history, /{id}/test
 router.include_router(golden.router)     # /{id}/golden-questions, /{id}/eval-results
+router.include_router(logo.router)       # /{id}/logo (GET/POST)
 
 # CRUD parametric routes last (/{id} catch-all)
 router.include_router(crud.router)       # /{id}, /{id}/increment-calls
@@ -40,5 +40,5 @@ get_agency = crud.get_agency
 update_agency_status = lifecycle.update_agency_status
 agency_health_history = lifecycle.agency_health_history
 mcp_discover = spec.mcp_discover
-add_agency_owner = owners.add_agency_owner
-list_my_agencies = owners.list_my_agencies
+upload_agency_logo = logo.upload_agency_logo
+get_agency_logo = logo.get_agency_logo

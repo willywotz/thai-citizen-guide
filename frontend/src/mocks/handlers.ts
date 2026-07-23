@@ -5,7 +5,9 @@ import type { AgencyLifecycleStatus, AgencyRow, HealthWindow } from "@/shared/ty
 import type { HistoryItem } from "@/features/history/historyApi";
 import { agencyUsageData, categoryData, dashboardStats, weeklyTrendData, conversationHistory } from "@/shared/data/mockData";
 
-import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies, mockFeedbackStats, row } from "./fixtures";
+import type { PopularQuestionAdmin } from "@/features/popular-questions/popularQuestionsApi";
+
+import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies, mockFeedbackStats, mockPopularQuestions, row } from "./fixtures";
 
 const MOCK_HISTORY_ITEMS: HistoryItem[] = (conversationHistory as unknown as HistoryItem[]).map((c) => ({
   id: c.id,
@@ -232,6 +234,17 @@ export const handlers = [
     return HttpResponse.json({ success: true });
   }),
 
+  http.post("*/api/v1/agencies/:id/logo", async ({ params, request }) => {
+    const agency = findAgency(params.id as string);
+    if (!agency) return HttpResponse.json({ detail: "Agency not found" }, { status: 404 });
+    const formData = await request.formData();
+    const file = formData.get("file");
+    if (!file) return HttpResponse.json({ detail: "file is required" }, { status: 422 });
+    agency.logo = `/api/v1/agencies/${agency.id}/logo?v=abcd1234`;
+    agency.updated_at = new Date().toISOString();
+    return HttpResponse.json(agency);
+  }),
+
   http.get("*/api/v1/agencies/:id/test", ({ params }) => {
     const agency = findAgency(params.id as string);
     if (!agency) return HttpResponse.json({ detail: "Agency not found" }, { status: 404 });
@@ -246,4 +259,81 @@ export const handlers = [
       latency: "320ms",
     });
   }),
+
+  http.get("*/api/v1/public/agencies", () => {
+    const data = mockAgencies
+      .filter((a) => a.status !== "draft")
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        short_name: a.short_name,
+        logo: a.logo,
+        description: a.description,
+        connection_type: a.connection_type,
+        status: a.status,
+      }));
+    return HttpResponse.json(data);
+  }),
+
+  http.get("*/api/v1/public/popular-questions", () => {
+    const data = mockPopularQuestions
+      .filter((q) => !q.hidden)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .slice(0, 8)
+      .map(({ id, text, agency }) => ({ id, text, agency }));
+    return HttpResponse.json({ data });
+  }),
+
+  http.get("*/api/v1/popular-questions", () =>
+    HttpResponse.json({ data: mockPopularQuestions, total: mockPopularQuestions.length }),
+  ),
+
+  http.post("*/api/v1/popular-questions", async ({ request }) => {
+    const body = (await request.json()) as { text: string; agency_id?: string | null };
+    const agency = body.agency_id ? findAgency(body.agency_id) : undefined;
+    const created: PopularQuestionAdmin = {
+      id: crypto.randomUUID(),
+      text: body.text,
+      agency: agency ? { id: agency.id, name: agency.name, logo: agency.logo } : null,
+      source: "manual",
+      pinned: false,
+      hidden: false,
+      sort_order: mockPopularQuestions.length,
+      score: 0,
+    };
+    mockPopularQuestions.push(created);
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
+  http.patch("*/api/v1/popular-questions/:id", async ({ params, request }) => {
+    const question = mockPopularQuestions.find((q) => q.id === params.id);
+    if (!question) return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    const body = (await request.json()) as Partial<{
+      text: string;
+      agency_id: string | null;
+      pinned: boolean;
+      hidden: boolean;
+      sort_order: number;
+    }>;
+    if (body.text !== undefined) question.text = body.text;
+    if (body.pinned !== undefined) question.pinned = body.pinned;
+    if (body.hidden !== undefined) question.hidden = body.hidden;
+    if (body.sort_order !== undefined) question.sort_order = body.sort_order;
+    if (body.agency_id !== undefined) {
+      const agency = body.agency_id ? findAgency(body.agency_id) : undefined;
+      question.agency = agency ? { id: agency.id, name: agency.name, logo: agency.logo } : null;
+    }
+    return HttpResponse.json(question);
+  }),
+
+  http.delete("*/api/v1/popular-questions/:id", ({ params }) => {
+    const idx = mockPopularQuestions.findIndex((q) => q.id === params.id);
+    if (idx === -1) return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    mockPopularQuestions.splice(idx, 1);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post("*/api/v1/popular-questions/regenerate", () =>
+    HttpResponse.json({ status: "scheduled" }, { status: 202 }),
+  ),
 ];

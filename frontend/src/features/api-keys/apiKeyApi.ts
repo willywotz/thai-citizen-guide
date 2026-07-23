@@ -10,7 +10,6 @@ export interface APIKey {
   created_at: string;
   expires_at: string | null;
   revoked_at: string | null;
-  rate_limit_rpm: number | null;
   status: APIKeyStatus;
 }
 
@@ -21,7 +20,6 @@ export interface CreatedAPIKey extends APIKey {
 export interface CreateAPIKeyRequest {
   name: string;
   expires_in_days?: number | null;
-  rate_limit_rpm?: number | null;
 }
 
 export const listAPIKeys = (): Promise<APIKey[]> =>

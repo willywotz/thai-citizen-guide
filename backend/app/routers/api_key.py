@@ -20,7 +20,6 @@ class APIKeyResponse(BaseModel):
     created_at: str
     expires_at: str | None
     revoked_at: str | None
-    rate_limit_rpm: int | None
     status: str
 
 
@@ -31,7 +30,6 @@ class CreatedAPIKeyResponse(APIKeyResponse):
 class CreateAPIKeyRequest(BaseModel):
     name: str
     expires_in_days: int | None = None
-    rate_limit_rpm: int | None = None
 
 
 class UpdateAPIKeyRequest(BaseModel):
@@ -55,7 +53,6 @@ def _resp(k: UserAPIKey) -> APIKeyResponse:
         created_at=str(k.created_at),
         expires_at=str(k.expires_at) if k.expires_at else None,
         revoked_at=str(k.revoked_at) if k.revoked_at else None,
-        rate_limit_rpm=k.rate_limit_rpm,
         status=_status(k),
     )
 
@@ -70,14 +67,12 @@ async def list_api_keys(user: User = Depends(get_current_user)) -> list[APIKeyRe
 async def create_api_key(body: CreateAPIKeyRequest, user: User = Depends(get_current_user)) -> CreatedAPIKeyResponse:
     if body.expires_in_days is not None and body.expires_in_days <= 0:
         raise HTTPException(status_code=400, detail="expires_in_days must be positive")
-    if body.rate_limit_rpm is not None and body.rate_limit_rpm <= 0:
-        raise HTTPException(status_code=400, detail="rate_limit_rpm must be positive")
     expires_at = now() + timedelta(days=body.expires_in_days) if body.expires_in_days else None
     raw = generate_api_key()
     new_key = await UserAPIKey.create(
         user_id=user.id, name=body.name,
         key_hash=hash_api_key(raw), key_prefix=raw[:12],
-        expires_at=expires_at, rate_limit_rpm=body.rate_limit_rpm,
+        expires_at=expires_at,
     )
     return CreatedAPIKeyResponse(**_resp(new_key).model_dump(), key=raw)
 

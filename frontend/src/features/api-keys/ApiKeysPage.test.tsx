@@ -10,9 +10,6 @@ import type { APIKey, CreatedAPIKey } from "./apiKeyApi";
 // Mocks
 // ---------------------------------------------------------------------------
 
-const auth = { isReadOnly: false };
-vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
-
 const mockListAPIKeys = vi.fn();
 const mockCreateAPIKey = vi.fn();
 const mockUpdateAPIKey = vi.fn();
@@ -39,7 +36,6 @@ const makeKey = (overrides: Partial<APIKey> = {}): APIKey => ({
   created_at: "2024-01-01T00:00:00Z",
   expires_at: null,
   revoked_at: null,
-  rate_limit_rpm: null,
   status: "active",
   ...overrides,
 });
@@ -69,7 +65,6 @@ function renderPage() {
 
 describe("ApiKeysPage create button", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     mockListAPIKeys.mockResolvedValue([]);
   });
 
@@ -79,20 +74,9 @@ describe("ApiKeysPage create button", () => {
     renderPage();
     expect(await screen.findByText("สร้าง API Key")).toBeInTheDocument();
   });
-
-  it("hides the create button for a read-only role", async () => {
-    auth.isReadOnly = true;
-    renderPage();
-    await screen.findByText("ยังไม่มี API Key กรุณาสร้างใหม่");
-    expect(screen.queryByText("สร้าง API Key")).not.toBeInTheDocument();
-  });
 });
 
 describe("ApiKeysPage list rendering", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   afterEach(() => vi.clearAllMocks());
 
   it("shows empty state when there are no keys", async () => {
@@ -122,21 +106,9 @@ describe("ApiKeysPage list rendering", () => {
     expect(screen.queryByRole("button", { name: "เพิกถอน" })).not.toBeInTheDocument();
   });
 
-  it("hides action buttons for read-only users", async () => {
-    auth.isReadOnly = true;
-    mockListAPIKeys.mockResolvedValue([makeKey({ id: "k1", name: "Some Key" })]);
-    renderPage();
-    await screen.findByText("Some Key");
-    expect(screen.queryByRole("button", { name: "แก้ไข" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "ลบ" })).not.toBeInTheDocument();
-  });
 });
 
 describe("ApiKeysPage create flow", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   afterEach(() => vi.clearAllMocks());
 
   it("opens create dialog when button is clicked", async () => {
@@ -206,10 +178,6 @@ describe("ApiKeysPage create flow", () => {
 });
 
 describe("ApiKeysPage edit flow", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   afterEach(() => vi.clearAllMocks());
 
   it("opens edit dialog with pre-filled name when edit button is clicked", async () => {
@@ -245,7 +213,6 @@ describe("ApiKeysPage edit flow", () => {
 
 describe("ApiKeysPage revoke flow", () => {
   beforeEach(() => {
-    auth.isReadOnly = false;
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
@@ -280,10 +247,6 @@ describe("ApiKeysPage revoke flow", () => {
 });
 
 describe("ApiKeysPage delete flow", () => {
-  beforeEach(() => {
-    auth.isReadOnly = false;
-  });
-
   afterEach(() => vi.clearAllMocks());
 
   it("opens delete confirm dialog when delete button is clicked", async () => {

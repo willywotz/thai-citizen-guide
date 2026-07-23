@@ -1,3 +1,4 @@
+import { AgencyLogo } from "@/shared/components/AgencyLogo";
 import { Badge } from "@/shared/components/ui/badge";
 
 import type { AgencyFormState } from "../agencyForm";
@@ -24,7 +25,7 @@ export function StepReview({ form }: Props) {
           className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
           style={{ backgroundColor: `${form.color}15` }}
         >
-          {form.logo}
+          <AgencyLogo logo={form.logo} alt={form.name} className="w-full h-full rounded-xl" />
         </div>
         <div>
           <p className="font-medium">{form.name}</p>
@@ -40,7 +41,6 @@ export function StepReview({ form }: Props) {
         <Row label="Router hint" value={form.routerHint} />
         <Row label="Priority" value={form.priority} />
         <Row label="Timeout (s)" value={form.dispatchTimeoutS} />
-        <Row label="Rate limit (rpm)" value={form.rateLimitRpm} />
       </div>
       <p className="text-xs text-muted-foreground">
         "เปิดใช้งาน" จะตั้งสถานะเป็น Active และเข้าร่วมการ routing ทันที — หรือบันทึกเป็น Draft เพื่อกลับมาแก้ไขภายหลัง

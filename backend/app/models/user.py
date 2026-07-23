@@ -14,7 +14,7 @@ class User(Model):
     email = fields.CharField(max_length=255, unique=True)
     display_name = fields.CharField(max_length=255, null=True)
     hashed_password = fields.CharField(max_length=500)
-    role = fields.CharField(max_length=20, default="user")     # user | viewer | auditor | agency_owner | admin
+    role = fields.CharField(max_length=20, default="user")     # user | admin
     avatar_url = fields.CharField(max_length=500, null=True)
     is_active = fields.BooleanField(default=True)
 
@@ -49,7 +49,6 @@ class UserAPIKey(Model):
     last_used_at = fields.DatetimeField(null=True)
     expires_at = fields.DatetimeField(null=True)       # null = never expires
     revoked_at = fields.DatetimeField(null=True)       # set when revoked; null = active
-    rate_limit_rpm = fields.IntField(null=True)        # null = no per-key limit
     created_at = fields.DatetimeField(auto_now_add=True)
 
     def is_usable(self) -> bool:

@@ -32,8 +32,11 @@ from app.database import init_db, close_db
 from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
-from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, public_status, users, settings as settings_router
+from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
+from app.routers import llm as llm_router
+from app.routers import responses
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
+from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
 from app.utils import generate_uuid, now
 
@@ -73,6 +76,7 @@ async def lifespan(app: FastAPI):
     await load_settings_from_db()
     await _run_seed_admin()
     await _run_seed_agencies()
+    await seed_popular_questions()
     await start_scheduler()
 
     async with mcp_app.lifespan(app):
@@ -124,15 +128,18 @@ app.include_router(agencies.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(responses.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(connection_logs.router, prefix="/api/v1")
 app.include_router(api_key.router, prefix="/api/v1")
 app.include_router(executive_summary.router, prefix="/api/v1")
 app.include_router(insight.router, prefix="/api/v1")
+app.include_router(popular_questions.router, prefix="/api/v1")
 app.include_router(public_status.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(audit_log.router, prefix="/api/v1")
+app.include_router(llm_router.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # MCP transport — intentionally outside the role chokepoint
@@ -140,9 +147,8 @@ app.include_router(audit_log.router, prefix="/api/v1")
 # NOTE: enforce_role_allowlist (an app-level FastAPI dependency) does NOT cover
 # this mount. Mounted sub-apps (app.mount) bypass FastAPI's dependency
 # injection by design. MCP auth is enforced in app/mcp/server.py via API key:
-# any active user is admitted with no role check, so read-only roles (viewer,
-# auditor) may use MCP chat. Do not "fix" this by gating the mount without
-# revisiting that intent — see backend/tests/test_mcp_role_access.py.
+# any active user is admitted with no role check. Do not "fix" this by gating
+# the mount without revisiting that intent — see backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------
 
 # MCP server — stateless streamable-HTTP sub-app

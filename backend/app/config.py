@@ -33,12 +33,18 @@ class Settings(BaseSettings):
     DB_POOL_MIN: int = 1
     DB_POOL_MAX: int = 10
 
-    # ── Redis (distributed rate limiting) ────────────────────────────────────
+    # ── Uploads ──────────────────────────────────────────────────────────────
+    # Single source of truth for on-disk upload storage (named Docker volume in
+    # docker-compose.yaml, backend service only). Agency logos live under
+    # {UPLOAD_DIR}/agency-logos/.
+    UPLOAD_DIR: str = "/app/uploads"
+
+    # ── Redis (shared LLM-provider throttle budget across workers) ───────────
     REDIS_URL: str = ""           # empty = in-process limiter (single worker)
     REDIS_SOCKET_TIMEOUT_MS: int = 100
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"]
+    CORS_ORIGINS: list[str] = ["*"]  # bypass all origins by default
 
     # ── Auth ─────────────────────────────────────────────────────────────────
     JWT_SECRET: str = DEFAULT_JWT_SECRET
@@ -47,19 +53,7 @@ class Settings(BaseSettings):
     MIN_PASSWORD_LENGTH: int = 6
     RESET_TOKEN_EXPIRE_HOURS: int = 1
     RESET_TOKEN_BYTES: int = 32
-    EXPOSE_PASSWORD_RESET_TOKEN: bool = True  # Set False in production; deliver token by email instead
-
-    # ── Email ────────────────────────────────────────────────────────────────
-    EMAIL_SMTP_HOST: str = ""          # empty = email disabled (non-breaking default)
-    EMAIL_SMTP_PORT: int = 587
-    EMAIL_SMTP_USER: str = ""
-    EMAIL_SMTP_PASSWORD: str = ""
-    EMAIL_FROM: str = ""               # falls back to EMAIL_SMTP_USER if empty
-    EMAIL_USE_TLS: bool = True
-    EMAIL_USE_SSL: bool = False
-    EMAIL_SMTP_TIMEOUT: int = 10
-    # Must match the deployed frontend origin (same as the relevant CORS origin) or reset-email links will point to the wrong host.
-    FRONTEND_BASE_URL: str = "http://localhost:8080"
+    EXPOSE_PASSWORD_RESET_TOKEN: bool = True  # reset/set-password token is returned in the API response
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
@@ -76,6 +70,8 @@ class Settings(BaseSettings):
     # ── OneChat endpoints ────────────────────────────────────────────────────
     ONECHAT_V3_URL: str = "http://185.84.160.55:8000/v3/chat"
     ONECHAT_V4_URL: str = "http://185.84.160.55:8000/v4/chat"
+    ONECHAT_V5_URL: str = "http://185.84.160.55:8000/v5/chat"
+    CHAT_STREAM_VERSION: str = "v5"        # "v4" | "v5" — upstream for POST /chat/stream
     MCP_ENDPOINT_URL: str = "http://185.84.161.145/mcp/"
 
     # ── MCP ──────────────────────────────────────────────────────────────────
@@ -84,16 +80,16 @@ class Settings(BaseSettings):
     MCP_CLIENT_VERSION: str = "1.0"
 
     # ── Chat ─────────────────────────────────────────────────────────────────
-    USER_RATE_LIMIT_RPM: int = 30
     A2A_DISPATCH_TIMEOUT: int = 30
     V4_STREAM_TIMEOUT: float = 300.0
     EXTERNAL_CHAT_TIMEOUT: float = 180.0
     TITLE_MAX_LENGTH: int = 50
     PREVIEW_MAX_LENGTH: int = 100
     SPEC_TEXT_MAX_CHARS: int = 30000
+    RESPONSES_WS_MAX_CONNECTIONS: int = 100
+    RESPONSES_WS_MAX_DURATION_SECONDS: int = 3600
 
     # ── Agency health / scheduler ────────────────────────────────────────────
-    BREAKER_FAILURE_THRESHOLD: int = 5
     AGENCY_CHAT_TIMEOUT: int = 180
     AGENCY_CHAT_CONCURRENCY: int = 5
     HEALTH_CHECK_INTERVAL_MINUTES: int = 15
@@ -105,7 +101,13 @@ class Settings(BaseSettings):
 
     # ── Executive summary ────────────────────────────────────────────────────
     BRIEF_REGEN_INTERVAL_HOURS: int = 24
-    WEEKLY_BRIEF_TIMEOUT: float = 30.0
+    WEEKLY_BRIEF_TIMEOUT: float = 3600.0  # 1h — effectively no limit for the weekly brief
+
+    # ── Popular questions ────────────────────────────────────────────────────
+    POPULAR_QUESTIONS_REGEN_INTERVAL_HOURS: int = 24
+    POPULAR_QUESTIONS_WINDOW_DAYS: int = 30
+    POPULAR_QUESTIONS_MIN_TURNS: int = 20
+    POPULAR_QUESTIONS_DISPLAY_COUNT: int = 8
 
     # ── Analytics windows ────────────────────────────────────────────────────
     AVG_LATENCY_WINDOW_DAYS: int = 1
@@ -113,19 +115,10 @@ class Settings(BaseSettings):
     BUSINESS_HOURS_START: int = 8
     BUSINESS_HOURS_END: int = 18
 
-    # ── Quota ────────────────────────────────────────────────────────────────
-    USER_MONTHLY_TOKEN_QUOTA: int = 0      # 0 = unlimited
-    GLOBAL_DAILY_COST_LIMIT_USD: float = 0.0  # 0 = unlimited
-
     # ── Embedding / similarity ──────────────────────────────────────────────
-    EMBEDDING_API_URL: str = "https://api.openai.com/v1/embeddings"
-    EMBEDDING_API_KEY: str = ""
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
-    EMBEDDING_DIMENSIONS: int = 384
-    EMBEDDING_TIMEOUT: int = 5
     SIMILARITY_THRESHOLD: float = 0.95
     SIMILARITY_WINDOW_SECONDS: int = 259200  # 3 days
-    SIMILARITY_FALLBACK: str = "both"  # "similarity", "levenshtein", or "both"
+    SIMILARITY_CACHE_ENABLED: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -166,26 +159,16 @@ def assert_production_secrets(s: "Settings") -> None:
 
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
+    "Similarity": ["SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_CACHE_ENABLED"],
     "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
-    "Database": ["DATABASE_URL", "DB_POOL_MIN", "DB_POOL_MAX"],
-    "CORS": ["CORS_ORIGINS"],
-    "Auth": ["JWT_SECRET", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES", "MIN_PASSWORD_LENGTH", "RESET_TOKEN_EXPIRE_HOURS", "RESET_TOKEN_BYTES", "EXPOSE_PASSWORD_RESET_TOKEN"],
-    "Email": ["EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_USE_TLS", "EMAIL_USE_SSL", "EMAIL_SMTP_TIMEOUT", "FRONTEND_BASE_URL"],
-    "LLM / OpenRouter": ["OPENROUTER_API_KEY", "OPENROUTER_API_URL", "CLASSIFICATION_MODEL", "LLM_CALL_TIMEOUT"],
-    "Parse spec": ["PARSE_SPEC_URL", "PARSE_SPEC_API_KEY", "PARSE_SPEC_TIMEOUT", "PARSE_SPEC_LLM_MODEL"],
-    "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "MCP_ENDPOINT_URL"],
+    "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "ONECHAT_V5_URL", "CHAT_STREAM_VERSION", "MCP_ENDPOINT_URL"],
     "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
-    "Chat": ["USER_RATE_LIMIT_RPM", "A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS"],
-    "Agency health": ["BREAKER_FAILURE_THRESHOLD", "AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
-    "Executive summary": ["BRIEF_REGEN_INTERVAL_HOURS", "WEEKLY_BRIEF_TIMEOUT"],
-    "Analytics": ["AVG_LATENCY_WINDOW_DAYS", "FEEDBACK_TREND_DAYS", "BUSINESS_HOURS_START", "BUSINESS_HOURS_END"],
-    "Embedding / similarity": ["EMBEDDING_API_URL", "EMBEDDING_API_KEY", "EMBEDDING_MODEL", "EMBEDDING_DIMENSIONS", "EMBEDDING_TIMEOUT", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_FALLBACK"],
-    "Quota": ["USER_MONTHLY_TOKEN_QUOTA", "GLOBAL_DAILY_COST_LIMIT_USD"],
+    "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS", "RESPONSES_WS_MAX_CONNECTIONS", "RESPONSES_WS_MAX_DURATION_SECONDS"],
+    "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
 }
 
 SECRET_FIELD_NAMES: set[str] = {
-    "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY", "EMBEDDING_API_KEY",
-    "EMAIL_SMTP_PASSWORD",
+    "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
 }
 
 settings = Settings()

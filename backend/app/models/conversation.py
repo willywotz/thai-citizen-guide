@@ -52,15 +52,14 @@ class Message(Model):
     content = fields.TextField()
     agent_steps = fields.JSONField(default=list)        # list of AgentStep objects
     sources = fields.JSONField(default=list)            # list of source references
+    summary = fields.TextField(null=True)               # v5 executive summary (LLM-written); None in v4 mode
+    summary_references = fields.JSONField(default=list) # v5 references[] — scoped to `summary` only
     rating = fields.CharField(max_length=10, null=True) # up | down | None
     feedback_text = fields.TextField(null=True)
     response_time = fields.IntField(null=True)        # in seconds
     category = fields.CharField(max_length=50, null=True) # สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
     agency_ids = fields.JSONField(default=list, null=True)     # list of agency ids involved in this message
     errors = fields.JSONField(default=list, null=True)       # list of error messages if any
-    # JSON-encoded vector; stays TEXT so SQLite tests work. Indexed via idx_messages_embedding_cosine
-    # (HNSW, vector_cosine_ops, dimensions fixed at EMBEDDING_DIMENSIONS=384) on Postgres.
-    embedding = fields.CharField(max_length=50000, null=True)
 
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

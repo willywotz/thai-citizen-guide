@@ -28,27 +28,28 @@ async def test_create_with_password_hashes_and_persists(db):
 
 
 @pytest.mark.asyncio
-async def test_create_with_invite_issues_token_and_emails(db):
-    with patch.object(user_service, "send_password_reset_email", AsyncMock(return_value=True)):
+async def test_create_with_invite_issues_token_exposed_when_flag_on(db):
+    from app.config import settings
+
+    with patch.object(settings, "EXPOSE_PASSWORD_RESET_TOKEN", True):
         created, extra = await user_service.create_user(
             UserCreate(email="inv@example.com", role="user", send_invite=True)
         )
     assert created.reset_token is not None
-    assert extra["email_sent"] is True
-    assert "reset_token" not in extra
+    assert extra["email_sent"] is False
+    assert extra["reset_token"] == created.reset_token
 
 
 @pytest.mark.asyncio
-async def test_create_invite_email_fails_exposes_token_when_flag_on(db):
+async def test_create_invite_omits_token_when_flag_off(db):
     from app.config import settings
 
-    with patch.object(settings, "EXPOSE_PASSWORD_RESET_TOKEN", True), \
-         patch.object(user_service, "send_password_reset_email", AsyncMock(return_value=False)):
-        _created, extra = await user_service.create_user(
+    with patch.object(settings, "EXPOSE_PASSWORD_RESET_TOKEN", False):
+        created, extra = await user_service.create_user(
             UserCreate(email="inv2@example.com", send_invite=True)
         )
-    assert extra["email_sent"] is False
-    assert extra["reset_token"]
+    assert created.reset_token is not None  # token still set on the user
+    assert "reset_token" not in extra
 
 
 @pytest.mark.asyncio

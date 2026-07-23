@@ -1,4 +1,5 @@
 import type { AgencyRow, HealthHistoryBucketRow, HealthWindow } from "@/shared/types/agency";
+import type { PopularQuestionAdmin } from "@/features/popular-questions/popularQuestionsApi";
 
 export function row(partial: Partial<AgencyRow> & Pick<AgencyRow, "id" | "name" | "short_name">): AgencyRow {
   return {
@@ -8,13 +9,12 @@ export function row(partial: Partial<AgencyRow> & Pick<AgencyRow, "id" | "name" 
     description: "",
     data_scope: [],
     total_calls: 0,
-    color: "hsl(213 70% 45%)",
+    color: "#2563eb",
     endpoint_url: "",
     api_key_name: null,
     auth_method: "api_key",
     auth_header: "",
     base_path: "",
-    rate_limit_rpm: null,
     request_format: "json",
     api_endpoints: [],
     response_schema: [],
@@ -108,8 +108,46 @@ export function makeFixtureAgencies(): AgencyRow[] {
 /** Mutable in-memory store the handlers operate on. */
 export let mockAgencies: AgencyRow[] = makeFixtureAgencies();
 
+export function makeFixturePopularQuestions(): PopularQuestionAdmin[] {
+  return [
+    {
+      id: "pq-1",
+      text: "สอบถามเรื่องการลดหย่อนภาษี 2568",
+      agency: { id: "11111111-1111-1111-1111-111111111111", name: "กรมสรรพากร", logo: "🏛️" },
+      source: "seed",
+      pinned: true,
+      hidden: false,
+      sort_order: 0,
+      score: 42,
+    },
+    {
+      id: "pq-2",
+      text: "ขอตรวจสอบทะเบียนยา พาราเซตามอล",
+      agency: { id: "22222222-2222-2222-2222-222222222222", name: "สำนักงานคณะกรรมการอาหารและยา", logo: "💊" },
+      source: "auto",
+      pinned: false,
+      hidden: false,
+      sort_order: 1,
+      score: 18,
+    },
+    {
+      id: "pq-3",
+      text: "คำถามทั่วไปที่ไม่มีหน่วยงานเจ้าของ",
+      agency: null,
+      source: "manual",
+      pinned: false,
+      hidden: true,
+      sort_order: 2,
+      score: 3,
+    },
+  ];
+}
+
+export let mockPopularQuestions: PopularQuestionAdmin[] = makeFixturePopularQuestions();
+
 export function resetMockData(): void {
   mockAgencies = makeFixtureAgencies();
+  mockPopularQuestions = makeFixturePopularQuestions();
 }
 
 export const FIXTURE_MCP_TOOLS = [
